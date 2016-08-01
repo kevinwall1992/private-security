@@ -35,6 +35,8 @@ using std::queue;
 #include <SDL.h>
 #include <SDL_opengl.h>
 
+#include "Parameters.h"
+
 
 struct Vertex
 {
@@ -343,9 +345,6 @@ void ConcludeOpenGL()
 
 }
 
-
-#define PACKET_SIZE 4
-
 #define JOIN(x, y) JOIN_AGAIN(x, y)
 #define JOIN_AGAIN(x, y) x ## y
 #define RTCRayPacket JOIN(RTCRay, PACKET_SIZE)//need to test compile time packet sizes vs run time packet sizes
@@ -516,10 +515,6 @@ struct Film
 	void Develop(Image &image);
 };
 
-//Going to postpone support for more than 1 samples per pixel
-#define SAMPLES_PER_PIXEL 1
-#define TILE_WIDTH 64
-#define TILE_HEIGHT 8
 
 //consider having queryable lock when generating rays so
 //Threads can pass if object is busy
@@ -581,7 +576,6 @@ struct BlockState{enum Enum {Empty, Filling, Full};};
 
 //We want to have a way to test out ray block sizes and tile sizes independently
 //We can at least use a multiple pretty easily
-#define RAY_BLOCK_SIZE TILE_WIDTH* TILE_HEIGHT
 struct RayBlock
 {
 	//RTCRay rays[RAY_BLOCK_SIZE];
@@ -667,7 +661,12 @@ struct Job
 	Job();
 };
 
-#define THREAD_COUNT 4
+//Note that in practice, each thread basically runs on its own block. It grabs one randomly,
+//But then it refills it, and in the microseconds after he returns it, he's the only one looking for
+//a new job, and the only available job is the filled block it just turned in.
+//I'm suggesting a new system where threads run in their own lanes and less communication is necessary.
+//We'd still need a pool of blocks for non-primary rays though, so you'd have to work out how that fits.
+//Also note that I'm thinking that atomics are better than mutices if you do it right, since they are incredibly fast.
 int primary_ray_block_count= THREAD_COUNT* 1;
 class ShaderWorkPool//should think if we can generalize this class
 {

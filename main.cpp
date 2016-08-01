@@ -1,4 +1,5 @@
 #include "Main.h"
+#include "get_rays_ispc.h"//not sure I want to keep this ispc naming style
 
 Light::Light()
 {
@@ -196,12 +197,16 @@ void Film::Develop(Image &image)
 	}
 	max_component*= 1.1f;
 
+#if 1
+	ispc::Develop(reinterpret_cast<float *>(receptors), reinterpret_cast<int8_t *>(image.pixels), max_component, width* height* 3);
+#else
 	for(int i= 0; i< width* height; i++)
 	{
 		image.pixels[i].r= (unsigned char)((receptors[i].x/ max_component)* 255);
 		image.pixels[i].g= (unsigned char)((receptors[i].y/ max_component)* 255);
 		image.pixels[i].b= (unsigned char)((receptors[i].z/ max_component)* 255);
 	}
+#endif
 }
 
 
@@ -287,6 +292,30 @@ Vec3f MakeVec3f(const float components[3])
 //On a refill job, so you could try out small blocks+ big GetRays() count?
 void Camera::GetRays(CompleteRay first_ray, int &count)
 {
+#if 1
+	if(next_tile_index>= TILE_WIDTH* TILE_HEIGHT)
+	{
+		count= 0;
+		return;
+	}
+
+	int tile_index= next_tile_index++;
+
+	float position_[3]; SetFloat3(position_, position);
+	float forward_[3]; SetFloat3(forward_, forward);
+	float view_plane_u_[3]; SetFloat3(view_plane_u_, view_plane_u);
+	float view_plane_v_[3]; SetFloat3(view_plane_v_, view_plane_v);
+
+	ispc::GetRays(tile_index, 
+					position_, forward_, 
+					view_plane_u_, view_plane_v_,
+					film->width, film->height, 
+					reinterpret_cast<ispc::RTCRay *>(first_ray.ray), reinterpret_cast<ispc::RayAncillaries *>(first_ray.ray_ancillaries),
+					count);
+
+	position_[0]= 0;
+
+#else
 	count= 0;//Hack, really. Supposed to use this to determine how many we generate. (and to say how many we actually did)
 
 	int tile_index= next_tile_index++;//will want to test this to see that it indeed works as expected
@@ -333,6 +362,7 @@ void Camera::GetRays(CompleteRay first_ray, int &count)
 			next_ray.ray_ancillaries++;
 		}
 	}
+#endif
 }
 
 
@@ -751,10 +781,25 @@ void ShaderWorkPool::SpawnWorkers()
 		threads[i].join();*/
 }
 
+//#include "simple_ispc.h"
 
 //timing needs redesign
 int main(int argument_count, char **arguments)
 {
+	/*float vin[16], vout[16];
+
+    // Initialize input buffer
+    for (int i = 0; i < 16; ++i)
+        vin[i] = (float)i;
+
+    // Call simple() function from simple.ispc file
+    ispc::simple(vin, vout, 16);
+
+    // Print results
+    for (int i = 0; i < 16; ++i)
+        printf("%d: simple(%f) = %f\n", i, vin[i], vout[i]);*/
+
+
 	//I think we need some sort of structure for the global variables
 	//these functions create. Right now they're just sorta invisibly floating around.
 	InitializeEmbree();
