@@ -504,6 +504,10 @@ struct Film
 	int width, height;
 	Vec3f *receptors;//try with flat float array
 
+	float max_component;
+	std::mutex component_mutex;
+	std::atomic_int next_tile_index;
+
 	Film(int width, int height);
 	~Film();//This may not be a good idea if we aren't dynamically allocating
 
@@ -512,7 +516,10 @@ struct Film
 
 	//Don't like how this works... Returning image feels better. Could have Film store its own image.
 	//Need to parallelize this
-	void Develop(Image &image);
+	void Develop(Image *image);
+
+	void ComputeMaxComponent();
+	bool DevelopJob(Image *image);
 };
 
 
@@ -578,10 +585,10 @@ struct BlockState{enum Enum {Empty, Filling, Full};};
 //We can at least use a multiple pretty easily
 struct RayBlock
 {
-	//RTCRay rays[RAY_BLOCK_SIZE];
-	//RayAncillaries ray_ancillariess[RAY_BLOCK_SIZE];
-	RTCRay *rays;
-	RayAncillaries *ray_ancillariess;
+	RTCRay rays[RAY_BLOCK_SIZE];
+	RayAncillaries ray_ancillariess[RAY_BLOCK_SIZE];
+	//RTCRay *rays;
+	//RayAncillaries *ray_ancillariess;
 	int front_index;
 
 	BlockState::Enum state;
@@ -591,7 +598,7 @@ struct RayBlock
 	//vector<float> occlusion;
 	
 
-	RayBlock(bool is_primary, bool is_coherent, RTCRay *rays, RayAncillaries *ray_ancillariess);
+	//RayBlock(bool is_primary, bool is_coherent, RTCRay *rays, RayAncillaries *ray_ancillariess);
 	RayBlock(bool is_primary, bool is_coherent);
 	RayBlock();
 
@@ -670,8 +677,8 @@ struct Job
 int primary_ray_block_count= THREAD_COUNT* 1;
 class ShaderWorkPool//should think if we can generalize this class
 {
-	RTCRay rays[RAY_BLOCK_SIZE* THREAD_COUNT* 1];//This may eventually make more sense to belong to RayBlock as static member
-	RayAncillaries ray_ancillariess[RAY_BLOCK_SIZE* THREAD_COUNT* 1];//and this of course
+	//RTCRay rays[RAY_BLOCK_SIZE* THREAD_COUNT* 1];//This may eventually make more sense to belong to RayBlock as static member
+	//RayAncillaries ray_ancillariess[RAY_BLOCK_SIZE* THREAD_COUNT* 1];//and this of course
 
 	queue<RayBlock *> empty_primary_ray_blocks; 
 	queue<RayBlock *> empty_coherent_ray_blocks; 
@@ -682,6 +689,7 @@ class ShaderWorkPool//should think if we can generalize this class
 
 	Scene *scene;
 	Camera *camera;
+	Image *image;
 
 	bool ray_source_is_empty;
 
@@ -696,14 +704,16 @@ protected:
 	void ReturnRayBlock(RayBlock *ray_block);
 
 public:
-	ShaderWorkPool(Scene *scene, Camera *camera);
+	ShaderWorkPool(Scene *scene, Camera *camera, Image *image);
 
 	void Refill(RayBlock *primary_ray_block);
 	void Shade(RayBlock *ray_block);
+	bool Develop();
 
 	Job GetJob();
 
 	void WorkLoop();
+	void DevelopLoop();
 
 	//This whole class (and several others) need some renaming
 	//I'd like to somehow enforce the camera idiom and make this "TakePicture" (obviously that's a camera method, 

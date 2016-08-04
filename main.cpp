@@ -167,6 +167,9 @@ Film::Film(int width_, int height_)
 
 	receptors= new Vec3f[width* height];
 	Clear();
+
+	max_component= -1;
+	next_tile_index= 0;
 }
 
 Film::~Film()
@@ -186,9 +189,37 @@ void Film::Stimulate(int x, int y, Color light)
 }
 
 //ISPC here
-void Film::Develop(Image &image)
+void Film::Develop(Image *image)
 {
-	float max_component= 0;
+	/*float max_component= 0;
+	for(int i= 0; i< width* height; i+= 50)
+	{
+		max_component= std::max(receptors[i].x, max_component);
+		max_component= std::max(receptors[i].y, max_component);
+		max_component= std::max(receptors[i].z, max_component);
+	}
+	max_component*= 1.1f;*/
+
+#if ISPC_DEVELOP
+	ispc::Develop(reinterpret_cast<float *>(receptors), reinterpret_cast<int8_t *>(image->pixels), 1, width* height* 3);
+#else
+	for(int i= 0; i< width* height; i++)
+	{
+		image->pixels[i].r= (unsigned char)((receptors[i].x)* 255);
+		image->pixels[i].g= (unsigned char)((receptors[i].y)* 255);
+		image->pixels[i].b= (unsigned char)((receptors[i].z)* 255);
+	}
+#endif
+}
+
+void Film::ComputeMaxComponent()
+{
+	if(max_component> 0)
+		return;
+
+	component_mutex.lock();
+
+	max_component= 0;
 	for(int i= 0; i< width* height; i+= 50)
 	{
 		max_component= std::max(receptors[i].x, max_component);
@@ -197,16 +228,34 @@ void Film::Develop(Image &image)
 	}
 	max_component*= 1.1f;
 
-#if 1
-	ispc::Develop(reinterpret_cast<float *>(receptors), reinterpret_cast<int8_t *>(image.pixels), max_component, width* height* 3);
+	component_mutex.unlock();
+}
+
+bool Film::DevelopJob(Image *image)
+{
+	int factor= (width* height)/ 8192;
+
+	if(next_tile_index>= height/ factor)
+		return false;
+	//ComputeMaxComponent();
+
+	int tile_index= next_tile_index++;
+
+#if ISPC_DEVELOP
+	ispc::Develop(reinterpret_cast<float *>(&(receptors[tile_index* width* factor])), reinterpret_cast<int8_t *>(&(image->pixels[tile_index* width* factor])), 1, width* 3* factor);
 #else
-	for(int i= 0; i< width* height; i++)
+	Pixel *pixels= &(image->pixels[tile_index* width* factor]);
+	Vec3f *receptors= &(this->receptors[tile_index* width* factor]);
+
+	for(int i= 0; i< width* factor; i++)
 	{
-		image.pixels[i].r= (unsigned char)((receptors[i].x/ max_component)* 255);
-		image.pixels[i].g= (unsigned char)((receptors[i].y/ max_component)* 255);
-		image.pixels[i].b= (unsigned char)((receptors[i].z/ max_component)* 255);
+		pixels[i].r= (unsigned char)(receptors[i].x* 255);
+		pixels[i].g= (unsigned char)(receptors[i].y* 255);
+		pixels[i].b= (unsigned char)(receptors[i].z* 255);
 	}
 #endif
+
+	return true;
 }
 
 
@@ -290,39 +339,95 @@ Vec3f MakeVec3f(const float components[3])
 //(could be wrong, e.g. 32 and 64 wide better), so couldn't we just make sure the job size was good?
 //This still ties ray block sizes to GetRays() counts, but maybe we could just scale up the number of blocks given
 //On a refill job, so you could try out small blocks+ big GetRays() count?
+
+//Like to try simply doing math portion of GetRays() in ispc, and write vectors out in 
+//SoA format. Then grab the results in the application code. 
+//Where are the gains though? Still have to scatter, just delayed. IF its just vectorizing the math, we should
+//first try Vecfa and then try writing our own functions. 
+//Also need to try simply converting whole problem to SoA and back. Need to think about
+//How this might improve effiency. I mean, as long as you get to compute several things in a lane, should be
+//More efficient than otherwise, right? I think I'm just not thinking about or posing the problem correctly. 
 void Camera::GetRays(CompleteRay first_ray, int &count)
 {
-#if 1
-	if(next_tile_index>= TILE_WIDTH* TILE_HEIGHT)
+	static std::mutex foobar;
+
+#if ISPC_GET_RAYS
+	int tile_index= next_tile_index++;
+	if(tile_index>= ((film->width/ TILE_WIDTH)* (film->height/ TILE_HEIGHT)))
 	{
 		count= 0;
 		return;
 	}
 
-	int tile_index= next_tile_index++;
-
-	float position_[3]; SetFloat3(position_, position);
+	/*float position_[3]; SetFloat3(position_, position);
 	float forward_[3]; SetFloat3(forward_, forward);
 	float view_plane_u_[3]; SetFloat3(view_plane_u_, view_plane_u);
-	float view_plane_v_[3]; SetFloat3(view_plane_v_, view_plane_v);
+	float view_plane_v_[3]; SetFloat3(view_plane_v_, view_plane_v);*/
 
-	ispc::GetRays(tile_index, 
-					position_, forward_, 
-					view_plane_u_, view_plane_v_,
-					film->width, film->height, 
-					reinterpret_cast<ispc::RTCRay *>(first_ray.ray), reinterpret_cast<ispc::RayAncillaries *>(first_ray.ray_ancillaries),
-					count);
+	int tile_count_x= film->width/ TILE_WIDTH;
+	int tile_x= tile_index% tile_count_x;
+	int tile_y= tile_index/ tile_count_x;
+	int x_offset= tile_x* TILE_WIDTH;
+	int y_offset= tile_y* TILE_HEIGHT;
 
-	position_[0]= 0;
+	
+#if 0
+	ispc::GetRayDirections(x_offset, y_offset,
+							&(position[0]), &(forward[0]), 
+							&(view_plane_u[0]), &(view_plane_v[0]),
+							film->width, film->height, 
+							reinterpret_cast<ispc::RTCRay *>(first_ray.ray));
+
+#else
+	float *pos= new float[4]; SetFloat3(pos, position);
+	float *forw= new float[4]; SetFloat3(forw, forward);
+	float *u= new float[4]; SetFloat3(u, view_plane_u);
+	float *v= new float[4]; SetFloat3(v, view_plane_v);
+
+	ispc::GetRayDirections(x_offset, y_offset,
+							pos, forw, 
+							u, v,
+							film->width, film->height, 
+							reinterpret_cast<ispc::RTCRay *>(first_ray.ray));
+
+	delete pos, forw, u, v;
+#endif
+	
+	//position_[0]= 0;
+
+#if 1
+	
+	CompleteRay next_ray= first_ray;
+	for(int j= 0; j< TILE_HEIGHT; j++)
+	{
+		for(int i= 0; i< TILE_WIDTH; i++)
+		{
+			int x= i+ tile_x* TILE_WIDTH;
+			int y= j+ tile_y* TILE_HEIGHT;
+			if(x< film->width && y< film->height);
+			else
+				continue;
+
+			next_ray.ray->tnear = 0.0f;
+			next_ray.ray->tfar = FLT_MAX;
+			next_ray.ray->geomID = RTC_INVALID_GEOMETRY_ID;
+			next_ray.ray->primID = RTC_INVALID_GEOMETRY_ID;
+			next_ray.ray->mask = -1;
+			next_ray.ray->time = 0;
+
+			next_ray.ray_ancillaries->absorption= Color(1.0f, 1.0f, 1.0f);
+			next_ray.ray_ancillaries->bounce_count= 0;
+			next_ray.ray_ancillaries->type= RayType::Primary;
+			next_ray.ray_ancillaries->x= x;
+			next_ray.ray_ancillaries->y= y;
+
+			next_ray.ray++;
+			next_ray.ray_ancillaries++;
+		}
+	}
 
 #else
 	count= 0;//Hack, really. Supposed to use this to determine how many we generate. (and to say how many we actually did)
-
-	int tile_index= next_tile_index++;//will want to test this to see that it indeed works as expected
-	int tile_count_x= film->width/ TILE_WIDTH;//May be best to compute this only once
-	int tile_x= tile_index% tile_count_x;
-	int tile_y= tile_index/ tile_count_x;
-
 	CompleteRay next_ray= first_ray;
 	for(int j= 0; j< TILE_HEIGHT; j++)
 	{
@@ -336,6 +441,55 @@ void Camera::GetRays(CompleteRay first_ray, int &count)
 			count++;
 
 			
+			float normalized_x= ((x+ 0.5f)/ film->width)* 2- 1;
+			float normalized_y= ((y+ 0.5f)/ film->height)* 2- 1;
+
+			//SetFloat3(next_ray.ray->org, position);
+			//-normalized is quick hack
+			//next_ray.ray->dir[0]= forward[0]+ view_plane_u[0]* -normalized_x+ view_plane_v[0]* normalized_y;
+			//next_ray.ray->dir[1]= forward[1]+ view_plane_u[1]* -normalized_x+ view_plane_v[1]* normalized_y;
+			//next_ray.ray->dir[2]= forward[2]+ view_plane_u[2]* -normalized_x+ view_plane_v[2]* normalized_y;
+
+			next_ray.ray->tnear = 0.0f;
+			next_ray.ray->tfar = FLT_MAX;
+			next_ray.ray->geomID = RTC_INVALID_GEOMETRY_ID;
+			next_ray.ray->primID = RTC_INVALID_GEOMETRY_ID;
+			next_ray.ray->mask = -1;
+			next_ray.ray->time = 0;
+
+			next_ray.ray_ancillaries->absorption= Color(1.0f, 1.0f, 1.0f);
+			next_ray.ray_ancillaries->bounce_count= 0;
+			next_ray.ray_ancillaries->type= RayType::Primary;
+			next_ray.ray_ancillaries->x= x;
+			next_ray.ray_ancillaries->y= y;
+
+			next_ray.ray++;
+			next_ray.ray_ancillaries++;
+		}
+	}
+#endif
+
+#else
+	int tile_index= next_tile_index++;
+	if(tile_index>= ((film->width/ TILE_WIDTH)* (film->height/ TILE_HEIGHT)))
+	{
+		count= 0;
+		return;
+	}
+
+	//int tile_index= next_tile_index++;//will want to test this to see that it indeed works as expected
+	int tile_count_x= film->width/ TILE_WIDTH;//May be best to compute this only once
+	int tile_x= tile_index% tile_count_x;
+	int tile_y= tile_index/ tile_count_x;
+
+	CompleteRay next_ray= first_ray;
+	for(int j= 0; j< TILE_HEIGHT; j++)
+	{
+		for(int i= 0; i< TILE_WIDTH; i++)
+		{
+			int x= i+ tile_x* TILE_WIDTH;
+			int y= j+ tile_y* TILE_HEIGHT;
+
 			float normalized_x= ((x+ 0.5f)/ film->width)* 2- 1;
 			float normalized_y= ((y+ 0.5f)/ film->height)* 2- 1;
 
@@ -362,6 +516,7 @@ void Camera::GetRays(CompleteRay first_ray, int &count)
 			next_ray.ray_ancillaries++;
 		}
 	}
+
 #endif
 }
 
@@ -387,7 +542,7 @@ CompleteRay::CompleteRay(RTCRay *ray_, RayAncillaries *ray_ancillaries_)
 }
 
 
-RayBlock::RayBlock(bool is_primary_, bool is_coherent_, RTCRay *rays_, RayAncillaries *ray_ancillariess_)
+/*RayBlock::RayBlock(bool is_primary_, bool is_coherent_, RTCRay *rays_, RayAncillaries *ray_ancillariess_)
 {
 	is_primary= is_primary_;
 	is_coherent= is_coherent_;
@@ -395,7 +550,7 @@ RayBlock::RayBlock(bool is_primary_, bool is_coherent_, RTCRay *rays_, RayAncill
 	ray_ancillariess= ray_ancillariess_;
 
 	Empty();
-}
+}*/
 
 RayBlock::RayBlock(bool is_primary_, bool is_coherent_)
 {
@@ -522,7 +677,7 @@ RayBlock * PopFrontOrInstanciate(queue<RayBlock *> &ray_blocks, std::mutex &mute
 	RayBlock *ray_block= PopFront(ray_blocks, mutex);
 
 	if(ray_block== nullptr)
-		return new RayBlock(is_primary, is_coherent, nullptr, nullptr);
+		return new RayBlock(is_primary, is_coherent);
 
 	return ray_block;
 }
@@ -563,20 +718,21 @@ void ShaderWorkPool::ReturnRayBlock(RayBlock *ray_block)
 	resource_mutex.unlock();
 }
 
-ShaderWorkPool::ShaderWorkPool(Scene *scene_, Camera *camera_)
+ShaderWorkPool::ShaderWorkPool(Scene *scene_, Camera *camera_, Image *image_)
 {
 	scene= scene_;
 	camera= camera_;
+	image= image_;
 
 	ray_source_is_empty= false;
 
 	for(int i= 0; i< primary_ray_block_count; i++)
-		empty_primary_ray_blocks.push(new RayBlock(true, true, &(rays[i* RAY_BLOCK_SIZE]), &(ray_ancillariess[i* RAY_BLOCK_SIZE])));
+		empty_primary_ray_blocks.push(new RayBlock(true, true));
 }
 
 void ShaderWorkPool::Refill(RayBlock *primary_ray_block)
 {
-	CompleteRay complete_ray= CompleteRay(&primary_ray_block->rays[primary_ray_block->front_index], &primary_ray_block->ray_ancillariess[primary_ray_block->front_index]);
+	CompleteRay complete_ray= CompleteRay(&(primary_ray_block->rays[primary_ray_block->front_index]), &(primary_ray_block->ray_ancillariess[primary_ray_block->front_index]));
 	int count= RAY_BLOCK_SIZE;
 	camera->GetRays(complete_ray, count);
 	primary_ray_block->front_index+= count;
@@ -598,6 +754,11 @@ void ShaderWorkPool::Refill(RayBlock *primary_ray_block)
 void Foo(ShaderWorkPool *bar)
 {
 	bar->WorkLoop();
+}
+
+void Bar(ShaderWorkPool *bar)
+{
+	bar->DevelopLoop();
 }
 
 //We are currently computing occlusions for failed hits...
@@ -697,6 +858,10 @@ void ShaderWorkPool::Shade(RayBlock *ray_block)
 #undef light_count
 }
 
+bool ShaderWorkPool::Develop()
+{
+	return camera->film->DevelopJob(image);
+}
 
 //rewrite this function
 
@@ -761,6 +926,15 @@ void ShaderWorkPool::WorkLoop()
 	}
 }
 
+void ShaderWorkPool::DevelopLoop()
+{
+	while(true)
+	{
+		if(!Develop())
+			break;
+	}
+}
+
 void ShaderWorkPool::SpawnWorkers()
 {
 	ray_source_is_empty= false;
@@ -768,17 +942,32 @@ void ShaderWorkPool::SpawnWorkers()
 	//Spawn a bunch of threads, call WorkLoop()
 	//parallel_for(size_t(0),size_t(numTilesX*numTilesY),[&](const range<size_t>& range) {
 
+#if SERIAL_MODE
 	WorkLoop();
+#if PARALLEL_DEVELOP
+	DevelopLoop();
+#endif
 
-	/*for(int i= 0; i< THREAD_COUNT; i++)
+#else
+	for(int i= 0; i< THREAD_COUNT; i++)
 	{
 		//cout << this << endl;
 		//threads[i]= std::thread(&ShaderWorkPool::WorkLoop, this);
 		threads[i]= std::thread(Foo, this);
 	}
-
 	for(int i= 0; i< THREAD_COUNT; i++)
-		threads[i].join();*/
+		threads[i].join();
+
+#if PARALLEL_DEVELOP
+	for(int i= 0; i< THREAD_COUNT; i++)
+	{
+		threads[i]= std::thread(Bar, this);
+	}
+	for(int i= 0; i< THREAD_COUNT; i++)
+		threads[i].join();
+#endif
+
+#endif
 }
 
 //#include "simple_ispc.h"
@@ -807,20 +996,21 @@ int main(int argument_count, char **arguments)
 
 	cout << std::fixed << std::setprecision(1);
 
-	Scene scene;
-	scene.AddOBJ("teapot3.obj");
-	scene.AddLight(new AmbientLight(Color(0.5f, 0.5f, 0.5f)));
-	scene.AddLight(new PointLight(Vec3f(0.0f, 0.0f, 0.0f), Color(0.5f, 0.5f, 0.5f)));
-	scene.Commit();
+	Scene *scene= new Scene();
+	scene->AddOBJ("teapot3.obj");
+	scene->AddLight(new AmbientLight(Color(0.5f, 0.5f, 0.5f)));
+	scene->AddLight(new PointLight(Vec3f(0.0f, 0.0f, 0.0f), Color(0.5f, 0.5f, 0.5f)));
+	scene->Commit();
 
-	Camera camera= Camera(90, Vec3f(0.0f, 0.0f, -3.0f));
-	camera.LookAt(Vec3f(0.0f, 0.0f, 10.0f));
-	camera.LoadFilm(new Film(screen_width, screen_height));
+	Camera *camera= new Camera(90, Vec3f(0.0f, 0.0f, -3.0f));
+	camera->LookAt(Vec3f(0.0f, 0.0f, 10.0f));
+	camera->LoadFilm(new Film(screen_width, screen_height));
 
 #if 1
-	ShaderWorkPool shader_work_pool(&scene, &camera);
+	Image *image= new Image(screen_width, screen_height);
 
-	Image image(screen_width, screen_height);
+	ShaderWorkPool shader_work_pool(scene, camera, image);
+
 	int start_ticks= SDL_GetTicks();
 	int last_ticks= start_ticks;
 	int total_frame_count= 0;
@@ -830,7 +1020,10 @@ int main(int argument_count, char **arguments)
 	{
 		int before_render_ticks= SDL_GetTicks();
 		shader_work_pool.SpawnWorkers();
-		camera.film->Develop(image);
+#if PARALLEL_DEVELOP
+#else
+		camera->film->Develop(image);
+#endif
 		total_render_milliseconds+= SDL_GetTicks()- before_render_ticks;
 		if((++total_frame_count% print_frame_count)== 0)
 		{
@@ -839,9 +1032,9 @@ int main(int argument_count, char **arguments)
 			total_render_milliseconds= 0;
 		}
 
-		camera.Reset();
+		camera->Reset();
 
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screen_width, screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image.pixels);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screen_width, screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glDrawArrays(GL_TRIANGLES, 0, quad_vertex_count);
 		SDL_GL_SwapWindow(main_window);
@@ -870,7 +1063,7 @@ int main(int argument_count, char **arguments)
 
 	//We'd like for this to happen as part of ConcludeEmbree. Or at least be automatic.
 	//Not sure if we can delete the scene last though
-	rtcDeleteScene(scene.GetEmbreeScene());
+	rtcDeleteScene(scene->GetEmbreeScene());
 	ConcludeEmbree();
 
 	return 0;
