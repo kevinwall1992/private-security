@@ -1,12 +1,115 @@
 #include "Main.h"
-#include "get_rays_ispc.h"//not sure I want to keep this ispc naming style
+#include "ISPCKernels.h"
+
+
+bool System::systems_initialized= false;
+EmbreeSystem System::embree;
+GraphicsSystem System::graphics;
+
+void System::InitializeSystems()
+{
+	embree.Initialize();
+	graphics.Initialize();
+}
+
+void System::TerminateSystems()
+{
+	graphics.Terminate();
+	embree.Terminate();
+}
+
+
+void EmbreeSystem::Initialize()
+{
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+
+	device = rtcNewDevice(nullptr);
+	ErrorHandler(rtcDeviceGetError(device), "creation");
+	rtcDeviceSetErrorFunction(device,ErrorHandler);
+}
+
+void EmbreeSystem::Terminate()
+{
+	rtcDeleteDevice(device);
+}
+
+
+const char *vertex_shader_source= 
+	"#version 150\n"
+	"in vec3 position;\n"
+	"out vec2 texture_coordinates;"
+	"void main() { texture_coordinates= (position.xy+ vec2(1.0, 1.0))/ 2.0; gl_Position= vec4(position.xy, 0.0, 1.0); }\n";
+
+const char *fragment_shader_source= 
+	"#version 150\n"
+	"in vec2 texture_coordinates;\n"
+	"uniform sampler2D image;\n"
+	"void main() { gl_FragColor= texture(image, texture_coordinates.xy); }\n";
+
+const int quad_vertex_count= 3* 6;
+float quad_vertices[quad_vertex_count]= { -1.0f, -1.0f, +0.0f, +1.0f, -1.0f, +0.0f, -1.0f, +1.0f, +0.0f, 
+					                      +1.0f, -1.0f, +0.0f, +1.0f, +1.0f, +0.0f, -1.0f, +1.0f, +0.0f };
+
+void GraphicsSystem::Initialize()
+{
+	SDL_Init(SDL_INIT_VIDEO);
+
+	SDL_Init(SDL_INIT_VIDEO);
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	main_window = SDL_CreateWindow("8-Bit RayTracer", 
+									SDL_WINDOWPOS_CENTERED, 
+									SDL_WINDOWPOS_CENTERED, 
+									screen_width, 
+									screen_height, 
+									SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+
+	renderer = SDL_CreateRenderer(main_window, -1, 0);
+	opengl_context = SDL_GL_CreateContext(main_window);
+	SDL_GL_SetSwapInterval(0);
+	int glew_result= glewInit();
+	if(glew_result!= 0)
+		cout << "GlewInit() error, returned " << glew_result;
+	else
+		cout << "OpenGL context: " << glGetString(GL_VERSION);
+	cout << "\n\n";
+	glDisable(GL_DEPTH_TEST);
+
+	
+	GLuint buffer;
+	glGenBuffers(1, &buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer);
+	glBufferData(GL_ARRAY_BUFFER, quad_vertex_count* sizeof(float), quad_vertices, GL_STATIC_DRAW);
+
+	GLuint vertex_shader= CreateShader(GL_VERTEX_SHADER, vertex_shader_source, "vertex shader");
+	GLuint fragment_shader= CreateShader(GL_FRAGMENT_SHADER, fragment_shader_source, "fragment shader");
+	GLuint shader_program= CreateShaderProgram(vertex_shader, fragment_shader);
+	glUseProgram(shader_program);
+
+	GLint position_attribute= glGetAttribLocation(shader_program, "position");
+	glVertexAttribPointer(position_attribute, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+	glEnableVertexAttribArray(position_attribute);
+
+	GLuint texture;
+	glGenTextures(1, &texture);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+}
+
+void GraphicsSystem::Terminate()
+{
+	
+}
+
 
 Light::Light()
 {
 
 }
 
-bool Light::IsAmbient() const
+bool Light::IsAmbient()
 {
 	return false;
 }
@@ -21,33 +124,26 @@ bool Light::IsGenerative()
 	return false;
 }
 
+Vec3f Light::SampleDirectionAtPoint(Vec3f point, int sample_index)
+{
+	return Vec3f(0, 0, 0);
+}
+
 
 AmbientLight::AmbientLight(Color intensity_)
 {
 	intensity= intensity_;
 }
 
-bool AmbientLight::IsAmbient() const
+bool AmbientLight::IsAmbient()
 {
 	return true;
 }
 
-Color AmbientLight::GetLuminosity(Vec3f point) const
+Color AmbientLight::GetLuminosity(Vec3f point)
 {
 	return intensity;
 }
-
-
-bool ShadowLight::IsAmbient() const
-{
-	return false;
-}
-
-Vec3f ShadowLight::SampleDirectionAtPoint(Vec3f point, int sample_index) const
-{
-	return Vec3f(0, 0, 0);
-}
-
 
 PointLight::PointLight(Vec3f position_, Color intensity_)
 {
@@ -60,12 +156,12 @@ bool PointLight::IsGenerative()
 	return true;
 }
 
-Color PointLight::GetLuminosity(Vec3f point) const
+Color PointLight::GetLuminosity(Vec3f point)
 {
-	return intensity;//no falloff for now
+	return intensity;
 }
 
-Vec3f PointLight::SampleDirectionAtPoint(Vec3f point, int sample_index) const
+Vec3f PointLight::SampleDirectionAtPoint(Vec3f point, int sample_index)
 {
 	return point- position;
 }
@@ -84,16 +180,16 @@ bool DiscLight::IsSoft()
 
 Color DiscLight::GetLuminosity(Vec3f point)
 {
-	return intensity;//no falloff for now
+	return intensity;
 }
 
-Vec3f DiscLight::SampleDirectionAtPoint(Vec3f point, int sample_index) const
+Vec3f DiscLight::SampleDirectionAtPoint(Vec3f point, int sample_index)
 {
-	return ShadowLight::SampleDirectionAtPoint(point, sample_index);
+	return Vec3f(0, 0, 0);
 }
 
 
-Scene::Scene()
+Scene::Scene(RTCDevice device)
 {
 	//need to determine if we need a second stream for packeted intersection
 	//interesting to know (as well) whether the stream mode doesn't like switching between packets and singles
@@ -125,12 +221,12 @@ void Scene::AddLight(Light *light)
 	if(light->IsAmbient())
 		ambient_lights.push_back(dynamic_cast<AmbientLight *>(light));
 	else
-		shadow_lights.push_back(dynamic_cast<ShadowLight *>(light));
+		lights.push_back(light);
 }
 
-vector<ShadowLight *> * Scene::GetShadowLights()
+vector<Light *> * Scene::GetLights()
 {
-	return &shadow_lights;
+	return &lights;
 }
 
 vector<AmbientLight *> * Scene::GetAmbientLights()
@@ -151,25 +247,38 @@ RTCScene Scene::GetEmbreeScene()
 
 Image::Image(int width, int height)
 {
-	pixels= new Pixel[width* height];
+	pixels= nullptr;
+	Resize(width, height);
+}
+
+Image::Image()
+{
+	pixels= nullptr;
 }
 
 Image::~Image()
 {
-	delete pixels;
+	if(pixels!= nullptr)
+		delete pixels;
+}
+
+void Image::Resize(int width, int height)
+{
+	if(pixels!= nullptr)
+		delete pixels;
+
+	pixels= new Pixel[width* height];
 }
 
 
 Film::Film(int width_, int height_)
+	: image(width_, height_)
 {
 	width= width_;
 	height= height_;
 
 	receptors= new Vec3f[width* height];
 	Clear();
-
-	max_component= -1;
-	next_tile_index= 0;
 }
 
 Film::~Film()
@@ -188,71 +297,41 @@ void Film::Stimulate(int x, int y, Color light)
 	receptors[x+ width* y]+= light;
 }
 
-//ISPC here
-void Film::Develop(Image *image)
+void Film::Develop()
 {
-	/*float max_component= 0;
-	for(int i= 0; i< width* height; i+= 50)
-	{
-		max_component= std::max(receptors[i].x, max_component);
-		max_component= std::max(receptors[i].y, max_component);
-		max_component= std::max(receptors[i].z, max_component);
-	}
-	max_component*= 1.1f;*/
-
 #if ISPC_DEVELOP
-	ispc::Develop(reinterpret_cast<float *>(receptors), reinterpret_cast<int8_t *>(image->pixels), 1, width* height* 3);
+	ispc::Develop(reinterpret_cast<float *>(receptors), reinterpret_cast<int8_t *>(image.pixels), 1, width* height* 3);
+
 #else
 	for(int i= 0; i< width* height; i++)
 	{
-		image->pixels[i].r= (unsigned char)((receptors[i].x)* 255);
-		image->pixels[i].g= (unsigned char)((receptors[i].y)* 255);
-		image->pixels[i].b= (unsigned char)((receptors[i].z)* 255);
+		image.pixels[i].r= (unsigned char)((receptors[i].x)* 255);
+		image.pixels[i].g= (unsigned char)((receptors[i].y)* 255);
+		image.pixels[i].b= (unsigned char)((receptors[i].z)* 255);
 	}
+
 #endif
 }
 
-void Film::ComputeMaxComponent()
+bool Film::Develop_Parallel(int interval_index)
 {
-	if(max_component> 0)
-		return;
-
-	component_mutex.lock();
-
-	max_component= 0;
-	for(int i= 0; i< width* height; i+= 50)
-	{
-		max_component= std::max(receptors[i].x, max_component);
-		max_component= std::max(receptors[i].y, max_component);
-		max_component= std::max(receptors[i].z, max_component);
-	}
-	max_component*= 1.1f;
-
-	component_mutex.unlock();
-}
-
-bool Film::DevelopJob(Image *image)
-{
-	int factor= (width* height)/ 8192;
-
-	if(next_tile_index>= height/ factor)
+	if(interval_index>= (width* height)/ FILM_INTERVAL_SIZE)
 		return false;
-	//ComputeMaxComponent();
-
-	int tile_index= next_tile_index++;
 
 #if ISPC_DEVELOP
-	ispc::Develop(reinterpret_cast<float *>(&(receptors[tile_index* width* factor])), reinterpret_cast<int8_t *>(&(image->pixels[tile_index* width* factor])), 1, width* 3* factor);
-#else
-	Pixel *pixels= &(image->pixels[tile_index* width* factor]);
-	Vec3f *receptors= &(this->receptors[tile_index* width* factor]);
+	ispc::Develop(reinterpret_cast<float *>(&(receptors[interval_index* FILM_INTERVAL_SIZE])), reinterpret_cast<int8_t *>(&(image.pixels[interval_index* FILM_INTERVAL_SIZE])), 1, FILM_INTERVAL_SIZE* 3);
 
-	for(int i= 0; i< width* factor; i++)
+#else
+	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);
+	Vec3f *receptors= &(this->receptors[interval_index* FILM_INTERVAL_SIZE]);
+
+	for(int i= 0; i< FILM_INTERVAL_SIZE; i++)
 	{
 		pixels[i].r= (unsigned char)(receptors[i].x* 255);
 		pixels[i].g= (unsigned char)(receptors[i].y* 255);
 		pixels[i].b= (unsigned char)(receptors[i].z* 255);
 	}
+
 #endif
 
 	return true;
@@ -260,14 +339,13 @@ bool Film::DevelopJob(Image *image)
 
 
 Camera::Camera(float fov_in_degrees, Vec3f position_, Vec3f direction_)
+	: shutter(this)
 {
 	fov= 3.14f* (fov_in_degrees/ 180.0f);
 	position= position_;
 	forward= direction_;
 
 	ComputeViewPlane();
-
-	next_tile_index= 0;
 }
 
 void Camera::LookAt(Vec3f look_at_position)
@@ -289,7 +367,7 @@ void Camera::ComputeViewPlane()
 {
 	OrthogonalizeVectors();
 
-	view_plane_u= right* tan(fov/ 2);//using aspect ratio of 1
+	view_plane_u= right* tan(fov/ 2);
 	view_plane_v= up* tan(fov/ 2);
 }
 
@@ -306,13 +384,15 @@ Film * Camera::RemoveFilm()
 	return LoadFilm(nullptr);
 }
 
-void Camera::Reset()
+Image * Camera::TakePicture(Scene &scene)
 {
 	film->Clear();
-	next_tile_index= 0;
+	shutter.Open(scene);
+
+	return &(film->image);
 }
 
-//Shouldn't this be capable of being vectorized?
+
 void SetFloat3(float *destination, const Vec3f &vector)
 {
 	destination[0]= vector[0];
@@ -326,31 +406,9 @@ Vec3f MakeVec3f(const float components[3])
 	return Vec3f(components[0], components[1], components[2]);
 }
 
-//Doesn't support counts not equal to tile size
-//Should be possible to use ISPC
-//Could store all rays in memory, then just copy memory
-//could try unrolling loop
-//The inner loop happens so many times, even tiny optimizations help,
-//We should look into using vector intrinsics for the vector math in this inner loop,
-//as well as any others in the program
 
-//need a way to  only return count # of rays without breaking parallelism
-//Does this really matter? It seems that tile size just affects overhead/job ratio 
-//(could be wrong, e.g. 32 and 64 wide better), so couldn't we just make sure the job size was good?
-//This still ties ray block sizes to GetRays() counts, but maybe we could just scale up the number of blocks given
-//On a refill job, so you could try out small blocks+ big GetRays() count?
-
-//Like to try simply doing math portion of GetRays() in ispc, and write vectors out in 
-//SoA format. Then grab the results in the application code. 
-//Where are the gains though? Still have to scatter, just delayed. IF its just vectorizing the math, we should
-//first try Vecfa and then try writing our own functions. 
-//Also need to try simply converting whole problem to SoA and back. Need to think about
-//How this might improve effiency. I mean, as long as you get to compute several things in a lane, should be
-//More efficient than otherwise, right? I think I'm just not thinking about or posing the problem correctly. 
-void Camera::GetRays(CompleteRay first_ray, int &count)
+void Camera::GetRays(CompleteRay first_ray, int &count, int tile_index)
 {
-	static std::mutex foobar;
-
 #if ISPC_GET_RAYS
 	int tile_index= next_tile_index++;
 	if(tile_index>= ((film->width/ TILE_WIDTH)* (film->height/ TILE_HEIGHT)))
@@ -415,14 +473,14 @@ void Camera::GetRays(CompleteRay first_ray, int &count)
 			next_ray.ray->mask = -1;
 			next_ray.ray->time = 0;
 
-			next_ray.ray_ancillaries->absorption= Color(1.0f, 1.0f, 1.0f);
-			next_ray.ray_ancillaries->bounce_count= 0;
-			next_ray.ray_ancillaries->type= RayType::Primary;
-			next_ray.ray_ancillaries->x= x;
-			next_ray.ray_ancillaries->y= y;
+			next_ray.ray_extras->absorption= Color(1.0f, 1.0f, 1.0f);
+			next_ray.ray_extras->bounce_count= 0;
+			next_ray.ray_extras->type= RayType::Primary;
+			next_ray.ray_extras->x= x;
+			next_ray.ray_extras->y= y;
 
 			next_ray.ray++;
-			next_ray.ray_ancillaries++;
+			next_ray.ray_extras++;
 		}
 	}
 
@@ -457,38 +515,37 @@ void Camera::GetRays(CompleteRay first_ray, int &count)
 			next_ray.ray->mask = -1;
 			next_ray.ray->time = 0;
 
-			next_ray.ray_ancillaries->absorption= Color(1.0f, 1.0f, 1.0f);
-			next_ray.ray_ancillaries->bounce_count= 0;
-			next_ray.ray_ancillaries->type= RayType::Primary;
-			next_ray.ray_ancillaries->x= x;
-			next_ray.ray_ancillaries->y= y;
+			next_ray.ray_extras->absorption= Color(1.0f, 1.0f, 1.0f);
+			next_ray.ray_extras->bounce_count= 0;
+			next_ray.ray_extras->type= RayType::Primary;
+			next_ray.ray_extras->x= x;
+			next_ray.ray_extras->y= y;
 
 			next_ray.ray++;
-			next_ray.ray_ancillaries++;
+			next_ray.ray_extras++;
 		}
 	}
 #endif
 
 #else
-	int tile_index= next_tile_index++;
-	if(tile_index>= ((film->width/ TILE_WIDTH)* (film->height/ TILE_HEIGHT)))
+	if(tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT)))
 	{
 		count= 0;
 		return;
 	}
 
 	//int tile_index= next_tile_index++;//will want to test this to see that it indeed works as expected
-	int tile_count_x= film->width/ TILE_WIDTH;//May be best to compute this only once
+	int tile_count_x= film->width/ CAMERA_TILE_WIDTH;//May be best to compute this only once
 	int tile_x= tile_index% tile_count_x;
 	int tile_y= tile_index/ tile_count_x;
 
 	CompleteRay next_ray= first_ray;
-	for(int j= 0; j< TILE_HEIGHT; j++)
+	for(int j= 0; j< CAMERA_TILE_HEIGHT; j++)
 	{
-		for(int i= 0; i< TILE_WIDTH; i++)
+		for(int i= 0; i< CAMERA_TILE_WIDTH; i++)
 		{
-			int x= i+ tile_x* TILE_WIDTH;
-			int y= j+ tile_y* TILE_HEIGHT;
+			int x= i+ tile_x* CAMERA_TILE_WIDTH;
+			int y= j+ tile_y* CAMERA_TILE_HEIGHT;
 
 			float normalized_x= ((x+ 0.5f)/ film->width)* 2- 1;
 			float normalized_y= ((y+ 0.5f)/ film->height)* 2- 1;
@@ -506,14 +563,14 @@ void Camera::GetRays(CompleteRay first_ray, int &count)
 			next_ray.ray->mask = -1;
 			next_ray.ray->time = 0;
 
-			next_ray.ray_ancillaries->absorption= Color(1.0f, 1.0f, 1.0f);
-			next_ray.ray_ancillaries->bounce_count= 0;
-			next_ray.ray_ancillaries->type= RayType::Primary;
-			next_ray.ray_ancillaries->x= x;
-			next_ray.ray_ancillaries->y= y;
+			next_ray.extras->absorption= Color(1.0f, 1.0f, 1.0f);
+			next_ray.extras->bounce_count= 0;
+			next_ray.extras->type= RayType::Primary;
+			next_ray.extras->x= x;
+			next_ray.extras->y= y;
 
 			next_ray.ray++;
-			next_ray.ray_ancillaries++;
+			next_ray.extras++;
 		}
 	}
 
@@ -521,7 +578,7 @@ void Camera::GetRays(CompleteRay first_ray, int &count)
 }
 
 
-RayAncillaries::RayAncillaries(float x_, float y_, Color absorption_, int bounce_count_, RayType::Enum type_)
+RayExtras::RayExtras(float x_, float y_, Color absorption_, int bounce_count_, RayType::Enum type_)
 {
 	x= x_;
 	y= y_;
@@ -530,27 +587,17 @@ RayAncillaries::RayAncillaries(float x_, float y_, Color absorption_, int bounce
 	type= type_;
 }
 
-RayAncillaries::RayAncillaries()
+RayExtras::RayExtras()
 {
 
 }
 
-CompleteRay::CompleteRay(RTCRay *ray_, RayAncillaries *ray_ancillaries_)
+CompleteRay::CompleteRay(RTCRay *ray_, RayExtras *extras_)
 {
 	ray= ray_;
-	ray_ancillaries= ray_ancillaries_;
+	extras= extras_;
 }
 
-
-/*RayBlock::RayBlock(bool is_primary_, bool is_coherent_, RTCRay *rays_, RayAncillaries *ray_ancillariess_)
-{
-	is_primary= is_primary_;
-	is_coherent= is_coherent_;
-	rays= rays_;
-	ray_ancillariess= ray_ancillariess_;
-
-	Empty();
-}*/
 
 RayBlock::RayBlock(bool is_primary_, bool is_coherent_)
 {
@@ -571,12 +618,6 @@ void RayBlock::Empty()
 	state= BlockState::Empty;
 }
 
-/*void RayBlock::AddRay(RTCRay ray, RayAncillaries ray_ancillaries)
-{
-	rays[front_index]= ray;
-	ray_ancillariess[front_index++]= ray_ancillaries;
-}*/
-
 
 Surface::Surface(Vec3f position_, Vec3f normal_)
 {
@@ -590,66 +631,62 @@ Surface::Surface()
 }
 
 
-//It feels wrong that occlusions is passed in separately though it is a direct map to a very specific subset of lights present in Scene
-//Interesting to see if theres any difference between reference vs pointer to film
-//Needless to say, this function signature is pretty bad and needs to be cleaned up and standardized (don't use const refs anywhere else)
-void ShadingKernel(RTCRay &ray, /*Surface &surface, float *occlusions,*/ Film &film, RayAncillaries &ray_ancillaries, Scene &scene)
+void ShadingKernel(CompleteRay ray, /*Surface &surface, float *occlusions,*/ Film *film, Scene *scene)
 {
-	int x= ray_ancillaries.x;
-	int y= ray_ancillaries.y;
+	int x= ray.extras->x;
+	int y= ray.extras->y;
 
-	//Looking into filtering out calls like this already, but still want to note that this looks like really bad divergence
-	if(ray.geomID== RTC_INVALID_GEOMETRY_ID)
+	if(ray.ray->geomID== RTC_INVALID_GEOMETRY_ID)
 		return;
 
 	Color color= Color(0, 0, 0);
 
-	Surface surface(MakeVec3f(ray.org)+ (MakeVec3f(ray.dir)* ray.tfar), normalize(-MakeVec3f(ray.Ng)));
+	Surface surface(MakeVec3f(ray.ray->org)+ (MakeVec3f(ray.ray->dir)* ray.ray->tfar), normalize(-MakeVec3f(ray.ray->Ng)));
 
-	vector<ShadowLight *> *shadow_lights= scene.GetShadowLights();
-	for(unsigned int i= 0; i< shadow_lights->size(); i++)
+	vector<Light *> *lights= scene->GetLights();
+	for(unsigned int i= 0; i< lights->size(); i++)
 	{
 		//geometry term is now wrapped in occlusions
-		float geometry_term= dot(surface.normal, normalize(-(*shadow_lights)[i]->SampleDirectionAtPoint(surface.position, 0)));
+		float geometry_term= dot(surface.normal, normalize(-(*lights)[i]->SampleDirectionAtPoint(surface.position, 0)));
 		//float foo_term= occlusions[i]* geometry_term;
 		float foo_term= geometry_term;
 		if(foo_term<= 0)
 			continue;
 		
-		color+= (*shadow_lights)[i]->GetLuminosity(surface.position)* foo_term;
+		color+= (*lights)[i]->GetLuminosity(surface.position)* foo_term;
 	}
 
-	vector<AmbientLight *> *ambient_lights= scene.GetAmbientLights();
+	vector<AmbientLight *> *ambient_lights= scene->GetAmbientLights();
 	for(unsigned int i= 0; i< ambient_lights->size(); i++)
 		color+= (*ambient_lights)[i]->GetLuminosity(surface.position);
 
-	film.Stimulate(ray_ancillaries.x, ray_ancillaries.y, color* ray_ancillaries.absorption);
+	film->Stimulate(ray.extras->x, ray.extras->y, color* ray.extras->absorption);
 }
 
 
-Job::Job(JobType::Enum type_, RayBlock *ray_block)
+Task::Task(TaskType::Enum type_, RayBlock *ray_block)
 {
 	type= type_;
+	refill.primary_ray_block= nullptr;
 
 	switch(type)
 	{
-	case JobType::Refill: 
+	case TaskType::Refill: 
 		refill.primary_ray_block= ray_block; 
 		break;
 
-	case JobType::Shade:
+	case TaskType::Shade:
 		shade.ray_block= ray_block;
 		break;
 
 	default:
-		type= JobType::None;
-		refill.primary_ray_block= nullptr;
+		break;
 	}
 }
 
-Job::Job()
+Task::Task()
 {
-	type= JobType::None;
+	type= TaskType::None;
 	refill.primary_ray_block= nullptr;
 }
 
@@ -670,8 +707,6 @@ RayBlock * PopFront(queue<RayBlock *> &ray_blocks, std::mutex &mutex)
 	return ray_block;
 }
 
-//this will need to change if we alter how RayBlocks are stored or created
-//Starting to think this needs to be a member function...
 RayBlock * PopFrontOrInstanciate(queue<RayBlock *> &ray_blocks, std::mutex &mutex, bool is_primary, bool is_coherent)
 {
 	RayBlock *ray_block= PopFront(ray_blocks, mutex);
@@ -682,160 +717,87 @@ RayBlock * PopFrontOrInstanciate(queue<RayBlock *> &ray_blocks, std::mutex &mute
 	return ray_block;
 }
 
-RayBlock * ShaderWorkPool::TakeEmptyPrimaryRayBlock()
+
+RayBlock * Shutter::TakeEmptyPrimaryRayBlock()
 {
 	return PopFront(empty_primary_ray_blocks, resource_mutex);
 }
 
-RayBlock * ShaderWorkPool::TakeEmptyCoherentRayBlock()
+RayBlock * Shutter::TakeEmptyCoherentRayBlock()
 {
 	return PopFrontOrInstanciate(empty_coherent_ray_blocks, resource_mutex, false, true);
 }
 
-RayBlock * ShaderWorkPool::TakeEmptyIncoherentRayBlock()
+RayBlock * Shutter::TakeEmptyIncoherentRayBlock()
 {
 	return PopFrontOrInstanciate(empty_incoherent_ray_blocks, resource_mutex, false, false);
 }
 
-RayBlock * ShaderWorkPool::TakeFullRayBlock()
+RayBlock * Shutter::TakeFullRayBlock()
 {
 	return PopFront(full_ray_blocks, resource_mutex);
 }
 
-void ShaderWorkPool::ReturnRayBlock(RayBlock *ray_block)
+void Shutter::ReturnRayBlock(RayBlock *ray_block)
 {
 	resource_mutex.lock();
 
 	if(ray_block->state== BlockState::Full)
 		full_ray_blocks.push(ray_block);
-	else if(ray_block->is_primary)
-		empty_primary_ray_blocks.push(ray_block);
-	else if(ray_block->is_coherent)
-		empty_coherent_ray_blocks.push(ray_block);
 	else
-		empty_incoherent_ray_blocks.push(ray_block);
+	{
+		if(ray_block->is_primary)
+			empty_primary_ray_blocks.push(ray_block);
+		else if(ray_block->is_coherent)
+			empty_coherent_ray_blocks.push(ray_block);
+		else
+			empty_incoherent_ray_blocks.push(ray_block);
+	}
 
 	resource_mutex.unlock();
 }
 
-ShaderWorkPool::ShaderWorkPool(Scene *scene_, Camera *camera_, Image *image_)
+Shutter::Shutter(Camera *camera_)
 {
-	scene= scene_;
 	camera= camera_;
-	image= image_;
 
-	ray_source_is_empty= false;
+	Reset();
 
-	for(int i= 0; i< primary_ray_block_count; i++)
+	for(int i= 0; i< THREAD_COUNT; i++)
 		empty_primary_ray_blocks.push(new RayBlock(true, true));
 }
 
-void ShaderWorkPool::Refill(RayBlock *primary_ray_block)
+void Shutter::Refill(RayBlock *primary_ray_block)
 {
-	CompleteRay complete_ray= CompleteRay(&(primary_ray_block->rays[primary_ray_block->front_index]), &(primary_ray_block->ray_ancillariess[primary_ray_block->front_index]));
+	CompleteRay complete_ray= CompleteRay(&(primary_ray_block->rays[primary_ray_block->front_index]), &(primary_ray_block->ray_extrass[primary_ray_block->front_index]));
 	int count= RAY_BLOCK_SIZE;
-	camera->GetRays(complete_ray, count);
+	int camera_tile_index= next_camera_tile_index++;
+	camera->GetRays(complete_ray, count, camera_tile_index);
 	primary_ray_block->front_index+= count;
 
 	primary_ray_block->is_coherent= true;
 	if(primary_ray_block->front_index== 0)
 	{
 		primary_ray_block->state= BlockState::Empty;
-		ray_source_is_empty= true;
+		ray_source_exhausted= true;
 	}
 	if(primary_ray_block->front_index< (RAY_BLOCK_SIZE- 1))
-		primary_ray_block->state= BlockState::Filling;
+		primary_ray_block->state= BlockState::Partial;
 	else
 		primary_ray_block->state= BlockState::Full;
 
 	ReturnRayBlock(primary_ray_block);
 }
 
-void Foo(ShaderWorkPool *bar)
-{
-	bar->WorkLoop();
-}
-
-void Bar(ShaderWorkPool *bar)
-{
-	bar->DevelopLoop();
-}
-
 //We are currently computing occlusions for failed hits...
-void ShaderWorkPool::Shade(RayBlock *ray_block)
+void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 {
 	RTCIntersectContext context;
 	context.flags= ray_block->is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
 	context.userRayExt= nullptr;
-	//rtcIntersect1M(scene->GetEmbreeScene(), nullptr, ray_block->rays, RAY_BLOCK_SIZE, 0);//test out striding ancillaries into array
-	for(int i= 0; i< RAY_BLOCK_SIZE; i++)//testing out non-stream mode
+	//rtcIntersect1M(scene->GetEmbreeScene(), nullptr, ray_block->rays, RAY_BLOCK_SIZE, 0);//test out striding extras into array
+	for(int i= 0; i< RAY_BLOCK_SIZE; i++)
 		rtcIntersect(scene->GetEmbreeScene(), ray_block->rays[i]);
-
-	/*vector<ShadowLight *> *shadow_lights= scene->GetShadowLights();
-	Surface surfaces[RAY_BLOCK_SIZE];
-	//vector<RTCRay> shadow_rays;//try making this a fixed sized maximum size array
-#define light_count 1 
-	RTCRay shadow_rays[RAY_BLOCK_SIZE* light_count];//If using hard lights, we know exactly how many shadow rays needed (not necessarily at compile time)
-	//float occlusions[RAY_BLOCK_SIZE* light_count];
-	
-	int next_shadow_ray_index= 0;
-	int next_surface_index= 0;
-	for(unsigned int i= 0; i< ray_block->front_index; i++)
-	{
-		RTCRay *ray= &ray_block->rays[i];//try out making this a value type
-
-		if(ray->geomID!= RTC_INVALID_GEOMETRY_ID);
-		else
-			continue;
-
-		surfaces[next_surface_index]= Surface(MakeVec3f(ray->org)+ MakeVec3f(ray->dir)* ray->tfar, normalize(-MakeVec3f(ray->Ng)));
-		//Vec3f surface_position= MakeVec3f(ray->org)+ (MakeVec3f(ray->dir)* ray->tfar);
-		//Vec3f surface_normal= normalize(-MakeVec3f(ray->Ng));
-
-		//Interesting to know whether calculating these surface values once and storing until we 
-		//call the shading kernel is faster than just calculating on the fly
-		
-		//Vec3f surface_position= MakeVec3f(ray->org)+ MakeVec3f(ray->dir)* ray->tfar;
-		//Vec3f surface_normal= normalize(-MakeVec3f(ray->Ng));
-
-		//need to think about how we should deal with soft lights...
-		//They could have variable number of samples so putting them directly together makes a mess.
-		//Since we can divide them into edge and non edge pixels (where edge pixels all have x samples, and non-edge y)
-		//We could simply have two arrays, but then you still need a map between the hits and the shadow rays, 
-		//because they'd be out-of-order
-		//curious to know whether storing result of size() is better...
-		for(unsigned int j= 0; j< shadow_lights->size(); j++)
-		{
-			RTCRay *shadow_ray= &(shadow_rays[next_shadow_ray_index]);//try making this value type
-
-			//Vec3f direction= -(*shadow_lights)[j]->SampleDirectionAtPoint(surfaces[next_surface_index].position, 0);
-			//occlusions[next_shadow_ray_index]= dot(surfaces[next_surface_index].normal, normalize(direction));
-
-			SetFloat3(shadow_ray->org, surfaces[next_surface_index].position+ surfaces[next_surface_index].normal* 0.001f);//May want to standardize with epsilon value
-			SetFloat3(shadow_ray->dir, -(*shadow_lights)[j]->SampleDirectionAtPoint(surfaces[next_surface_index].position, 0));
-			//SetFloat3(shadow_rays->org, surface_position+ surface_normal* 0.001f);//May want to standardize with epsilon value
-			//SetFloat3(shadow_rays->dir, -(*shadow_lights)[j]->SampleDirectionAtPoint(surface_position, 0));
-
-			shadow_ray->tnear = 0.0f;
-			shadow_ray->tfar = FLT_MAX;
-			shadow_ray->geomID = RTC_INVALID_GEOMETRY_ID;
-			shadow_ray->primID = RTC_INVALID_GEOMETRY_ID;
-			shadow_ray->mask = -1;
-			shadow_ray->time = 0;
-
-			next_shadow_ray_index++;
-		}
-
-		next_surface_index++;
-	}*/
-
-	//try switching to incoherent on shadow rays
-	//rtcOccluded1M(scene->GetEmbreeScene(), &context, shadow_rays, RAY_BLOCK_SIZE* light_count, 0);
-	/*for(int i= 0; i< next_shadow_ray_index; i++)//testing out non-stream mode
-	{
-		rtcOccluded(scene->GetEmbreeScene(), shadow_rays[i]);
-		//occlusions[i]*= (shadow_rays[i].tfar < 1.0f ? 0.0f : 1.0f);
-	}*/
 
 	int rays_processed_count= 0;
 	for(unsigned int i= 0; i< ray_block->front_index; i++)
@@ -843,12 +805,7 @@ void ShaderWorkPool::Shade(RayBlock *ray_block)
 		if(ray_block->rays[i].geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
-		/*float occlusions[light_count];
-		for(unsigned int j= 0; j< light_count; j++)
-			occlusions[j]= shadow_rays[rays_processed_count* light_count+ j].tfar< 1.0f ? 0.0f : 1.0f;*/
-
-		//ShadingKernel(ray_block->rays[i], occlusions, *camera->film, ray_block->ray_ancillariess[i], *scene);
-		ShadingKernel(ray_block->rays[i], /*occlusions, surfaces[rays_processed_count],*/ *camera->film, ray_block->ray_ancillariess[i], *scene);
+		ShadingKernel(CompleteRay(&(ray_block->rays[i]), &(ray_block->ray_extrass[i])), film, scene);
 		rays_processed_count++;
 	}
 
@@ -858,67 +815,87 @@ void ShaderWorkPool::Shade(RayBlock *ray_block)
 #undef light_count
 }
 
-bool ShaderWorkPool::Develop()
+void Shutter::Develop(Film *film)
 {
-	return camera->film->DevelopJob(image);
+	int film_interval_index= next_film_interval_index++;
+	develop_finished= !film->Develop_Parallel(film_interval_index);
 }
 
-//rewrite this function
-
-//First job refill, or first job complete non-primary blocks?
-//The latter makes sure that all entropy info is gatherered before more queries,
-//But since the refill looks difficult to paralellize, we may not want the buffer
-//to get that small. On the other hand, the cost of generating rays should 
-//be << the cost of tracing and shading them
-Job ShaderWorkPool::GetJob()
+Task Shutter::GetTask()
 {
-	Job job= Job(JobType::None, nullptr);
+	Task task= Task(TaskType::None, nullptr);
 
-	job_mutex.lock();
+	task_mutex.lock();//Test out removing this mutex after redesign finished
 
-	//see note above RayBlock
 	RayBlock *primary_ray_block= nullptr;
-	if(!ray_source_is_empty)
+	if(!ray_source_exhausted)
 		primary_ray_block= TakeEmptyPrimaryRayBlock();
 	if(primary_ray_block!= nullptr)
-		job= Job(JobType::Refill, primary_ray_block);
+		task= Task(TaskType::Refill, primary_ray_block);
 	else
 	{
 		RayBlock *ray_block= TakeFullRayBlock();
 
 		if(ray_block!= nullptr)
-			job= Job(JobType::Shade, ray_block);
+			task= Task(TaskType::Shade, ray_block);
+#if PARALLEL_DEVELOP
+		else 
+		{
+			if(!develop_finished)
+				task= Task(TaskType::Develop);
+		}
+#endif
 	}
 
-	job_mutex.unlock();
+	task_mutex.unlock();
 
-	return job;
+	return task;
 }
 
-//No sure about this/above functions... Seems like they are an uneccessary division.
-//But I like the idea of getting a job as a separate process. Problem is that this means
-//Giving the work data to the loop, which it doesn't really handle, it just passes it to
-//the function it maps to. This becomes awkward when the object has final steps needed which 
-//dont fit under the called function's responsibilities. i.e. Shade() should just shade, 
-//instead, it also returns the object given to _WorkLoop_ (as a responsibility). This seems wrong
-//Because if WorkLoop was given that object, it makes sense for it to also carry out returning it,
-//But its discordent for the simplistic, clean WorkLoop to have lower level function calls going on. 
-void ShaderWorkPool::WorkLoop()
+void Shutter::Reset()
 {
+	ray_source_exhausted= false;
+	develop_finished= false;
+
+	next_camera_tile_index= 0;
+	next_film_interval_index= 0;
+
+	barrier.Reset();
+}
+
+void Shutter::TaskLoop(Scene *scene)
+{
+	Task task;
+	while(task.type!= TaskType::Develop)//Hack, but will be replaced in the future anyways. 
+	{
+		task= GetTask();
+
+		switch(task.type)
+		{
+		case TaskType::Refill: 
+			Refill(task.refill.primary_ray_block);
+			break;
+		case TaskType::Shade: 
+			Shade(task.shade.ray_block, scene, camera->film);
+			break;
+
+		default: break;
+		}
+	}
+
+	barrier.Wait();
+
 	while(true)
 	{
-		Job job= GetJob();
+		task= GetTask();
 
-		switch(job.type)
+		switch(task.type)
 		{
-		case JobType::Refill: 
-			Refill(job.refill.primary_ray_block);
-			break;
-		case JobType::Shade: 
-			Shade(job.shade.ray_block);
+		case TaskType::Develop:
+			Develop(camera->film);
 			break;
 
-		case JobType::None:
+		case TaskType::None:
 			return;
 
 		default: break;
@@ -926,100 +903,50 @@ void ShaderWorkPool::WorkLoop()
 	}
 }
 
-void ShaderWorkPool::DevelopLoop()
+void Shutter::Open(Scene &scene)
 {
-	while(true)
-	{
-		if(!Develop())
-			break;
-	}
-}
-
-void ShaderWorkPool::SpawnWorkers()
-{
-	ray_source_is_empty= false;
-
-	//Spawn a bunch of threads, call WorkLoop()
-	//parallel_for(size_t(0),size_t(numTilesX*numTilesY),[&](const range<size_t>& range) {
+	Reset();
 
 #if SERIAL_MODE
-	WorkLoop();
-#if PARALLEL_DEVELOP
-	DevelopLoop();
-#endif
+	TaskLoop(&scene);
 
 #else
 	for(int i= 0; i< THREAD_COUNT; i++)
-	{
-		//cout << this << endl;
-		//threads[i]= std::thread(&ShaderWorkPool::WorkLoop, this);
-		threads[i]= std::thread(Foo, this);
-	}
+		threads[i]= std::thread(&Shutter::TaskLoop, this, &scene);
 	for(int i= 0; i< THREAD_COUNT; i++)
 		threads[i].join();
-
-#if PARALLEL_DEVELOP
-	for(int i= 0; i< THREAD_COUNT; i++)
-	{
-		threads[i]= std::thread(Bar, this);
-	}
-	for(int i= 0; i< THREAD_COUNT; i++)
-		threads[i].join();
-#endif
 
 #endif
 }
-
-//#include "simple_ispc.h"
 
 //timing needs redesign
 int main(int argument_count, char **arguments)
 {
-	/*float vin[16], vout[16];
-
-    // Initialize input buffer
-    for (int i = 0; i < 16; ++i)
-        vin[i] = (float)i;
-
-    // Call simple() function from simple.ispc file
-    ispc::simple(vin, vout, 16);
-
-    // Print results
-    for (int i = 0; i < 16; ++i)
-        printf("%d: simple(%f) = %f\n", i, vin[i], vout[i]);*/
-
-
-	//I think we need some sort of structure for the global variables
-	//these functions create. Right now they're just sorta invisibly floating around.
-	InitializeEmbree();
-	InitializeOpenGL();
+	System::InitializeSystems();
 
 	cout << std::fixed << std::setprecision(1);
 
-	Scene *scene= new Scene();
-	scene->AddOBJ("teapot3.obj");
-	scene->AddLight(new AmbientLight(Color(0.5f, 0.5f, 0.5f)));
-	scene->AddLight(new PointLight(Vec3f(0.0f, 0.0f, 0.0f), Color(0.5f, 0.5f, 0.5f)));
-	scene->Commit();
+	Scene scene(System::embree.device);
+	scene.AddOBJ("teapot3.obj");
+	scene.AddLight(new AmbientLight(Color(0.5f, 0.5f, 0.5f)));
+	scene.AddLight(new PointLight(Vec3f(0.0f, 0.0f, 0.0f), Color(0.5f, 0.5f, 0.5f)));
+	scene.Commit();
 
-	Camera *camera= new Camera(90, Vec3f(0.0f, 0.0f, -3.0f));
-	camera->LookAt(Vec3f(0.0f, 0.0f, 10.0f));
-	camera->LoadFilm(new Film(screen_width, screen_height));
+	Camera camera(90, Vec3f(0.0f, 0.0f, -3.0f));
+	camera.LookAt(Vec3f(0.0f, 0.0f, 10.0f));
+	Film film(System::graphics.screen_width, System::graphics.screen_height);
+	camera.LoadFilm(&film);
 
 #if 1
-	Image *image= new Image(screen_width, screen_height);
-
-	ShaderWorkPool shader_work_pool(scene, camera, image);
-
 	int start_ticks= SDL_GetTicks();
 	int last_ticks= start_ticks;
 	int total_frame_count= 0;
 	int print_frame_count= 40;
 	int total_render_milliseconds= 0;
-	while(true)//want framerate limit
+	while(true)
 	{
 		int before_render_ticks= SDL_GetTicks();
-		shader_work_pool.SpawnWorkers();
+		camera.TakePicture(scene);
 #if PARALLEL_DEVELOP
 #else
 		camera->film->Develop(image);
@@ -1032,12 +959,10 @@ int main(int argument_count, char **arguments)
 			total_render_milliseconds= 0;
 		}
 
-		camera->Reset();
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screen_width, screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, System::graphics.screen_width, System::graphics.screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, camera.film->image.pixels);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glDrawArrays(GL_TRIANGLES, 0, quad_vertex_count);
-		SDL_GL_SwapWindow(main_window);
+		SDL_GL_SwapWindow(System::graphics.main_window);
 
 		
 		if((total_frame_count% print_frame_count)== 0)
@@ -1057,19 +982,22 @@ int main(int argument_count, char **arguments)
 		if(exit_requested)
 			break;
 
-		if((total_frame_count% (print_frame_count* 5))== 0)
+		if((total_frame_count% (print_frame_count* 15))== 0)
 			break;
 	}
 
 	//We'd like for this to happen as part of ConcludeEmbree. Or at least be automatic.
 	//Not sure if we can delete the scene last though
-	rtcDeleteScene(scene->GetEmbreeScene());
-	ConcludeEmbree();
+	rtcDeleteScene(scene.GetEmbreeScene());
+	System::TerminateSystems();
 
 	return 0;
 
 #else
 	Vec3f light_position(0.0f, 0.0f, 0.0f);
+
+	int screen_width= System::graphics.screen_width;
+	int screen_height= System::graphics.screen_height;
 
 	unsigned char *image= new unsigned char[3* screen_width* screen_height];
 	//for(int i= 0; i< 3* screen_width* screen_height; i++)
@@ -1136,7 +1064,7 @@ int main(int argument_count, char **arguments)
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screen_width, screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glDrawArrays(GL_TRIANGLES, 0, quad_vertex_count);
-		SDL_GL_SwapWindow(main_window);
+		SDL_GL_SwapWindow(System::graphics.main_window);
 
 		if((++total_frame_count% print_frame_count)== 0)
 		{
@@ -1159,7 +1087,7 @@ int main(int argument_count, char **arguments)
 	}
 
 	rtcDeleteScene(scene.GetEmbreeScene());
-	rtcDeleteDevice(device);
+	rtcDeleteDevice(System::embree.device);
 	delete image;
 	return 0;
 #endif

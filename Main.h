@@ -19,6 +19,7 @@ typedef Vec3f Color;
 #include <thread>
 #include <queue>
 #include <atomic>
+#include <condition_variable>
 #include <xmmintrin.h>
 #include <pmmintrin.h>
 
@@ -44,16 +45,12 @@ struct Vertex
 
 	Vertex(float x_, float y_, float z_)
 	{
-		x= x_;
-		y= y_;
-		z= z_;
+		x= x_; y= y_; z= z_;
 	}
 
 	Vertex()
 	{
-		x= 0.0f;
-		y= 0.0f;
-		z= 0.0f;
+		x= 0.0f; y= 0.0f; z= 0.0f;
 	}
 };
 
@@ -63,16 +60,12 @@ struct Triangle
 
 	Triangle(int a_, int b_, int c_)
 	{
-		a= a_;
-		b= b_;
-		c= c_;
+		a= a_; b= b_; c= c_;
 	}
 
 	Triangle()
 	{
-		a= -1;
-		b= -1;
-		c= -1;
+		a= -1; b= -1; c= -1;
 	}
 };
 
@@ -199,7 +192,6 @@ Mesh LoadOBJ(string filename)
 			mesh.positions.push_back((float)atof(tokens[1].c_str()));
 			mesh.positions.push_back((float)atof(tokens[2].c_str()));
 			mesh.positions.push_back((float)atof(tokens[3].c_str()));
-			//mesh.positions.push_back(0.0f);//Deciding not to pollute data source
 		}
 
 		else if (tokens[0] == "vt")
@@ -253,97 +245,56 @@ Mesh LoadOBJ(string filename)
 	return mesh;
 }
 
-//TODO: Change Vertex and Triangle names (preferably replace with something more general)
-RTCDevice device;
-//RTCScene scene;
-void InitializeEmbree()
+
+class EmbreeSystem;
+class GraphicsSystem;
+class System
 {
-	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
-	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+	static bool systems_initialized;
 
-	device = rtcNewDevice(nullptr);
-	ErrorHandler(rtcDeviceGetError(device), "creation");
-	rtcDeviceSetErrorFunction(device,ErrorHandler);
-}
+protected:
+	virtual void Initialize()= 0;
+	virtual void Terminate()= 0;
 
-void ConcludeEmbree()
+public:
+	static EmbreeSystem embree;
+	static GraphicsSystem graphics;
+	static void InitializeSystems();
+	static void TerminateSystems();
+};
+
+
+class EmbreeSystem : public System
 {
-	rtcDeleteDevice(device);
-}
+protected:
+	void Initialize();
+	void Terminate();
+
+public:
+	RTCDevice device;
+
+	friend System;
+};
 
 
-const char *vertex_shader_source= 
-	"#version 150\n"
-	"in vec3 position;\n"
-	"out vec2 texture_coordinates;"
-	"void main() { texture_coordinates= (position.xy+ vec2(1.0, 1.0))/ 2.0; gl_Position= vec4(position.xy, 0.0, 1.0); }\n";
-
-const char *fragment_shader_source= 
-	"#version 150\n"
-	"in vec2 texture_coordinates;\n"
-	"uniform sampler2D image;\n"
-	"void main() { gl_FragColor= texture(image, texture_coordinates.xy); }\n";
-
-const int quad_vertex_count= 3* 6;
-float quad_vertices[quad_vertex_count]= { -1.0f, -1.0f, +0.0f, +1.0f, -1.0f, +0.0f, -1.0f, +1.0f, +0.0f, 
-					                      +1.0f, -1.0f, +0.0f, +1.0f, +1.0f, +0.0f, -1.0f, +1.0f, +0.0f };
-
-SDL_Window *main_window;
-SDL_Renderer *renderer;
-SDL_GLContext opengl_context;
-int screen_width= 512;
-int screen_height= 512;
-void InitializeOpenGL()
+class GraphicsSystem : public System
 {
-	SDL_Init(SDL_INIT_VIDEO);
-
-	SDL_Init(SDL_INIT_VIDEO);
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	main_window = SDL_CreateWindow("8-Bit RayTracer", 
-									SDL_WINDOWPOS_CENTERED, 
-									SDL_WINDOWPOS_CENTERED, 
-									screen_width, 
-									screen_height, 
-									SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
-
-	renderer = SDL_CreateRenderer(main_window, -1, 0);
-	opengl_context = SDL_GL_CreateContext(main_window);
-	SDL_GL_SetSwapInterval(0);
-	int glew_result= glewInit();
-	if(glew_result!= 0)
-		cout << "GlewInit() error, returned " << glew_result;
-	else
-		cout << "OpenGL context: " << glGetString(GL_VERSION);
-	cout << "\n\n";
-	glDisable(GL_DEPTH_TEST);
-
 	
-	GLuint buffer;
-	glGenBuffers(1, &buffer);
-	glBindBuffer(GL_ARRAY_BUFFER, buffer);
-	glBufferData(GL_ARRAY_BUFFER, quad_vertex_count* sizeof(float), quad_vertices, GL_STATIC_DRAW);
+protected:
+	void Initialize();
+	void Terminate();
 
-	GLuint vertex_shader= CreateShader(GL_VERTEX_SHADER, vertex_shader_source, "vertex shader");
-	GLuint fragment_shader= CreateShader(GL_FRAGMENT_SHADER, fragment_shader_source, "fragment shader");
-	GLuint shader_program= CreateShaderProgram(vertex_shader, fragment_shader);
-	glUseProgram(shader_program);
+public:
+	//May want to make these private
+	SDL_Window *main_window;
+	SDL_Renderer *renderer;
+	SDL_GLContext opengl_context;
+	int screen_width= 512;
+	int screen_height= 512;
 
-	GLint position_attribute= glGetAttribLocation(shader_program, "position");
-	glVertexAttribPointer(position_attribute, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-	glEnableVertexAttribArray(position_attribute);
+	friend System;
+};
 
-	GLuint texture;
-	glGenTextures(1, &texture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-}
-
-void ConcludeOpenGL()
-{
-
-}
 
 #define JOIN(x, y) JOIN_AGAIN(x, y)
 #define JOIN_AGAIN(x, y) x ## y
@@ -352,26 +303,29 @@ void ConcludeOpenGL()
 
 struct RayType{enum Enum {Primary, Reflection, Refraction, Indirect};};
 
-struct RayAncillaries//Change name probably
+struct RayExtras//Change name probably
 {
 	float x, y;
 	Color absorption;
 	int bounce_count;
 	RayType::Enum type;
 
-	RayAncillaries(float x, float y, Color absorption, int bounce_count, RayType::Enum type);
-	RayAncillaries();
+	RayExtras(float x, float y, Color absorption, int bounce_count, RayType::Enum type);
+	RayExtras();
 };
+
 
 //Doesn't work if you don't have a source for the pointers to point to that won't be deleted when scope changes
 //Would otherwise have to dynamically allocate the pointers, which is wonky and a waste of memory since they
 //eventually get stored in already allocated memory
+
+//Look at rethink here
 struct CompleteRay
 {
 	RTCRay *ray;
-	RayAncillaries *ray_ancillaries;
+	RayExtras *extras;
 
-	CompleteRay(RTCRay *ray, RayAncillaries *ray_ancillaries);
+	CompleteRay(RTCRay *ray, RayExtras *extras);
 };
 
 struct CompleteRayPacket
@@ -379,9 +333,9 @@ struct CompleteRayPacket
 	RTCRayPacket *ray_packet;
 	int ray_index;
 
-	RayAncillaries *ray_ancillaries;
+	RayExtras *extras;
 
-	CompleteRayPacket(RTCRayPacket *ray_packet, int ray_index, RayAncillaries *ray_ancillaries);
+	CompleteRayPacket(RTCRayPacket *ray_packet, int ray_index, RayExtras *ray_extras);
 };
 
 
@@ -390,14 +344,12 @@ class Light
 public:
 	Light();
 	
-	//Not sure about these functions...
-	//Seems redundant to have child defined queries for things that we already
-	//Have a class hierarchy for.
-	virtual bool IsAmbient() const;//Thinking of removing this
+	virtual bool IsAmbient();
 	virtual bool IsSoft();
 	virtual bool IsGenerative();
 
-	virtual Color GetLuminosity(Vec3f point) const = 0;
+	virtual Color GetLuminosity(Vec3f point)= 0;
+	virtual Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index);
 	
 	//virtual RTCRay SampleLightRay(int sample_index);//put this in GenerativeLight?
 };
@@ -409,24 +361,11 @@ class AmbientLight : public Light
 public:
 	AmbientLight(Color intensity);
 
-	bool IsAmbient() const;
-	Color GetLuminosity(Vec3f point) const;
+	bool IsAmbient();
+	Color GetLuminosity(Vec3f point);
 }; 
 
-class ShadowLight : public Light//Might be a good enough name, but review this
-{
-public:
-	bool IsAmbient() const;
-
-	//Not sure I like the word "Point". Don't use it anywhere else.
-	//Silently folding in the distance seems to clever too me, but I'm not doing
-	//It to be clever. Its just faster than normalizing only to unormalize, and 
-	//cleaner than coming up with some bizzarre name of the function and a way to
-	//return the distance separately. So I'd like to review this.
-	virtual Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index) const;
-};
-
-class PointLight : public ShadowLight
+class PointLight : public Light
 {
 protected:
 	Vec3f position;
@@ -437,8 +376,8 @@ public:
 
 	bool IsGenerative();
 
-	Color GetLuminosity(Vec3f point) const;
-	Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index) const;
+	Color GetLuminosity(Vec3f point);
+	Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index);
 };
 
 class DiscLight : public PointLight
@@ -451,7 +390,7 @@ public:
 	bool IsSoft();
 
 	Color GetLuminosity(Vec3f point);
-	Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index) const;
+	Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index);
 };
 
 
@@ -459,21 +398,180 @@ class Scene
 {
 	RTCScene embree_scene;
 	vector<unsigned int> geometry_ids;
-	vector<ShadowLight *> shadow_lights;
+	vector<Light *> lights;
 	vector<AmbientLight *> ambient_lights;
 
 public:
-	Scene();
+	Scene(RTCDevice device);
 
 	void AddOBJ(string filename);
 	void AddLight(Light *light);
 
-	vector<ShadowLight *> * GetShadowLights();
+	vector<Light *> * GetLights();
 	vector<AmbientLight *> * GetAmbientLights();
 
 	void Commit();
 
-	RTCScene GetEmbreeScene();
+	RTCScene GetEmbreeScene();//Would like to internalize whatever is calling this
+};
+
+
+struct BlockState{enum Enum {Empty, Partial, Full};};
+
+struct RayBlock
+{
+	RTCRay rays[RAY_BLOCK_SIZE];
+	RayExtras ray_extrass[RAY_BLOCK_SIZE];
+	int front_index;
+
+	BlockState::Enum state;
+	bool is_primary;
+	bool is_coherent;
+	//vector<float> occlusion;
+	
+
+	RayBlock(bool is_primary, bool is_coherent);
+	RayBlock();
+
+	void Empty();
+};
+
+/*#define RAY_PACKET_BLOCK_SIZE (128/ PACKET_SIZE)
+struct RayPacketBlock
+{
+	RTCRayPacket ray_packets[RAY_BLOCK_SIZE];
+	RayExtras ray_extrass[RAY_BLOCK_SIZE];
+	int front_index;
+	//vector<float> occlusion;
+
+	RayPacketBlock();
+};*/
+
+/*#define SHADOW_BLOCKS_PER_RAY_BLOCK 1
+#define SHADOW_BLOCK_SIZE (RAY_BLOCK_SIZE/ SHADOW_BLOCKS_PER_RAY_BLOCK)
+struct ShadowBlock
+{
+	RTCRay *hits;
+	RayBlock *ray_block;
+};*/
+
+
+struct Camera;
+struct Film;
+
+struct Surface
+{
+	Vec3f position;
+	Vec3f normal;
+
+	Surface(Vec3f position, Vec3f normal);
+	Surface();
+};
+
+void ShadingKernel(CompleteRay ray, /*Surface &surface, float *occlusions,*/ Film *film, Scene *scene);
+
+
+//http://stackoverflow.com/questions/24465533/implementing-boostbarrier-in-c11
+class Barrier
+{
+private:
+    std::mutex _mutex;
+    std::condition_variable _cv;
+    std::size_t _count;
+
+	std::size_t _original_count;
+
+public:
+	explicit Barrier(std::size_t count= THREAD_COUNT) : _count{count}, _original_count{count} { }
+    void Wait()
+    {
+        std::unique_lock<std::mutex> lock{_mutex};
+        if (--_count == 0) {
+            _cv.notify_all();
+        } else {
+            _cv.wait(lock, [this] { return _count == 0; });
+        }
+    }
+
+	void Reset()
+	{
+		_count= _original_count;
+	}
+};
+
+
+//Lets change it back to Job!!!
+struct TaskType{enum Enum {None, Refill, Shade, Develop};};
+
+struct Task
+{
+	TaskType::Enum type;
+
+	union
+	{
+		struct
+		{
+			RayBlock *primary_ray_block;
+		}refill;
+
+		struct
+		{
+			RayBlock *ray_block;
+		}shade;
+	};
+
+	Task(TaskType::Enum type, RayBlock *ray_block= nullptr);
+	Task();
+};
+
+//Thinking of redesigning this to be a servant of camera.
+//Better yet would be a implementation of a Interface for accelerated workers for
+//high level objects like Camera
+
+//All these pointers are dissonant with our usual use of value types and references for objects... 
+//But I cant use references on a thread call. 
+class Shutter
+{
+	Camera *camera;
+
+	queue<RayBlock *> empty_primary_ray_blocks; 
+	queue<RayBlock *> empty_coherent_ray_blocks; 
+	queue<RayBlock *> empty_incoherent_ray_blocks; 
+	queue<RayBlock *> full_ray_blocks;
+
+	std::thread threads[THREAD_COUNT];
+	
+	std::atomic_int next_camera_tile_index;
+	std::atomic_int next_film_interval_index;
+
+	bool ray_source_exhausted;
+	bool develop_finished;
+
+	std::mutex task_mutex;
+	std::mutex resource_mutex;
+
+	Barrier barrier;
+
+protected:
+	RayBlock * TakeEmptyPrimaryRayBlock();
+	RayBlock * TakeEmptyCoherentRayBlock();
+	RayBlock * TakeEmptyIncoherentRayBlock();
+	RayBlock * TakeFullRayBlock();
+	void ReturnRayBlock(RayBlock *ray_block);
+
+	void Refill(RayBlock *primary_ray_block);
+	void Shade(RayBlock *ray_block, Scene *scene, Film *film);
+	void Develop(Film *film);
+
+	Task GetTask();
+	void TaskLoop(Scene *scene);
+
+	void Reset();
+
+public:
+	Shutter(Camera *camera= nullptr);
+
+	void Open(Scene &scene);
 };
 
 
@@ -486,8 +584,11 @@ struct Image
 {
 	Pixel *pixels;
 
-	Image(int width, int height);//Seems like this is a little redundant since film exists (or other way around)... Would like to have Film construct Image or something
-	~Image();//This may not be a good idea if we aren't dynamically allocating
+	Image(int width, int height);
+	Image();
+	~Image();
+
+	void Resize(int width, int height);
 };
 
 //Would be nice if we could use a dedicated Color class, 
@@ -496,30 +597,20 @@ struct Image
 //Some things that aren't present in Vec3f. (such as getting the perceptual brightness, etc)
 //Let's try switching after we get things working, so we can quantify any possible performance
 //issues. (shouldn't be, but might as well)
-//We should have Stimulate() automatically calculate entropy
-//Should we be worried about extra memory needed to store these entropy values?
-//Normally, the value is calculated on the fly because the pixels are shaded one at a time
 struct Film
 {
 	int width, height;
-	Vec3f *receptors;//try with flat float array
-
-	float max_component;
-	std::mutex component_mutex;
-	std::atomic_int next_tile_index;
+	Vec3f *receptors;
+	Image image;
 
 	Film(int width, int height);
-	~Film();//This may not be a good idea if we aren't dynamically allocating
+	~Film();
 
-	void Clear();
-	void Stimulate(int x, int y, Color light);//Name is (still) pretty bad
+	void Clear();//Does this need to be parallelized?
+	void Stimulate(int x, int y, Color light);
 
-	//Don't like how this works... Returning image feels better. Could have Film store its own image.
-	//Need to parallelize this
-	void Develop(Image *image);
-
-	void ComputeMaxComponent();
-	bool DevelopJob(Image *image);
+	void Develop();
+	bool Develop_Parallel(int interval_index);//hmmm
 };
 
 
@@ -539,8 +630,6 @@ struct Camera
 	Vec3f view_plane_u;
 	Vec3f view_plane_v;
 
-	std::atomic_int next_tile_index;
-
 	Camera(float fov_in_degrees, Vec3f position, Vec3f direction= Vec3f(0, 0, -1));
 
 	void LookAt(Vec3f look_at_position);
@@ -550,178 +639,13 @@ struct Camera
 	Film * LoadFilm(Film *film);
 	Film * RemoveFilm();
 
-	//Not sure about this... the responsiblity of the camera is to provide rays, but
-	//Keeping track of the progress of the work pool seems wrong. It shouldn't work in 
-	//concert and we shouldn't have to interact with its internal operation like this.
-	//Also would like more flavorful name for this function
-	void Reset();
-
-	void GetRays(CompleteRay first_ray, int &count);
+	void GetRays(CompleteRay first_ray, int &count, int tile_index);
 	//RayPacketBlock GetRayPackets();
 
+	Image *TakePicture(Scene &scene);
+
 private:
+	//Think about making Shutter internal
+	Shutter shutter;//Even more reason to rename to something more appropriate
 
-};
-
-
-//The fact that "Filling" is lumped with "Empty" in most of our
-//verbiage is pretty gross but I'm not sure of a solution which doesn't
-//introduce new, less idiomatic language, or language which is overly 
-//verbose ("not ready"/preparing/"empty or filling"
-struct BlockState{enum Enum {Empty, Filling, Full};};
-
-//Could be very interesting to use CompleteRays here...
-//RayBlocks ARE NOT undifferentiated when empty;
-//They should remain coherent or incoherent so that the base ray block count
-//remains the same. No need to even keep track of this count
-//Then again, what we are actually interested in is that we control memory usage
-//So reusing RayBlocks seems desirable. This effects our implementation quite a bit.
-//We still want to be able to make new RayBlocks at will for generated rays, but we
-//want to cap how many RayBlocks exist to below some constant number. In particular,
-//we cannot simply refill a block once it becomes available because this paired with
-//block creation when there are no available blocks results in infinite expansion.
-
-//We want to have a way to test out ray block sizes and tile sizes independently
-//We can at least use a multiple pretty easily
-struct RayBlock
-{
-	RTCRay rays[RAY_BLOCK_SIZE];
-	RayAncillaries ray_ancillariess[RAY_BLOCK_SIZE];
-	//RTCRay *rays;
-	//RayAncillaries *ray_ancillariess;
-	int front_index;
-
-	BlockState::Enum state;
-	//bool is_checked_out;//no longer necessary since blocks are literally checked out now
-	bool is_primary;//may be replaced, just a note that this sort of thing is necessary
-	bool is_coherent;
-	//vector<float> occlusion;
-	
-
-	//RayBlock(bool is_primary, bool is_coherent, RTCRay *rays, RayAncillaries *ray_ancillariess);
-	RayBlock(bool is_primary, bool is_coherent);
-	RayBlock();
-
-	void Empty();
-
-	//want to switch this to complete rays
-	//Want to actually use this!
-	//Make sure to make this use references
-	//void AddRay(RTCRay ray, RayAncillaries ray_ancillaries);//should be as fast as accessing the memory directly, but not sure
-};
-
-/*#define RAY_PACKET_BLOCK_SIZE (128/ PACKET_SIZE)
-struct RayPacketBlock
-{
-	RTCRayPacket ray_packets[RAY_BLOCK_SIZE];
-	RayAncillaries ray_ancillariess[RAY_BLOCK_SIZE];
-	int front_index;
-	//vector<float> occlusion;
-
-	RayPacketBlock();
-};*/
-
-/*#define SHADOW_BLOCKS_PER_RAY_BLOCK 1
-#define SHADOW_BLOCK_SIZE (RAY_BLOCK_SIZE/ SHADOW_BLOCKS_PER_RAY_BLOCK)
-struct ShadowBlock
-{
-	RTCRay *hits;
-	RayBlock *ray_block;
-};*/
-
-struct Surface
-{
-	Vec3f position;
-	Vec3f normal;
-
-	Surface(Vec3f position, Vec3f normal);
-	Surface();
-};
-
-//May want to combine occlusions and lights into one object
-
-//Need to pass in space for new rays, but problem is this function can't get a new container if they fill up
-//the one given. Could simply return rays, but returning a CompleteRay doesn't work because it assumes there 
-//is some underlying storage object for rays and ancillaries. 
-void ShadingKernel(RTCRay &ray, /*Surface &surface, float *occlusions,*/ Film &film, RayAncillaries &ray_ancillaries, Scene &scene);//Eventually want to use CompleteRays
-
-struct JobType{enum Enum {None, Refill, Shade};};
-
-struct Job
-{
-	JobType::Enum type;
-
-	union
-	{
-		struct
-		{
-			RayBlock *primary_ray_block;
-		}refill;
-
-		struct
-		{
-			RayBlock *ray_block;
-		}shade;
-	};
-
-	Job(JobType::Enum type, RayBlock *ray_block);
-	Job();
-};
-
-//Note that in practice, each thread basically runs on its own block. It grabs one randomly,
-//But then it refills it, and in the microseconds after he returns it, he's the only one looking for
-//a new job, and the only available job is the filled block it just turned in.
-//I'm suggesting a new system where threads run in their own lanes and less communication is necessary.
-//We'd still need a pool of blocks for non-primary rays though, so you'd have to work out how that fits.
-//Also note that I'm thinking that atomics are better than mutices if you do it right, since they are incredibly fast.
-int primary_ray_block_count= THREAD_COUNT* 1;
-class ShaderWorkPool//should think if we can generalize this class
-{
-	//RTCRay rays[RAY_BLOCK_SIZE* THREAD_COUNT* 1];//This may eventually make more sense to belong to RayBlock as static member
-	//RayAncillaries ray_ancillariess[RAY_BLOCK_SIZE* THREAD_COUNT* 1];//and this of course
-
-	queue<RayBlock *> empty_primary_ray_blocks; 
-	queue<RayBlock *> empty_coherent_ray_blocks; 
-	queue<RayBlock *> empty_incoherent_ray_blocks; 
-	queue<RayBlock *> full_ray_blocks;
-
-	std::thread threads[THREAD_COUNT];
-
-	Scene *scene;
-	Camera *camera;
-	Image *image;
-
-	bool ray_source_is_empty;
-
-	std::mutex job_mutex;
-	std::mutex resource_mutex;
-
-protected:
-	RayBlock * TakeEmptyPrimaryRayBlock();
-	RayBlock * TakeEmptyCoherentRayBlock();
-	RayBlock * TakeEmptyIncoherentRayBlock();
-	RayBlock * TakeFullRayBlock();
-	void ReturnRayBlock(RayBlock *ray_block);
-
-public:
-	ShaderWorkPool(Scene *scene, Camera *camera, Image *image);
-
-	void Refill(RayBlock *primary_ray_block);
-	void Shade(RayBlock *ray_block);
-	bool Develop();
-
-	Job GetJob();
-
-	void WorkLoop();
-	void DevelopLoop();
-
-	//This whole class (and several others) need some renaming
-	//I'd like to somehow enforce the camera idiom and make this "TakePicture" (obviously that's a camera method, 
-	//but somehow we want to integrate things so we don't have this gross low level class, or at least we don't
-	//have to interact with it)
-	//Also, the name doesn't imply an atomic action (E.g. "Render", "DoWork", etc.) which is the real problem here.
-	void SpawnWorkers();
-	
-
-	//int GetThreadIndex();
 };

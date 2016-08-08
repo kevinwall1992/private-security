@@ -96,14 +96,14 @@ export void GetRayDirections(uniform int x_offset, uniform int y_offset,
 	}
 
 #else
-	for(uniform int j= 0; j< TILE_HEIGHT; j++)
+	for(uniform int j= 0; j< CAMERA_TILE_HEIGHT; j++)
 	{
 		uniform float normalized_y= (((y_offset+ j)+ 0.5f)/ height)* 2- 1;
 
-		for(uniform int i= 0; i< TILE_WIDTH; i++)
+		for(uniform int i= 0; i< CAMERA_TILE_WIDTH; i++)
 		{
 			uniform float normalized_x= (((x_offset+ i)+ 0.5f)/ width)* 2- 1;
-			uniform int ray_index= i+ j* TILE_WIDTH;
+			uniform int ray_index= i+ j* CAMERA_TILE_WIDTH;
 
 			rays[ray_index].org[programIndex]= camera_position[programIndex];
 			rays[ray_index].dir[programIndex]= camera_forward[programIndex]+ view_plane_u[programIndex]* -normalized_x+ view_plane_v[programIndex]* normalized_y;
