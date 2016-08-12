@@ -1,6 +1,3 @@
-#ifndef __8BR_PARAMETERS__
-#define __8BR_PARAMETERS__
-
 #define PACKET_SIZE 4
 
 //Going to postpone support for more than 1 samples per pixel
@@ -21,4 +18,5 @@
 #define PARALLEL_DEVELOP 1
 #define ISPC_DEVELOP 1
 
-#endif
+#define SCREEN_WIDTH 512
+#define SCREEN_HEIGHT 512
