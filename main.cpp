@@ -319,7 +319,7 @@ bool Film::Develop_Parallel(int interval_index)
 		return false;
 
 #if ISPC_DEVELOP
-	ispc::Develop(reinterpret_cast<float *>(&(receptors[interval_index* FILM_INTERVAL_SIZE])), reinterpret_cast<int8_t *>(&(image.pixels[interval_index* FILM_INTERVAL_SIZE])), 1, FILM_INTERVAL_SIZE* 3);
+	ispc::Develop(reinterpret_cast<float *>(receptors+ interval_index* FILM_INTERVAL_SIZE), reinterpret_cast<int8_t *>(image.pixels+ interval_index* FILM_INTERVAL_SIZE), 1, FILM_INTERVAL_SIZE* 3);
 
 #else
 	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);
@@ -631,7 +631,7 @@ Surface::Surface()
 }
 
 
-void ShadingKernel(CompleteRay ray, /*Surface &surface, float *occlusions,*/ Film *film, Scene *scene)
+void ShadingKernel(CompleteRay &ray, /*Surface &surface, float *occlusions,*/ Film *film, Scene *scene)
 {
 	int x= ray.extras->x;
 	int y= ray.extras->y;
@@ -769,7 +769,7 @@ Shutter::Shutter(Camera *camera_)
 
 void Shutter::Refill(RayBlock *primary_ray_block)
 {
-	CompleteRay complete_ray= CompleteRay(&(primary_ray_block->rays[primary_ray_block->front_index]), &(primary_ray_block->ray_extrass[primary_ray_block->front_index]));
+	CompleteRay complete_ray= CompleteRay(primary_ray_block->rays+ primary_ray_block->front_index, primary_ray_block->ray_extrass+ primary_ray_block->front_index);
 	int count= RAY_BLOCK_SIZE;
 	int camera_tile_index= next_camera_tile_index++;
 	camera->GetRays(complete_ray, count, camera_tile_index);
@@ -805,7 +805,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		if(ray_block->rays[i].geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
-		ShadingKernel(CompleteRay(&(ray_block->rays[i]), &(ray_block->ray_extrass[i])), film, scene);
+		ShadingKernel(CompleteRay(ray_block->rays+ i, ray_block->ray_extrass+ i), film, scene);
 		rays_processed_count++;
 	}
 
@@ -937,7 +937,6 @@ int main(int argument_count, char **arguments)
 	Film film(System::graphics.screen_width, System::graphics.screen_height);
 	camera.LoadFilm(&film);
 
-#if 1
 	int start_ticks= SDL_GetTicks();
 	int last_ticks= start_ticks;
 	int total_frame_count= 0;
@@ -992,103 +991,4 @@ int main(int argument_count, char **arguments)
 	System::TerminateSystems();
 
 	return 0;
-
-#else
-	Vec3f light_position(0.0f, 0.0f, 0.0f);
-
-	int screen_width= System::graphics.screen_width;
-	int screen_height= System::graphics.screen_height;
-
-	unsigned char *image= new unsigned char[3* screen_width* screen_height];
-	//for(int i= 0; i< 3* screen_width* screen_height; i++)
-	//	image[i]= 255;
-
-	int last_ticks= SDL_GetTicks();
-	int total_frame_count= 0;
-	int print_frame_count= 20;
-	while(true)
-	{
-		for(int j= 0; j< screen_height; j++)
-		{
-			for(int i= 0; i< screen_width; i++)
-			{
-				image[3* i+ 3* screen_width* j+ 0]= 0;
-				image[3* i+ 3* screen_width* j+ 1]= 0;
-				image[3* i+ 3* screen_width* j+ 2]= 0;
-
-				float normalized_x= ((i+ 0.5f)/ (float)screen_width)* 2- 1;
-				float normalized_y= ((j+ 0.5f)/ (float)screen_height)* 2- 1;
-
-				Vec3f ray_direction= camera.forward+ camera.view_plane_u* normalized_x+ camera.view_plane_v* normalized_y;
-
-				RTCRay ray;
-				SetFloat3(ray.org, camera.position);
-				SetFloat3(ray.dir, ray_direction);
-				//ray.org[0] = camera.position[0]; ray.org[1] = camera.position[1]; ray.org[2] = camera.position[2];
-				//ray.dir[0] = ray_direction[0]; ray.dir[1] = ray_direction[1]; ray.dir[2] = ray_direction[2];
-				ray.tnear = 0.0f;
-				ray.tfar = FLT_MAX;
-				ray.geomID = RTC_INVALID_GEOMETRY_ID;
-				ray.primID = RTC_INVALID_GEOMETRY_ID;
-				ray.mask = -1;
-				ray.time = 0;
-
-				rtcIntersect(scene.GetEmbreeScene(), ray);
-				Vec3f ray_origin= MakeVec3f(ray.org);
-				Vec3f surface_position= ray_origin+ (MakeVec3f(ray.dir)* ray.tfar);
-				Vec3f surface_normal= normalize(Vec3f(ray.Ng[0], ray.Ng[1], ray.Ng[2]));
-
-				if(ray.geomID== RTC_INVALID_GEOMETRY_ID)
-				{
-
-				}
-				else
-				{
-
-
-					Vec3f color(1.0f, 1.0f, 1.0f);
-					float diffuse_term= dot(surface_normal, normalize(surface_position- light_position));
-					color*= 0.5f+ 0.5f* diffuse_term;
-					//color= Vec3f(abs(surface_normal[0]), abs(surface_normal[1]), abs(surface_normal[2]));
-
-					int red_index= 3* i+ 3* screen_width* j;
-					image[red_index+ 0]= (unsigned char)(color[0]* 255);
-					image[red_index+ 1]= (unsigned char)(color[1]* 255);
-					image[red_index+ 2]= (unsigned char)(color[2]* 255);
-				}
-			
-			}
-		}
-
-	
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screen_width, screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glDrawArrays(GL_TRIANGLES, 0, quad_vertex_count);
-		SDL_GL_SwapWindow(System::graphics.main_window);
-
-		if((++total_frame_count% print_frame_count)== 0)
-		{
-			int current_ticks= SDL_GetTicks();
-			float seconds= (current_ticks- last_ticks)/ 1000.0f;
-			cout << "framerate: " << print_frame_count/ seconds << ", frametime: " << 1000* seconds/ print_frame_count << " ms" << endl;
-			last_ticks= current_ticks;
-		}
-
-		bool exit_requested= false;
-		SDL_Event event_;
-		while(SDL_PollEvent(&event_))
-			if(event_.type== SDL_QUIT)
-				exit_requested= true;
-		if(exit_requested)
-			break;
-
-		if((total_frame_count% (print_frame_count* 5))== 0)
-			break;
-	}
-
-	rtcDeleteScene(scene.GetEmbreeScene());
-	rtcDeleteDevice(System::embree.device);
-	delete image;
-	return 0;
-#endif
 }

@@ -468,8 +468,6 @@ struct Surface
 	Surface();
 };
 
-void ShadingKernel(CompleteRay ray, /*Surface &surface, float *occlusions,*/ Film *film, Scene *scene);
-
 
 //http://stackoverflow.com/questions/24465533/implementing-boostbarrier-in-c11
 class Barrier
