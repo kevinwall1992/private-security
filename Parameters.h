@@ -1,3 +1,5 @@
+//May want to prefix all of these with EBR... Gross but otherwise its an unsafe naming policy
+
 #define PACKET_SIZE 4
 
 //Going to postpone support for more than 1 samples per pixel
@@ -6,6 +8,9 @@
 #define CAMERA_TILE_HEIGHT 32
 
 #define FILM_INTERVAL_SIZE 8192
+
+#define SCREEN_WIDTH 512
+#define SCREEN_HEIGHT 512
 
 //We want to have a way to test out ray block sizes and tile sizes independently
 //We can at least use a multiple pretty easily
@@ -18,5 +23,5 @@
 #define PARALLEL_DEVELOP 1
 #define ISPC_DEVELOP 1
 
-#define SCREEN_WIDTH 512
-#define SCREEN_HEIGHT 512
+#define STREAM_MODE_ 1
+

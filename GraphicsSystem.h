@@ -9,6 +9,7 @@
 
 class GraphicsSystem : public System
 {
+	int frame_count= 0;
 	
 protected:
 	void Initialize();
@@ -21,7 +22,9 @@ public:
 	int screen_width;
 	int screen_height;
 
-	void Render(Image &image);
+	void Display(Image &image);
+
+	int GetFrameCount();
 
 	friend System;
 };

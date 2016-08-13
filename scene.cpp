@@ -4,9 +4,13 @@
 
 Scene::Scene()
 {
+#if STREAM_MODE_
+	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, RTC_INTERSECT_STREAM);
+#else
 	//need to determine if we need a second stream for packeted intersection
 	//interesting to know (as well) whether the stream mode doesn't like switching between packets and singles
 	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, RTC_INTERSECT1);
+#endif
 }
 
 //Little bit scary... but it really should be Scene's responsibility to clean this up...
@@ -65,4 +69,13 @@ void Scene::Commit()
 void Scene::Intersect(Ray &ray)
 {
 	rtcIntersect(embree_scene, ray);
+}
+
+void Scene::Intersect(Ray *rays, int count, bool is_coherent)
+{
+	RTCIntersectContext context;
+	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
+	context.userRayExt= nullptr;
+
+	rtcIntersect1M(embree_scene, &context, rays, count, sizeof(Ray));
 }

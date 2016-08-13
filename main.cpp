@@ -3,9 +3,10 @@
 #include "Scene.h"
 #include "Camera.h"
 #include "Light.h"
+#include "Timer.h"
 
-#include <Windows.h>
 
+const int print_frame_count= 40;
 
 int main(int argument_count, char **arguments)
 {
@@ -24,37 +25,33 @@ int main(int argument_count, char **arguments)
 	Film film(System::graphics.screen_width, System::graphics.screen_height);
 	camera.LoadFilm(&film);
 
-	int start_ticks= SDL_GetTicks();
-	int last_ticks= start_ticks;
-	int total_frame_count= 0;
-	int print_frame_count= 40;
-	int total_render_milliseconds= 0;
+
+	Timer display_timer;
+	Timer render_timer;
+
 	while(true)
 	{
-		int before_render_ticks= SDL_GetTicks();
+		display_timer.Start();
+		render_timer.Start();
+
 		camera.TakePicture(scene);
 #if PARALLEL_DEVELOP
 #else
 		camera->film->Develop(image);
 #endif
-		total_render_milliseconds+= SDL_GetTicks()- before_render_ticks;
-		if((++total_frame_count% print_frame_count)== 0)
+		render_timer.Pause();
+		
+		System::graphics.Display(film.image);
+		display_timer.Pause();
+		
+		if((System::graphics.GetFrameCount()% print_frame_count)== 0)
 		{
-			float average_frametime= total_render_milliseconds/ (float)print_frame_count;
-			cout << "Render FT/FR: " << 1000/ average_frametime << "fps/" << average_frametime << "ms";
-			total_render_milliseconds= 0;
-		}
+			float seconds_to_render= render_timer.Stop()/ (float)print_frame_count;
+			float seconds_to_display= display_timer.Stop()/ (float)print_frame_count;
 
-		System::graphics.Render(film.image);
-		
-		if((total_frame_count% print_frame_count)== 0)
-		{
-			int current_ticks= SDL_GetTicks();
-			float seconds= (current_ticks- last_ticks)/ 1000.0f;
-			cout << ", Display FR/FT/AVFT: " << print_frame_count/ seconds << "fps/" << 1000* seconds/ print_frame_count << "ms/" << (current_ticks- start_ticks)/ (float)total_frame_count << "ms\n";
-			last_ticks= current_ticks;
+			cout << "Render FR/FT: " << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms";
+			cout << ", Display FR/FT: " << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
 		}
-		
 
 		bool exit_requested= false;
 		SDL_Event event_;
@@ -64,7 +61,7 @@ int main(int argument_count, char **arguments)
 		if(exit_requested)
 			break;
 
-		if((total_frame_count% (print_frame_count* 15))== 0)
+		if((System::graphics.GetFrameCount()% (print_frame_count* 30))== 0)
 			break;
 	}
 

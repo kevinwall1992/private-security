@@ -185,12 +185,12 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 //We are currently computing occlusions for failed hits...
 void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 {
-	RTCIntersectContext context;
-	context.flags= ray_block->is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
-	context.userRayExt= nullptr;
-	//rtcIntersect1M(scene->GetEmbreeScene(), nullptr, ray_block->rays, RAY_BLOCK_SIZE, 0);//test out striding extras into array
+#if STREAM_MODE_
+	scene->Intersect(ray_block->rays, RAY_BLOCK_SIZE, ray_block->is_coherent);
+#else
 	for(int i= 0; i< RAY_BLOCK_SIZE; i++)
 		scene->Intersect(ray_block->rays[i]);
+#endif
 
 	int rays_processed_count= 0;
 	for(unsigned int i= 0; i< ray_block->front_index; i++)

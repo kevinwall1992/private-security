@@ -74,10 +74,17 @@ void GraphicsSystem::Terminate()
 	
 }
 
-void GraphicsSystem::Render(Image &image)
+void GraphicsSystem::Display(Image &image)
 {
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, System::graphics.screen_width, System::graphics.screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image.pixels);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, quad_vertex_count);
 	SDL_GL_SwapWindow(System::graphics.main_window);
+
+	frame_count++;
+}
+
+int GraphicsSystem::GetFrameCount()
+{
+	return frame_count;
 }

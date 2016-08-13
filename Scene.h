@@ -27,6 +27,7 @@ public:
 	void Commit();
 
 	void Intersect(Ray &ray);
+	void Intersect(Ray *rays, int count, bool is_coherent);
 };
 
 struct Vertex
