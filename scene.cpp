@@ -79,3 +79,33 @@ void Scene::Intersect(Ray *rays, int count, bool is_coherent)
 
 	rtcIntersect1M(embree_scene, &context, rays, count, sizeof(Ray));
 }
+
+#define rtcIntersectPacket JOIN(rtcIntersect, PACKET_SIZE)
+void Scene::Intersect(RayPacket &ray_packet)
+{
+#if STREAM_MODE_
+	assert(false && "Attempted to intersect single packet in stream mode.");
+
+#else
+	int32_t valid[PACKET_SIZE];
+	memset(valid, 0xFFFFFFFF, sizeof(int32_t)* PACKET_SIZE);
+	
+	rtcIntersectPacket(valid, embree_scene, ray_packet);
+
+#endif
+}
+
+void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
+{
+#if STREAM_MODE_
+	RTCIntersectContext context;
+	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
+	context.userRayExt= nullptr;
+
+	rtcIntersectNM(embree_scene, &context, ray_packet, PACKET_SIZE, count, sizeof(RayPacket));
+
+#else
+	assert(false && "Attempted to intersect packet stream in single mode.");
+
+#endif
+}

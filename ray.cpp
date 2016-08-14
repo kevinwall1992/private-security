@@ -19,3 +19,10 @@ CompleteRay::CompleteRay(Ray *ray_, RayExtras *extras_)
 	ray= ray_;
 	extras= extras_;
 }
+
+
+CompleteRayPacket::CompleteRayPacket(RayPacket *ray_packet_, RayPacketExtras *ray_extras_)
+{
+	ray_packet= ray_packet_;
+	extras= ray_extras_;
+}

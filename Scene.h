@@ -28,6 +28,8 @@ public:
 
 	void Intersect(Ray &ray);
 	void Intersect(Ray *rays, int count, bool is_coherent);
+	void Intersect(RayPacket &ray_packet);
+	void Intersect(RayPacket *ray_packet, int count, bool is_coherent);
 };
 
 struct Vertex

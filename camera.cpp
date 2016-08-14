@@ -55,7 +55,7 @@ Image * Camera::TakePicture(Scene &scene)
 	return &(film->image);
 }
 
-void Camera::GetRays(CompleteRay first_ray, int &count, int tile_index)
+bool Camera::GetRays(CompleteRay first_ray, int tile_index)
 {
 #if ISPC_GET_RAYS
 	int tile_index= next_tile_index++;
@@ -121,10 +121,7 @@ void Camera::GetRays(CompleteRay first_ray, int &count, int tile_index)
 
 #else
 	if(tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT)))
-	{
-		count= 0;
-		return;
-	}
+		return false;
 
 	//int tile_index= next_tile_index++;//will want to test this to see that it indeed works as expected
 	int tile_count_x= film->width/ CAMERA_TILE_WIDTH;//May be best to compute this only once
@@ -165,6 +162,66 @@ void Camera::GetRays(CompleteRay first_ray, int &count, int tile_index)
 			next_ray.extras++;
 		}
 	}
+
+	return true;
+
+#endif
+}
+
+bool Camera::GetRayPackets(CompleteRayPacket first_ray, int tile_index)
+{
+#if ISPC_GET_RAYS
+#else
+	if(tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT)))
+		return false;
+
+	//int tile_index= next_tile_index++;//will want to test this to see that it indeed works as expected
+	int tile_count_x= film->width/ CAMERA_TILE_WIDTH;//May be best to compute this only once
+	int tile_x= tile_index% tile_count_x;
+	int tile_y= tile_index/ tile_count_x;
+
+	CompleteRayPacket next_ray= first_ray;
+	for(int j= 0; j< CAMERA_TILE_HEIGHT; j++)
+	{
+		for(int i= 0; i< CAMERA_TILE_WIDTH; i+= PACKET_SIZE)
+		{
+			for(int k= 0; k< PACKET_SIZE; k++)
+			{
+				int x= i+ k+ tile_x* CAMERA_TILE_WIDTH;
+				int y= j+ tile_y* CAMERA_TILE_HEIGHT;
+
+				float normalized_x= ((x+ 0.5f)/ film->width)* 2- 1;
+				float normalized_y= ((y+ 0.5f)/ film->height)* 2- 1;
+
+				next_ray.ray_packet->orgx[k]= position[0];
+				next_ray.ray_packet->orgy[k]= position[1];
+				next_ray.ray_packet->orgz[k]= position[2];
+
+				//-normalized is quick hack
+				next_ray.ray_packet->dirx[k]= forward[0]+ view_plane_u[0]* -normalized_x+ view_plane_v[0]* normalized_y;
+				next_ray.ray_packet->diry[k]= forward[1]+ view_plane_u[1]* -normalized_x+ view_plane_v[1]* normalized_y;
+				next_ray.ray_packet->dirz[k]= forward[2]+ view_plane_u[2]* -normalized_x+ view_plane_v[2]* normalized_y;
+
+				next_ray.ray_packet->tnear[k] = 0.0f;
+				next_ray.ray_packet->tfar[k] = FLT_MAX;
+				next_ray.ray_packet->geomID[k] = RTC_INVALID_GEOMETRY_ID;
+				next_ray.ray_packet->primID[k] = RTC_INVALID_GEOMETRY_ID;
+				next_ray.ray_packet->mask[k] = -1;
+				next_ray.ray_packet->time[k] = 0;
+
+				next_ray.extras->absorption[k]= Color(1.0f, 1.0f, 1.0f);
+				next_ray.extras->bounce_count[k]= 0;
+				next_ray.extras->type[k]= RayType::Primary;
+				next_ray.extras->x[k]= x;
+				next_ray.extras->y[k]= y;
+			}
+
+			next_ray.ray_packet++;
+			next_ray.extras++;
+		}
+	}
+
+	return true;
 
 #endif
 }

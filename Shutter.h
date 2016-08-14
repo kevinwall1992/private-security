@@ -14,6 +14,7 @@ using std::queue;
 
 struct Camera;
 struct RayBlock;
+struct RayPacketBlock;
 struct Task;
 
 class Shutter
@@ -24,6 +25,9 @@ class Shutter
 	queue<RayBlock *> empty_coherent_ray_blocks; 
 	queue<RayBlock *> empty_incoherent_ray_blocks; 
 	queue<RayBlock *> full_ray_blocks;
+
+	queue<RayPacketBlock *> empty_primary_ray_packet_blocks; 
+	queue<RayPacketBlock *> full_ray_packet_blocks;
 
 	std::thread threads[THREAD_COUNT];
 	
@@ -45,9 +49,16 @@ protected:
 	RayBlock * TakeFullRayBlock();
 	void ReturnRayBlock(RayBlock *ray_block);
 
+	RayPacketBlock * TakeEmptyPrimaryRayPacketBlock();
+	RayPacketBlock * TakeFullRayPacketBlock();
+	void ReturnRayPacketBlock(RayPacketBlock *ray_packet_block);
+
 	void Refill(RayBlock *primary_ray_block);
 	void Shade(RayBlock *ray_block, Scene *scene, Film *film);
 	void Develop(Film *film);
+
+	void PacketedRefill(RayPacketBlock *primary_ray_packet_block);
+	void PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film *film);
 
 	Task GetTask();
 	void TaskLoop(Scene *scene);
@@ -72,7 +83,6 @@ struct RayBlock
 	BlockState::Enum state;
 	bool is_primary;
 	bool is_coherent;
-	//vector<float> occlusion;
 	
 
 	RayBlock(bool is_primary, bool is_coherent);
@@ -81,16 +91,22 @@ struct RayBlock
 	void Empty();
 };
 
-/*#define RAY_PACKET_BLOCK_SIZE (128/ PACKET_SIZE)
 struct RayPacketBlock
 {
-	RayPacket ray_packets[RAY_BLOCK_SIZE];
-	RayExtras ray_extrass[RAY_BLOCK_SIZE];
+	RayPacket ray_packets[RAY_PACKET_BLOCK_SIZE];
+	RayPacketExtras ray_packet_extrass[RAY_PACKET_BLOCK_SIZE];
 	int front_index;
-	//vector<float> occlusion;
 
+	BlockState::Enum state;
+	bool is_primary;
+	bool is_coherent;
+
+
+	RayPacketBlock(bool is_primary, bool is_coherent);
 	RayPacketBlock();
-};*/
+
+	void Empty();
+};
 
 /*#define SHADOW_BLOCKS_PER_RAY_BLOCK 1
 #define SHADOW_BLOCK_SIZE (RAY_BLOCK_SIZE/ SHADOW_BLOCKS_PER_RAY_BLOCK)
@@ -106,21 +122,33 @@ struct TaskType{enum Enum {None, Refill, Shade, Develop};};
 struct Task
 {
 	TaskType::Enum type;
+	bool is_packeted;
 
 	union
 	{
 		struct
 		{
-			RayBlock *primary_ray_block;
+			union
+			{
+				RayBlock *primary_ray_block;
+				RayPacketBlock *primary_ray_packet_block;
+			};
+			
 		}refill;
 
 		struct
 		{
-			RayBlock *ray_block;
+			union
+			{
+				RayBlock *ray_block;
+				RayPacketBlock *ray_packet_block;
+			};
 		}shade;
 	};
 
-	Task(TaskType::Enum type, RayBlock *ray_block= nullptr);
+	Task(TaskType::Enum type, RayBlock *ray_block);
+	Task(TaskType::Enum type, RayPacketBlock *ray_packet_block);
+	Task(TaskType::Enum type);
 	Task();
 };
 

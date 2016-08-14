@@ -7,7 +7,14 @@
 
 
 #define Ray RTCRay
-#define RayPacket JOIN(RTCRay, PACKET_SIZE)//need to test compile time packet sizes vs run time packet sizes
+
+//need to test compile time packet sizes vs run time packet sizes
+#if STREAM_MODE_
+#define RayPacket RTCRayNt<PACKET_SIZE>
+#else
+#define RayPacket JOIN(RTCRay, PACKET_SIZE)
+#endif
+
 
 struct RayType{enum Enum {Primary, Reflection, Refraction, Indirect};};
 
@@ -20,6 +27,14 @@ struct RayExtras
 
 	RayExtras(float x, float y, Color absorption, int bounce_count, RayType::Enum type);
 	RayExtras();
+};
+
+struct RayPacketExtras
+{
+	float x[PACKET_SIZE], y[PACKET_SIZE];
+	Color absorption[PACKET_SIZE];//Try unrolling this into separate component arrays
+	int bounce_count[PACKET_SIZE];
+	RayType::Enum type[PACKET_SIZE];
 };
 
 struct CompleteRay
@@ -35,9 +50,9 @@ struct CompleteRayPacket
 	RayPacket *ray_packet;
 	int ray_index;
 
-	RayExtras *extras;
+	RayPacketExtras *extras;
 
-	CompleteRayPacket(RayPacket *ray_packet, int ray_index, RayExtras *ray_extras);
+	CompleteRayPacket(RayPacket *ray_packet, RayPacketExtras *ray_extras);
 };
 
 #endif
