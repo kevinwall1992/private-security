@@ -1,6 +1,6 @@
 //May want to prefix all of these with EBR... Gross but otherwise its an unsafe naming policy
 
-#define PACKET_SIZE 4
+#define PACKET_SIZE 8
 
 //Going to postpone support for more than 1 samples per pixel
 #define SAMPLES_PER_PIXEL 1
@@ -20,10 +20,14 @@
 #define THREAD_COUNT 1
 #define SERIAL_MODE 1
 
-#define ISPC_GET_RAYS 0//fix this
+#define ISPC_GET_RAYS 1
 #define PARALLEL_DEVELOP 1
 #define ISPC_DEVELOP 1
+#define ISPC_SHADING 1
+#define ISPC_CLEAR 1
 
-#define STREAM_MODE_ 1
+#define SOA_RECEPTORS 1
+
+#define STREAM_MODE_ 0
 #define PACKET_MODE_ 1
 

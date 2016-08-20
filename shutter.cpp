@@ -2,6 +2,7 @@
 #include "Scene.h"
 #include "Camera.h"
 #include "Surface.h"
+#include "ISPCKernels.h"
 
 
 template<class T>
@@ -112,6 +113,7 @@ Shutter::Shutter(Camera *camera_)
 #endif
 }
 
+#if PACKET_MODE_== 0
 void Shutter::Refill(RayBlock *primary_ray_block)
 {
 	CompleteRay complete_ray= CompleteRay(primary_ray_block->rays+ primary_ray_block->front_index, 
@@ -134,6 +136,7 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 
 	ReturnRayBlock(primary_ray_block);
 }
+#endif
 
 void ShadingKernel(CompleteRay &ray, Film *film, Scene *scene)
 {
@@ -197,8 +200,10 @@ void Shutter::Develop(Film *film)
 {
 	int film_interval_index= next_film_interval_index++;
 	develop_finished= !film->Develop_Parallel(film_interval_index);
+	film->Clear_Parallel(film_interval_index);
 }
 
+#if PACKET_MODE_
 void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 {
 	CompleteRayPacket complete_ray_packet= CompleteRayPacket(primary_ray_packet_block->ray_packets+ primary_ray_packet_block->front_index, 
@@ -221,6 +226,7 @@ void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 
 	ReturnRayPacketBlock(primary_ray_packet_block);
 }
+#endif
 
 //There are two levels to the SoAness here...
 //You have each member put into an array, AND you have each component
@@ -264,7 +270,11 @@ void PacketedShadingKernel(CompleteRayPacket &ray_packet, Film *film, Scene *sce
 		for(unsigned int j= 0; j< ambient_lights->size(); j++)
 			color+= (*ambient_lights)[j]->GetLuminosity(surface.position);
 
-		film->Stimulate(ray_packet.extras->x[i], ray_packet.extras->y[i], color* ray_packet.extras->absorption[i]);
+		color[0]*= ray_packet.extras->absorption_r[i];
+		color[1]*= ray_packet.extras->absorption_g[i];
+		color[2]*= ray_packet.extras->absorption_b[i];
+
+		film->Stimulate(ray_packet.extras->x[i], ray_packet.extras->y[i], color);
 	}
 }
 
@@ -277,6 +287,22 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 		scene->Intersect(ray_packet_block->ray_packets[i]);
 #endif
 
+#if ISPC_SHADING
+	ispc::Lighting lighting= scene->GetISPCLighting();
+#if SOA_RECEPTORS
+	ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
+		                        reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
+								film->receptors_r, film->receptors_g, film->receptors_b, film->width,
+								&lighting);
+
+#else
+	ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
+		                        reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
+								reinterpret_cast<float *>(film->receptors), film->width,
+								&lighting);
+#endif
+
+#else
 	int ray_packets_processed_count= 0;
 	for(unsigned int i= 0; i< ray_packet_block->front_index; i++)
 	{
@@ -286,6 +312,8 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 		PacketedShadingKernel(CompleteRayPacket(ray_packet_block->ray_packets+ i, ray_packet_block->ray_packet_extrass+ i), film, scene);
 		ray_packets_processed_count++;
 	}
+
+#endif
 
 	ray_packet_block->Empty();
 	ReturnRayPacketBlock(ray_packet_block);
@@ -368,10 +396,12 @@ void Shutter::TaskLoop(Scene *scene)
 		switch(task.type)
 		{
 		case TaskType::Refill:
-			if(task.is_packeted)
+			//This is getting ridiculous...
+#if PACKET_MODE_
 				PacketedRefill(task.refill.primary_ray_packet_block);
-			else
+#else
 				Refill(task.refill.primary_ray_block);
+#endif
 			break;
 		case TaskType::Shade: 
 			if(task.is_packeted)

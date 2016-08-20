@@ -53,11 +53,15 @@ protected:
 	RayPacketBlock * TakeFullRayPacketBlock();
 	void ReturnRayPacketBlock(RayPacketBlock *ray_packet_block);
 
+#if PACKET_MODE_== 0
 	void Refill(RayBlock *primary_ray_block);
+#endif
 	void Shade(RayBlock *ray_block, Scene *scene, Film *film);
 	void Develop(Film *film);
 
+#if PACKET_MODE_
 	void PacketedRefill(RayPacketBlock *primary_ray_packet_block);
+#endif
 	void PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film *film);
 
 	Task GetTask();

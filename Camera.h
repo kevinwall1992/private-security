@@ -28,8 +28,12 @@ struct Camera
 	Film * RemoveFilm();
 
 	//Try using reference for completeray here
-	bool GetRays(CompleteRay first_ray, int tile_index);
+#if PACKET_MODE_
 	bool GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index);
+#else
+	bool GetRays(CompleteRay first_ray, int tile_index);
+#endif
+	
 
 	Image *TakePicture(Scene &scene);
 

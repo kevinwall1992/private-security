@@ -1,16 +1,19 @@
 #include "Scene.h"
 #include "Mesh.h"
 
+#if STREAM_MODE_
+#define RTC_INTERSECT_MODE RTC_INTERSECT_STREAM
+#elif PACKET_MODE_
+#define RTC_INTERSECT_MODE JOIN(RTC_INTERSECT, PACKET_SIZE)
+#else
+#define RTC_INTERSECT_MODE RTC_INTERSECT1
+#endif
 
 Scene::Scene()
 {
-#if STREAM_MODE_
-	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, RTC_INTERSECT_STREAM);
-#else
 	//need to determine if we need a second stream for packeted intersection
 	//interesting to know (as well) whether the stream mode doesn't like switching between packets and singles
-	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, RTC_INTERSECT1);
-#endif
+	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, RTC_INTERSECT_MODE);
 }
 
 //Little bit scary... but it really should be Scene's responsibility to clean this up...
@@ -39,6 +42,8 @@ void Scene::AddOBJ(string filename)
 	memcpy(triangles, &raw_mesh.position_indices[0], sizeof(int)* triangle_count* 3);
 	rtcUnmapBuffer(embree_scene, geometry_id, RTC_INDEX_BUFFER);
 
+	cout << "triangles: " << raw_mesh.GetTriangleCount() << endl;
+
 	geometry_ids.push_back(geometry_id);
 }
 
@@ -58,6 +63,29 @@ vector<Light *> * Scene::GetLights()
 vector<AmbientLight *> * Scene::GetAmbientLights()
 {
 	return &ambient_lights;
+}
+
+ispc::Lighting Scene::GetISPCLighting()
+{
+	ispc::Lighting lighting;
+
+	lighting.point_lights= new ispc::PointLight_[lights.size()];
+	for(unsigned int i= 0; i< lights.size(); i++)
+	{
+		Vec3f position= lights[i]->GetPosition();
+		SetFloat3(lighting.point_lights[i].position, position);
+
+		Color intensity= lights[i]->GetIntensity();
+		SetFloat3(lighting.point_lights[i].intensity, intensity);
+	}
+	lighting.point_light_count= lights.size();
+
+	Vec3f ambient;
+	for(unsigned int i= 0; i< ambient_lights.size(); i++)
+		ambient+= ambient_lights[i]->GetIntensity();
+	SetFloat3(lighting.ambient, ambient);
+
+	return lighting;
 }
 
 void Scene::Commit()

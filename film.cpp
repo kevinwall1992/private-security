@@ -11,28 +11,91 @@ Film::Film(int width_, int height_)
 	width= width_;
 	height= height_;
 
+#if SOA_RECEPTORS
+	receptors_r= new float[width* height];
+	receptors_g= new float[width* height];
+	receptors_b= new float[width* height];
+#else
 	receptors= new Vec3f[width* height];
+#endif
+
 	Clear();
 }
 
 Film::~Film()
 {
+#if SOA_RECEPTORS
+	delete receptors_r;
+	delete receptors_g;
+	delete receptors_b;
+#else
 	delete receptors;
+#endif
 }
 
+//Need to figure out why this is so expensive
 void Film::Clear()
 {
+#if SOA_RECEPTORS
+#if ISPC_CLEAR
+	ispc::Clear(receptors_r, receptors_g, receptors_b, width* height);
+
+#else
+	for(int i= 0; i< width* height; i++)
+	{
+		receptors_r[i]= 0.0f;
+		receptors_g[i]= 0.0f;
+		receptors_b[i]= 0.0f;
+	}
+#endif
+
+#else
 	for(int i= 0; i< width* height; i++)
 		receptors[i]= Vec3f(0, 0, 0);
+#endif
+}
+
+bool Film::Clear_Parallel(int interval_index)
+{
+	if(interval_index>= (width* height)/ FILM_INTERVAL_SIZE)
+		return false;
+
+#if SOA_RECEPTORS
+#if ISPC_CLEAR
+	int interval_offset= interval_index* FILM_INTERVAL_SIZE;
+	ispc::Clear(receptors_r+ interval_offset, 
+		        receptors_g+ interval_offset, 
+				receptors_b+ interval_offset, 
+				FILM_INTERVAL_SIZE);
+
+#else
+	assert(false&& "Clear_Parallel not implement for non ISPC clear");
+#endif
+
+#else
+	float *flattened_receptors= reinterpret_cast<float *>(receptors+ interval_index* FILM_INTERVAL_SIZE);
+	std::fill(flattened_receptors, flattened_receptors+ FILM_INTERVAL_SIZE* 3, 0.0f);
+
+#endif
+
+	return true;
 }
 
 void Film::Stimulate(int x, int y, Color light)
 {
+#if SOA_RECEPTORS
+	assert(false && "Stimulate() under SOA_RECEPTORS mode not implemented");
+#else
 	receptors[x+ width* y]+= light;
+#endif
 }
 
 void Film::Develop()
 {
+#if ISPC_SHADING
+	assert(false && "Single threaded Develop() under SOA_RECEPTORS mode not implemented");
+
+#else
 #if ISPC_DEVELOP
 	ispc::Develop(reinterpret_cast<float *>(receptors), reinterpret_cast<int8_t *>(image.pixels), 1, width* height* 3);
 
@@ -45,6 +108,7 @@ void Film::Develop()
 	}
 
 #endif
+#endif
 }
 
 bool Film::Develop_Parallel(int interval_index)
@@ -52,6 +116,27 @@ bool Film::Develop_Parallel(int interval_index)
 	if(interval_index>= (width* height)/ FILM_INTERVAL_SIZE)
 		return false;
 
+#if SOA_RECEPTORS
+#if ISPC_DEVELOP
+	int interval_offset= interval_index* FILM_INTERVAL_SIZE;
+	ispc::Develop2(receptors_r+ interval_offset, 
+		           receptors_g+ interval_offset, 
+				   receptors_b+ interval_offset, 
+				   reinterpret_cast<int8_t *>(image.pixels+ interval_offset), 1, FILM_INTERVAL_SIZE);
+
+#else
+	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);
+
+	for(int i= 0; i< FILM_INTERVAL_SIZE; i++)
+	{
+		pixels[i].r= (unsigned char)(receptors_r[i]* 255);
+		pixels[i].g= (unsigned char)(receptors_g[i]* 255);
+		pixels[i].b= (unsigned char)(receptors_b[i]* 255);
+	}
+
+#endif
+
+#else
 #if ISPC_DEVELOP
 	ispc::Develop(reinterpret_cast<float *>(receptors+ interval_index* FILM_INTERVAL_SIZE), reinterpret_cast<int8_t *>(image.pixels+ interval_index* FILM_INTERVAL_SIZE), 1, FILM_INTERVAL_SIZE* 3);
 
@@ -66,6 +151,7 @@ bool Film::Develop_Parallel(int interval_index)
 		pixels[i].b= (unsigned char)(receptors[i].z* 255);
 	}
 
+#endif
 #endif
 
 	return true;

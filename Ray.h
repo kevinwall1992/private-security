@@ -29,10 +29,11 @@ struct RayExtras
 	RayExtras();
 };
 
+//RayPacketExtras or RayExtrasPacket?
 struct RayPacketExtras
 {
 	float x[PACKET_SIZE], y[PACKET_SIZE];
-	Color absorption[PACKET_SIZE];//Try unrolling this into separate component arrays
+	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
 	int bounce_count[PACKET_SIZE];
 	RayType::Enum type[PACKET_SIZE];
 };
