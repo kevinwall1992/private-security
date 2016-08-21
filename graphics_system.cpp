@@ -19,6 +19,8 @@ const int quad_vertex_count= 3* 6;
 float quad_vertices[quad_vertex_count]= { -1.0f, -1.0f, +0.0f, +1.0f, -1.0f, +0.0f, -1.0f, +1.0f, +0.0f, 
 					                      +1.0f, -1.0f, +0.0f, +1.0f, +1.0f, +0.0f, -1.0f, +1.0f, +0.0f };
 
+GLuint texture;
+
 void GraphicsSystem::Initialize()
 {
 	screen_width= SCREEN_WIDTH;
@@ -67,6 +69,8 @@ void GraphicsSystem::Initialize()
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, System::graphics.screen_width, System::graphics.screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 }
 
 void GraphicsSystem::Terminate()
@@ -76,8 +80,8 @@ void GraphicsSystem::Terminate()
 
 void GraphicsSystem::Display(Image &image)
 {
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, System::graphics.screen_width, System::graphics.screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, image.pixels);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, System::graphics.screen_width, System::graphics.screen_height, GL_RGB, GL_UNSIGNED_BYTE, image.pixels);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, quad_vertex_count);
 	SDL_GL_SwapWindow(System::graphics.main_window);
 

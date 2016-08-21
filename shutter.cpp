@@ -302,6 +302,9 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 								&lighting);
 #endif
 
+	//Need to put this somehwere
+	delete lighting.point_lights;
+
 #else
 	int ray_packets_processed_count= 0;
 	for(unsigned int i= 0; i< ray_packet_block->front_index; i++)

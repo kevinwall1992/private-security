@@ -18,6 +18,8 @@ Scene::Scene()
 
 //Little bit scary... but it really should be Scene's responsibility to clean this up...
 //Guee we may have to use dynamic instances if this becomes a problem
+
+//Need to delete lights
 Scene::~Scene()
 {
 	rtcDeleteScene(embree_scene);
