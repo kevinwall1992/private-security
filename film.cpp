@@ -136,7 +136,7 @@ bool Film::Develop_Parallel(int interval_index)
 		           receptors_g+ interval_offset, 
 				   receptors_b+ interval_offset, 
 				   reinterpret_cast<int8_t *>(image.GetPixels()+ interval_offset), 
-				   1, FILM_INTERVAL_SIZE);
+				   1* SAMPLES_PER_PIXEL, FILM_INTERVAL_SIZE);
 
 #else
 	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);

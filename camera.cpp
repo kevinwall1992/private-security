@@ -1,5 +1,6 @@
 #include "Camera.h"
 #include "ISPCKernels.h"
+#include "Sampling.h"
 
 
 Camera::Camera(float fov_in_degrees, Vec3f position_, Vec3f direction_)
@@ -10,6 +11,12 @@ Camera::Camera(float fov_in_degrees, Vec3f position_, Vec3f direction_)
 	forward= direction_;
 
 	ComputeViewPlane();
+
+	for(int i= 0; i< SAMPLES_PER_PIXEL; i++)
+	{
+		halton_samples_x[i]= HaltonSequence(2, i);
+		halton_samples_y[i]= HaltonSequence(3, i);
+	}
 }
 
 void Camera::LookAt(Vec3f look_at_position)
@@ -72,7 +79,8 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index)
 						reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
 						film->width, film->height, 
 						reinterpret_cast<ispc::RayPacket_ *>(first_ray_packet.ray_packet), 
-						reinterpret_cast<ispc::RayPacketExtras *>(first_ray_packet.extras));
+						reinterpret_cast<ispc::RayPacketExtras *>(first_ray_packet.extras), 
+						halton_samples_x, halton_samples_y);
 	
 	return true;
 

@@ -1,8 +1,8 @@
 
 #define PACKET_SIZE 8
 
-#define SAMPLES_PER_PIXEL 1
-#define CAMERA_TILE_WIDTH 64
+#define SAMPLES_PER_PIXEL 8
+#define CAMERA_TILE_WIDTH (64/ SAMPLES_PER_PIXEL)
 #define CAMERA_TILE_HEIGHT 32
 
 #define FILM_INTERVAL_SIZE 8192
@@ -12,7 +12,7 @@
 
 //We want to have a way to test out ray block sizes and tile sizes independently
 //We can at least use a multiple pretty easily
-#define RAY_BLOCK_SIZE (CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT)
+#define RAY_BLOCK_SIZE (CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT* SAMPLES_PER_PIXEL)
 #define RAY_PACKET_BLOCK_SIZE (RAY_BLOCK_SIZE/ PACKET_SIZE)
 
 #define THREAD_COUNT 1

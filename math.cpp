@@ -13,3 +13,15 @@ Vec3f MakeVec3f(const float components[3])
 {
 	return Vec3f(components[0], components[1], components[2]);
 }
+
+Vec2f::Vec2f(float x_, float y_)
+{
+	x= x_;
+	y= y_;
+}
+
+Vec2f::Vec2f()
+{
+	x= 0.0f;
+	y= 0.0f;
+}

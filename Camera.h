@@ -17,6 +17,9 @@ struct Camera
 
 	Film *film;
 
+	float halton_samples_x[SAMPLES_PER_PIXEL];
+	float halton_samples_y[SAMPLES_PER_PIXEL];
+
 
 	Camera(float fov_in_degrees, Vec3f position, Vec3f direction= Vec3f(0, 0, -1));
 
@@ -28,6 +31,8 @@ struct Camera
 	Film * RemoveFilm();
 
 	//Try using reference for completeray here
+
+	//Is "Get" the best word here?
 	bool GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index);
 	bool GetRays(CompleteRay first_ray, int tile_index);
 

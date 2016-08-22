@@ -1,4 +1,17 @@
+struct Vec2f
+{
+	float x, y;
+};
+
+struct Vec3f
+{
+	float x, y, z;
+};
+
+#define ISPC_CODE
 #include "Parameters.h"
+#include "Sampling.h"
+#undef ISPC_CODE
 
 #define RTC_INVALID_GEOMETRY_ID ((unsigned int)-1)
 
@@ -7,10 +20,6 @@
 //CAn accomplish 2 by figuring out how to include embree's ISPC interface
 //CAn accomplish 1 by having mangled name base class in C format and then derive
 //In C++ with correct name, typedef it here.
-struct Vec3f
-{
-	float x, y, z;
-};
 
 struct Ray
 {
@@ -139,18 +148,42 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 							uniform float view_plane_u[], uniform float view_plane_v[],
 							uniform int width, uniform int height,
 							uniform RayPacket_ ray_packets[], 
-							uniform RayPacketExtras ray_packet_extrass[])
+							uniform RayPacketExtras ray_packet_extrass[], 
+							uniform float halton_samples_x[], uniform float halton_samples_y[])
 {
+	//Try with these arrays as arguments, computed once.
+	/*uniform float halton_samples_x[programCount];
+	uniform float halton_samples_y[programCount];
+	for(uniform int i= 0; i< programCount; i++)
+	{
+		halton_samples_x[i]= HaltonSequence(2, i);
+		halton_samples_y[i]= HaltonSequence(3, i);
+	}*/
+
 	for(uniform int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
 	{
-		uniform int index= i* programCount;
+		uniform int index= i* (programCount/ SAMPLES_PER_PIXEL);
 		uniform int x_base= (index% CAMERA_TILE_WIDTH)+ x_offset;
 		uniform int y= index/ CAMERA_TILE_WIDTH+ y_offset;
 
+		//These are hardcoded for 256 bit vectorization 
+#if SAMPLES_PER_PIXEL== 1
 		int x= x_base+ programIndex;
-
 		float normalized_x= ((x+ 0.5f)/ width)* 2- 1;
 		uniform float normalized_y= ((y+ 0.5f)/ height)* 2- 1;
+
+#elif SAMPLES_PER_PIXEL== 4
+		int set_index= programIndex/ SAMPLES_PER_PIXEL;
+		int x= x_base+ set_index;
+		float normalized_x= ((x+ HaltonSequence(2, programIndex- set_index* SAMPLES_PER_PIXEL))/ width)* 2- 1;
+		float normalized_y= ((y+ HaltonSequence(3, programIndex- set_index* SAMPLES_PER_PIXEL))/ height)* 2- 1;
+
+#elif SAMPLES_PER_PIXEL== 8
+		uniform int x= x_base;
+		float normalized_x= ((x+ halton_samples_x[programIndex])/ width)* 2- 1;
+		float normalized_y= ((y+ halton_samples_y[programIndex])/ height)* 2- 1;
+
+#endif
 
 		//print("x_base: %, y: %, x: %, normx: %\n", x_base, y, x, normalized_x);
 
@@ -298,17 +331,19 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 		//Just realized this isn't thread safe here OR for our C++ versions if
 		//We have multiple samples per pixel
 #if SOA_RECEPTORS
-
+#if SAMPLES_PER_PIXEL== 1
 		//This is fast but extremely specific- we are not going to have
 		//One ray per pixel in the future so this will eventually need to be replaced
 		uniform int uniform_y;
 		uniform int packet_x;
+
 		if(reduce_equal(y, &uniform_y) && reduce_equal(x/ programCount, &packet_x))
 		{
 			int receptor_index= uniform_y* film_width+ packet_x* programCount+ programIndex;
 			receptors_r[receptor_index]= color[0];
 			receptors_g[receptor_index]= color[1];
 			receptors_b[receptor_index]= color[2];
+
 		}
 		else
 		{
@@ -317,6 +352,17 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 			receptors_g[receptor_index]= color[1];
 			receptors_b[receptor_index]= color[2];
 		}
+
+#else
+		uniform int uniform_x; reduce_equal(x, &uniform_x);
+		uniform int uniform_y; reduce_equal(y, &uniform_y);
+		uniform int receptor_index= uniform_y* film_width+ uniform_x;
+
+		receptors_r[receptor_index]= reduce_add(color[0]);
+		receptors_g[receptor_index]= reduce_add(color[1]);
+		receptors_b[receptor_index]= reduce_add(color[2]);
+
+#endif
 
 #else
 		int receptor_offset= (y* film_width+ x+ programIndex)* 3;
@@ -338,6 +384,7 @@ export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet,
 								  uniform int film_width,
 								  Lighting * uniform lighting)
 {
+#if SAMPLES_PER_PIXEL== 1
 	cif(ray_packet->geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
 		return;
 
@@ -415,6 +462,7 @@ export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet,
 	receptors[receptor_offset+ 1]= color[1];
 	receptors[receptor_offset+ 2]= color[2];
 
+#endif
 #endif
 }
 
