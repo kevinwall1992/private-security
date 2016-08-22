@@ -29,7 +29,7 @@ struct Film
 	void Stimulate(int x, int y, Color light);
 
 	void Develop();
-	bool Develop_Parallel(int interval_index);//hmmm
+	bool Develop_Parallel(int interval_index);
 };
 
 #endif

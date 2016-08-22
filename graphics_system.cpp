@@ -20,6 +20,7 @@ float quad_vertices[quad_vertex_count]= { -1.0f, -1.0f, +0.0f, +1.0f, -1.0f, +0.
 					                      +1.0f, -1.0f, +0.0f, +1.0f, +1.0f, +0.0f, -1.0f, +1.0f, +0.0f };
 
 GLuint texture;
+SDL_Surface *window_surface;
 
 void GraphicsSystem::Initialize()
 {
@@ -28,7 +29,17 @@ void GraphicsSystem::Initialize()
 
 	SDL_Init(SDL_INIT_VIDEO);
 
-	SDL_Init(SDL_INIT_VIDEO);
+#if NO_OPENGL
+	window = SDL_CreateWindow("8-Bit RayTracer", 
+									SDL_WINDOWPOS_CENTERED, 
+									SDL_WINDOWPOS_CENTERED, 
+									screen_width, 
+									screen_height, 
+									0);
+
+	window_surface= SDL_GetWindowSurface(window);
+	
+#else
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	main_window = SDL_CreateWindow("8-Bit RayTracer", 
 									SDL_WINDOWPOS_CENTERED, 
@@ -71,6 +82,7 @@ void GraphicsSystem::Initialize()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, System::graphics.screen_width, System::graphics.screen_height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+#endif
 }
 
 void GraphicsSystem::Terminate()
@@ -78,12 +90,44 @@ void GraphicsSystem::Terminate()
 	
 }
 
+Image GraphicsSystem::GetWindowImage()
+{
+	SDL_LockSurface(window_surface);
+	return Image((Pixel *)window_surface->pixels);
+}
+
+void GraphicsSystem::ReturnWindowImage(Image window_image)
+{
+	SDL_UnlockSurface(window_surface);
+}
+
 void GraphicsSystem::Display(Image &image)
 {
+#if NO_OPENGL
+#if !DRAW_DIRECTLY_TO_SCREEN
+	Pixel *pixels= (Pixel *)window_surface->pixels;
+	for(unsigned int j= 0; j< screen_height; j++)
+	{
+		for(unsigned int i= 0; i< screen_width; i++)
+		{
+			int offset= j* screen_width+ i;
+
+			pixels[offset].r= image.pixels[offset].r;
+			pixels[offset].g= image.pixels[offset].g;
+			pixels[offset].b= image.pixels[offset].b;
+		}
+	}
+#endif
+
+	SDL_UpdateWindowSurface(window);
+
+#else
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, System::graphics.screen_width, System::graphics.screen_height, GL_RGB, GL_UNSIGNED_BYTE, image.pixels);
 	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, quad_vertex_count);
 	SDL_GL_SwapWindow(System::graphics.main_window);
+
+#endif
 
 	frame_count++;
 }

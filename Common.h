@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <assert.h>
 
 using std::string;
 using std::vector;

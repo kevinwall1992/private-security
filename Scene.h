@@ -4,7 +4,6 @@
 #include "Common.h"
 #include "EmbreeSystem.h"
 #include "Light.h"
-#include "ISPCKernels.h"
 
 class Scene
 {
@@ -24,7 +23,7 @@ public:
 
 	vector<Light *> * GetLights();
 	vector<AmbientLight *> * GetAmbientLights();
-	ispc::Lighting GetISPCLighting();
+	ISPCLighting * GetISPCLighting();
 
 	void Commit();
 

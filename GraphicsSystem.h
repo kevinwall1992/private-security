@@ -16,11 +16,16 @@ protected:
 	void Terminate();
 
 public:
-	SDL_Window *main_window;
-	SDL_Renderer *renderer;
-	SDL_GLContext opengl_context;
+	SDL_Window *window;
 	int screen_width;
 	int screen_height;
+
+#if !NO_OPENGL
+	SDL_GLContext opengl_context;
+#endif
+
+	Image GetWindowImage();
+	void ReturnWindowImage(Image window_image);
 
 	void Display(Image &image);
 

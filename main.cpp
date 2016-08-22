@@ -35,14 +35,10 @@ int main(int argument_count, char **arguments)
 			display_timer.Start();
 			render_timer.Start();
 
-			camera.TakePicture(scene);
-#if PARALLEL_DEVELOP
-#else
-			camera->film->Develop(image);
-#endif
+			Image image= camera.TakePicture(scene);
 			render_timer.Pause();
 		
-			System::graphics.Display(film.image);
+			System::graphics.Display(image);
 			display_timer.Pause();
 		
 			if((System::graphics.GetFrameCount()% print_frame_count)== 0)

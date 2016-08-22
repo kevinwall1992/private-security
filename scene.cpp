@@ -1,9 +1,9 @@
 #include "Scene.h"
 #include "Mesh.h"
 
-#if STREAM_MODE_
+#if STREAM_MODE
 #define RTC_INTERSECT_MODE RTC_INTERSECT_STREAM
-#elif PACKET_MODE_
+#elif defined PACKET_MODE
 #define RTC_INTERSECT_MODE JOIN(RTC_INTERSECT, PACKET_SIZE)
 #else
 #define RTC_INTERSECT_MODE RTC_INTERSECT1
@@ -16,12 +16,11 @@ Scene::Scene()
 	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, RTC_INTERSECT_MODE);
 }
 
-//Little bit scary... but it really should be Scene's responsibility to clean this up...
-//Guee we may have to use dynamic instances if this becomes a problem
-
-//Need to delete lights
 Scene::~Scene()
 {
+	for(unsigned int i= 0; i< lights.size(); i++)
+		delete lights[i];
+
 	rtcDeleteScene(embree_scene);
 }
 
@@ -67,25 +66,25 @@ vector<AmbientLight *> * Scene::GetAmbientLights()
 	return &ambient_lights;
 }
 
-ispc::Lighting Scene::GetISPCLighting()
+ISPCLighting * Scene::GetISPCLighting()
 {
-	ispc::Lighting lighting;
+	ISPCLighting *lighting= new ISPCLighting();
 
-	lighting.point_lights= new ispc::PointLight_[lights.size()];
+	lighting->point_lights= new ispc::PointLight_[lights.size()];
 	for(unsigned int i= 0; i< lights.size(); i++)
 	{
 		Vec3f position= lights[i]->GetPosition();
-		SetFloat3(lighting.point_lights[i].position, position);
+		SetFloat3(lighting->point_lights[i].position, position);
 
 		Color intensity= lights[i]->GetIntensity();
-		SetFloat3(lighting.point_lights[i].intensity, intensity);
+		SetFloat3(lighting->point_lights[i].intensity, intensity);
 	}
-	lighting.point_light_count= lights.size();
+	lighting->point_light_count= lights.size();
 
-	Vec3f ambient;
+	Vec3f ambient(0.0f, 0.0f, 0.0f);
 	for(unsigned int i= 0; i< ambient_lights.size(); i++)
 		ambient+= ambient_lights[i]->GetIntensity();
-	SetFloat3(lighting.ambient, ambient);
+	SetFloat3(lighting->ambient, ambient);
 
 	return lighting;
 }
@@ -113,7 +112,7 @@ void Scene::Intersect(Ray *rays, int count, bool is_coherent)
 #define rtcIntersectPacket JOIN(rtcIntersect, PACKET_SIZE)
 void Scene::Intersect(RayPacket &ray_packet)
 {
-#if STREAM_MODE_
+#if STREAM_MODE
 	assert(false && "Attempted to intersect single packet in stream mode.");
 
 #else
@@ -127,7 +126,7 @@ void Scene::Intersect(RayPacket &ray_packet)
 
 void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
 {
-#if STREAM_MODE_
+#if STREAM_MODE
 	RTCIntersectContext context;
 	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
 	context.userRayExt= nullptr;

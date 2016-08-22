@@ -102,7 +102,7 @@ Shutter::Shutter(Camera *camera_)
 
 	Reset();
 
-#if PACKET_MODE_
+#if PACKET_MODE
 	for(int i= 0; i< THREAD_COUNT; i++)
 		empty_primary_ray_packet_blocks.push(new RayPacketBlock(true, true));
 
@@ -113,7 +113,6 @@ Shutter::Shutter(Camera *camera_)
 #endif
 }
 
-#if PACKET_MODE_== 0
 void Shutter::Refill(RayBlock *primary_ray_block)
 {
 	CompleteRay complete_ray= CompleteRay(primary_ray_block->rays+ primary_ray_block->front_index, 
@@ -136,7 +135,6 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 
 	ReturnRayBlock(primary_ray_block);
 }
-#endif
 
 void ShadingKernel(CompleteRay &ray, Film *film, Scene *scene)
 {
@@ -173,7 +171,7 @@ void ShadingKernel(CompleteRay &ray, Film *film, Scene *scene)
 //We are currently computing occlusions for failed hits...
 void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 {
-#if STREAM_MODE_
+#if STREAM_MODE
 	scene->Intersect(ray_block->rays, RAY_BLOCK_SIZE, ray_block->is_coherent);
 #else
 	for(int i= 0; i< RAY_BLOCK_SIZE; i++)
@@ -203,7 +201,6 @@ void Shutter::Develop(Film *film)
 	film->Clear_Parallel(film_interval_index);
 }
 
-#if PACKET_MODE_
 void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 {
 	CompleteRayPacket complete_ray_packet= CompleteRayPacket(primary_ray_packet_block->ray_packets+ primary_ray_packet_block->front_index, 
@@ -226,12 +223,7 @@ void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 
 	ReturnRayPacketBlock(primary_ray_packet_block);
 }
-#endif
 
-//There are two levels to the SoAness here...
-//You have each member put into an array, AND you have each component
-//Of the vector members put into a separate array. Need to think of how to
-//Handle that second situation efficiently
 void PacketedShadingKernel(CompleteRayPacket &ray_packet, Film *film, Scene *scene)
 {
 	for(int i= 0; i< PACKET_SIZE; i++)
@@ -280,7 +272,7 @@ void PacketedShadingKernel(CompleteRayPacket &ray_packet, Film *film, Scene *sce
 
 void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film *film)
 {
-#if STREAM_MODE_
+#if STREAM_MODE
 	scene->Intersect(ray_packet_block->ray_packets, RAY_PACKET_BLOCK_SIZE, ray_packet_block->is_coherent);
 #else
 	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
@@ -288,12 +280,12 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #endif
 
 #if ISPC_SHADING
-	ispc::Lighting lighting= scene->GetISPCLighting();
+	ISPCLighting *lighting= scene->GetISPCLighting();
 #if SOA_RECEPTORS
 	ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
 		                        reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
 								film->receptors_r, film->receptors_g, film->receptors_b, film->width,
-								&lighting);
+								lighting);
 
 #else
 	ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
@@ -301,9 +293,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 								reinterpret_cast<float *>(film->receptors), film->width,
 								&lighting);
 #endif
-
-	//Need to put this somehwere
-	delete lighting.point_lights;
+	delete lighting;
 
 #else
 	int ray_packets_processed_count= 0;
@@ -330,7 +320,7 @@ Task Shutter::GetTask()
 
 	task_mutex.lock();//Test out removing this mutex after redesign finished
 
-#if PACKET_MODE_
+#if PACKET_MODE
 	RayPacketBlock *primary_ray_block= nullptr;
 	if(!ray_source_exhausted)
 		primary_ray_block= TakeEmptyPrimaryRayPacketBlock();
@@ -342,13 +332,11 @@ Task Shutter::GetTask()
 
 		if(ray_block!= nullptr)
 			task= Task(TaskType::Shade, ray_block);
-#if PARALLEL_DEVELOP
 		else 
 		{
 			if(!develop_finished)
 				task= Task(TaskType::Develop);
 		}
-#endif
 	}
 
 #else
@@ -363,13 +351,11 @@ Task Shutter::GetTask()
 
 		if(ray_block!= nullptr)
 			task= Task(TaskType::Shade, ray_block);
-#if PARALLEL_DEVELOP
 		else 
 		{
 			if(!develop_finished)
 				task= Task(TaskType::Develop);
 		}
-#endif
 	}
 #endif
 
@@ -400,12 +386,12 @@ void Shutter::TaskLoop(Scene *scene)
 		{
 		case TaskType::Refill:
 			//This is getting ridiculous...
-#if PACKET_MODE_
+			if(task.is_packeted)
 				PacketedRefill(task.refill.primary_ray_packet_block);
-#else
+			else
 				Refill(task.refill.primary_ray_block);
-#endif
 			break;
+
 		case TaskType::Shade: 
 			if(task.is_packeted)
 				PacketedShade(task.shade.ray_packet_block, scene, camera->film);

@@ -1,12 +1,17 @@
 #include "Film.h"
 #include "Common.h"
 #include "Math.h"
+#include "System.h"
 
 #include "ISPCKernels.h"
 
 
 Film::Film(int width_, int height_)
+#if DRAW_DIRECTLY_TO_SCREEN
+	: image()
+#else
 	: image(width_, height_)
+#endif
 {
 	width= width_;
 	height= height_;
@@ -33,7 +38,6 @@ Film::~Film()
 #endif
 }
 
-//Need to figure out why this is so expensive
 void Film::Clear()
 {
 #if SOA_RECEPTORS
@@ -111,18 +115,28 @@ void Film::Develop()
 #endif
 }
 
+struct BGRAPixel
+{
+	unsigned char b, g, r, a;
+};
+
 bool Film::Develop_Parallel(int interval_index)
 {
 	if(interval_index>= (width* height)/ FILM_INTERVAL_SIZE)
 		return false;
 
 #if SOA_RECEPTORS
+#if DRAW_DIRECTLY_TO_SCREEN
+	Image image= System::graphics.GetWindowImage();
+#endif
+
 #if ISPC_DEVELOP
 	int interval_offset= interval_index* FILM_INTERVAL_SIZE;
-	ispc::Develop2(receptors_r+ interval_offset, 
+	ispc::Develop(receptors_r+ interval_offset, 
 		           receptors_g+ interval_offset, 
 				   receptors_b+ interval_offset, 
-				   reinterpret_cast<int8_t *>(image.pixels+ interval_offset), 1, FILM_INTERVAL_SIZE);
+				   reinterpret_cast<int8_t *>(image.GetPixels()+ interval_offset), 
+				   1, FILM_INTERVAL_SIZE);
 
 #else
 	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);
@@ -135,10 +149,15 @@ bool Film::Develop_Parallel(int interval_index)
 	}
 
 #endif
+#if DRAW_DIRECTLY_TO_SCREEN
+	System::graphics.ReturnWindowImage(image);
+#endif
 
 #else
 #if ISPC_DEVELOP
-	ispc::Develop(reinterpret_cast<float *>(receptors+ interval_index* FILM_INTERVAL_SIZE), reinterpret_cast<int8_t *>(image.pixels+ interval_index* FILM_INTERVAL_SIZE), 1, FILM_INTERVAL_SIZE* 3);
+	ispc::Develop(reinterpret_cast<float *>(receptors+ interval_index* FILM_INTERVAL_SIZE), 
+		          reinterpret_cast<int8_t *>(image.pixels+ interval_index* FILM_INTERVAL_SIZE), 
+				  1, FILM_INTERVAL_SIZE* 3);
 
 #else
 	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);

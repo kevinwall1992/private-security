@@ -3,6 +3,7 @@
 
 #include "Color.h"
 #include "Math.h"
+#include "ISPCKernels.h"
 
 class Light
 {
@@ -70,5 +71,10 @@ public:
 	Color GetLuminosity(Vec3f point);
 	Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index);
 };*/
+
+struct ISPCLighting : public ispc::Lighting
+{
+	~ISPCLighting();
+};
 
 #endif

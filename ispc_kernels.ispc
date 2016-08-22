@@ -134,14 +134,12 @@ struct Lighting
          pts_aos[i] = pts_soa[i];
 }*/
 
-#if PACKET_MODE_
-//Try using constants for constant sized arrays
 export void GetRayPackets(uniform int x_offset, uniform int y_offset, 
 							uniform float camera_position[], uniform float camera_forward[], 
 							uniform float view_plane_u[], uniform float view_plane_v[],
 							uniform int width, uniform int height,
 							uniform RayPacket_ ray_packets[], 
-							uniform RayPacketExtras ray_packet_extras[])
+							uniform RayPacketExtras ray_packet_extrass[])
 {
 	for(uniform int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
 	{
@@ -172,24 +170,29 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 		ray_packets[i].mask[programIndex] = -1;
 		ray_packets[i].time[programIndex] = 0;
 
-		ray_packet_extras[i].absorption_r[programIndex]= 1.0f;
-		ray_packet_extras[i].absorption_g[programIndex]= 1.0f;
-		ray_packet_extras[i].absorption_b[programIndex]= 1.0f;
+		ray_packet_extrass[i].absorption_r[programIndex]= 1.0f;
+		ray_packet_extrass[i].absorption_g[programIndex]= 1.0f;
+		ray_packet_extrass[i].absorption_b[programIndex]= 1.0f;
 
-		ray_packet_extras[i].bounce_count[programIndex]= 0;
-		ray_packet_extras[i].type[programIndex]= 0;
-		ray_packet_extras[i].x[programIndex]= x;
-		ray_packet_extras[i].y[programIndex]= y;
+		ray_packet_extrass[i].bounce_count[programIndex]= 0;
+		ray_packet_extrass[i].type[programIndex]= 0;
+		ray_packet_extrass[i].x[programIndex]= x;
+#if NO_OPENGL
+		ray_packet_extrass[i].y[programIndex]= (height- 1)- y;
+#else
+		ray_packet_extrass[i].y[programIndex]= y;
+#endif
 	}
 }
 
-#else
 export void GetRayDirections(uniform int x_offset, uniform int y_offset, 
 							uniform float camera_position[], uniform float camera_forward[], 
 							uniform float view_plane_u[], uniform float view_plane_v[],
 							uniform int width, uniform int height,
 							uniform Ray rays[])
 {
+//Just to quiet warnings
+#if !PACKET_MODE
 	for(uniform int j= 0; j< CAMERA_TILE_HEIGHT; j++)
 	{
 		uniform float normalized_y= (((y_offset+ j)+ 0.5f)/ height)* 2- 1;
@@ -203,9 +206,25 @@ export void GetRayDirections(uniform int x_offset, uniform int y_offset,
 			rays[ray_index].dir[programIndex]= camera_forward[programIndex]+ view_plane_u[programIndex]* -normalized_x+ view_plane_v[programIndex]* normalized_y;
 		}
 	}
-}
 #endif
+}
 
+#if SOA_RECEPTORS
+export void Develop(uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
+	                 uniform int8 image[], uniform float max_component, uniform int count)
+{
+	for(uniform int i= 0; i< count; i+= programCount)
+	{
+		int index= i+ programIndex;
+		int image_offset= index* 4;
+
+		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ max_component);
+		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ max_component);
+		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ max_component);
+	}
+}
+
+#else
 export void Develop(uniform float receptors[], uniform int8 image[], uniform float max_component, uniform int count)
 {
 	foreach(index= 0 ... count)
@@ -214,21 +233,10 @@ export void Develop(uniform float receptors[], uniform int8 image[], uniform flo
 	}
 }
 
-export void Develop2(uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
-	                 uniform int8 image[], uniform float max_component, uniform int count)
-{
-	for(uniform int i= 0; i< count; i+= programCount)
-	{
-		int index= i+ programIndex;
-		int image_offset= index* 3;
-		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ max_component);
-		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ max_component);
-		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ max_component);
-	}
-}
+#endif
 
 export void PacketedShadingKernel(uniform RayPacket_ ray_packets[], 
-							      uniform RayPacketExtras ray_packet_extras[], 
+							      uniform RayPacketExtras ray_packet_extrass[], 
 #if SOA_RECEPTORS
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
 #else
@@ -280,12 +288,12 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 		color[1]+= lighting->ambient[1];
 		color[2]+= lighting->ambient[2];
 
-		color[0]*= ray_packet_extras[i].absorption_r[programIndex];
-		color[1]*= ray_packet_extras[i].absorption_g[programIndex];
-		color[2]*= ray_packet_extras[i].absorption_b[programIndex];
+		color[0]*= ray_packet_extrass[i].absorption_r[programIndex];
+		color[1]*= ray_packet_extrass[i].absorption_g[programIndex];
+		color[2]*= ray_packet_extrass[i].absorption_b[programIndex];
 
-		int x= ray_packet_extras[i].x[programIndex];
-		int y= ray_packet_extras[i].y[programIndex];
+		int x= ray_packet_extrass[i].x[programIndex];
+		int y= ray_packet_extrass[i].y[programIndex];
 
 		//Just realized this isn't thread safe here OR for our C++ versions if
 		//We have multiple samples per pixel

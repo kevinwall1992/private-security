@@ -9,7 +9,7 @@
 #define Ray RTCRay
 
 //need to test compile time packet sizes vs run time packet sizes
-#if STREAM_MODE_
+#if STREAM_MODE
 #define RayPacket RTCRayNt<PACKET_SIZE>
 #else
 #define RayPacket JOIN(RTCRay, PACKET_SIZE)
