@@ -1,6 +1,7 @@
 #include "Camera.h"
 #include "ISPCKernels.h"
 #include "Sampling.h"
+#include "Timer.h"
 
 
 Camera::Camera(float fov_in_degrees, Vec3f position_, Vec3f direction_)
@@ -67,6 +68,8 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index)
 	if(tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT)))
 		return false;
 
+	Timer::get_rays_timer.Start();
+
 #if ISPC_GET_RAYS
 	int tile_count_x= film->width/ CAMERA_TILE_WIDTH;
 	int tile_x= tile_index% tile_count_x;
@@ -81,8 +84,7 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index)
 						reinterpret_cast<ispc::RayPacket_ *>(first_ray_packet.ray_packet), 
 						reinterpret_cast<ispc::RayPacketExtras *>(first_ray_packet.extras), 
 						halton_samples_x, halton_samples_y);
-	
-	return true;
+
 
 #else
 	//int tile_index= next_tile_index++;//will want to test this to see that it indeed works as expected
@@ -134,9 +136,11 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index)
 		}
 	}
 
-	return true;
-
 #endif
+
+	Timer::get_rays_timer.Pause();
+
+	return true;
 }
 
 bool Camera::GetRays(CompleteRay first_ray, int tile_index)

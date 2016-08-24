@@ -185,6 +185,8 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 
 #endif
 
+
+
 		//print("x_base: %, y: %, x: %, normx: %\n", x_base, y, x, normalized_x);
 
 		ray_packets[i].orgx[programIndex]= camera_position[0];
@@ -242,7 +244,6 @@ export void GetRayDirections(uniform int x_offset, uniform int y_offset,
 #endif
 }
 
-#if SOA_RECEPTORS
 export void Develop(uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
 	                 uniform int8 image[], uniform float max_component, uniform int count)
 {
@@ -257,24 +258,41 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 	}
 }
 
-#else
-export void Develop(uniform float receptors[], uniform int8 image[], uniform float max_component, uniform int count)
+export void Foo(uniform float receptor_lanes_r[], uniform float receptor_lanes_g[], uniform float receptor_lanes_b[])
 {
-	foreach(index= 0 ... count)
+	for(uniform int j= 0; j< SCREEN_HEIGHT; j++)//may not be necessary? Extremely unlikely but maybe float arrays start at 0
 	{
-		image[index]= (int8)(255* receptors[index]/ max_component);
+		for(uniform int i= 0; i< SCREEN_WIDTH; i++)
+		{
+			uniform int offset= j* SCREEN_WIDTH* PACKET_SIZE+ i* PACKET_SIZE;
+			receptor_lanes_r[offset+ programIndex]= 0.0f;
+			receptor_lanes_g[offset+ programIndex]= 0.0f;
+			receptor_lanes_b[offset+ programIndex]= 0.0f;
+		}
 	}
 }
 
-#endif
+export void Bar(uniform float receptor_lanes_r[], uniform float receptor_lanes_g[], uniform float receptor_lanes_b[], 
+	            uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[])
+{
+	for(uniform int j= 0; j< SCREEN_HEIGHT; j++)
+	{
+		for(uniform int i= 0; i< SCREEN_WIDTH; i++)
+		{
+			uniform int lane_offset= j* SCREEN_WIDTH* PACKET_SIZE+ i* PACKET_SIZE;
+			uniform int index= j* SCREEN_WIDTH+ i;
+			
+			receptors_r[index]= reduce_add(receptor_lanes_r[lane_offset+ programIndex]);
+			receptors_g[index]= reduce_add(receptor_lanes_g[lane_offset+ programIndex]);
+			receptors_b[index]= reduce_add(receptor_lanes_b[lane_offset+ programIndex]);
+		}
+	}
+}
+
 
 export void PacketedShadingKernel(uniform RayPacket_ ray_packets[], 
 							      uniform RayPacketExtras ray_packet_extrass[], 
-#if SOA_RECEPTORS
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
-#else
-								  uniform float receptors[],
-#endif
 								  uniform int film_width,
 								  Lighting * uniform lighting)
 {
@@ -328,15 +346,9 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 		int x= ray_packet_extrass[i].x[programIndex];
 		int y= ray_packet_extrass[i].y[programIndex];
 
-		//Just realized this isn't thread safe here OR for our C++ versions if
-		//We have multiple samples per pixel
-#if SOA_RECEPTORS
 #if SAMPLES_PER_PIXEL== 1
-		//This is fast but extremely specific- we are not going to have
-		//One ray per pixel in the future so this will eventually need to be replaced
 		uniform int uniform_y;
 		uniform int packet_x;
-
 		if(reduce_equal(y, &uniform_y) && reduce_equal(x/ programCount, &packet_x))
 		{
 			int receptor_index= uniform_y* film_width+ packet_x* programCount+ programIndex;
@@ -348,39 +360,30 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 		else
 		{
 			int receptor_index= y* film_width+ x;
-			receptors_r[receptor_index]= color[0];
-			receptors_g[receptor_index]= color[1];
-			receptors_b[receptor_index]= color[2];
+			receptors_r[receptor_index]= 1.0f;
+			receptors_g[receptor_index]= 0.0f;
+			receptors_b[receptor_index]= 0.0f;
 		}
 
 #else
-		uniform int uniform_x; reduce_equal(x, &uniform_x);
-		uniform int uniform_y; reduce_equal(y, &uniform_y);
-		uniform int receptor_index= uniform_y* film_width+ uniform_x;
-
-		receptors_r[receptor_index]= reduce_add(color[0]);
-		receptors_g[receptor_index]= reduce_add(color[1]);
-		receptors_b[receptor_index]= reduce_add(color[2]);
-
-#endif
-
-#else
-		int receptor_offset= (y* film_width+ x+ programIndex)* 3;
-		receptors[receptor_offset+ 0]= color[0];
-		receptors[receptor_offset+ 1]= color[1];
-		receptors[receptor_offset+ 2]= color[2];
+		uniform int uniform_y;
+		uniform int uniform_x;
+		if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
+		{
+			uniform int receptor_index= uniform_y* film_width+ uniform_x;
+			receptors_r[receptor_index]= reduce_add(color[0]);
+			receptors_g[receptor_index]= reduce_add(color[1]);
+			receptors_b[receptor_index]= reduce_add(color[2]);
+		}
 
 #endif
+
 	}
 }
 
 export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet, 
 							      RayPacketExtras * uniform ray_packet_extras, 
-#if SOA_RECEPTORS
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
-#else
-								  uniform float receptors[],
-#endif
 								  uniform int film_width,
 								  Lighting * uniform lighting)
 {
@@ -433,12 +436,7 @@ export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet,
 	int x= ray_packet_extras->x[programIndex];
 	int y= ray_packet_extras->y[programIndex];
 
-	//Just realized this isn't thread safe here OR for our C++ versions if
-	//We have multiple samples per pixel
-#if SOA_RECEPTORS
 
-	//This is fast but extremely specific- we are not going to have
-	//One ray per pixel in the future so this will eventually need to be replaced
 	uniform int uniform_y;
 	uniform int packet_x;
 	if(reduce_equal(y, &uniform_y) && reduce_equal(x/ programCount, &packet_x))
@@ -455,14 +453,6 @@ export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet,
 		receptors_g[receptor_index]= color[1];
 		receptors_b[receptor_index]= color[2];
 	}
-
-#else
-	int receptor_offset= (y* film_width+ x+ programIndex)* 3;
-	receptors[receptor_offset+ 0]= color[0];
-	receptors[receptor_offset+ 1]= color[1];
-	receptors[receptor_offset+ 2]= color[2];
-
-#endif
 #endif
 }
 

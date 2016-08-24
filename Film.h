@@ -12,13 +12,9 @@ struct Film
 	int width, height;
 	Image image;
 
-#if SOA_RECEPTORS
 	float *receptors_r;
 	float *receptors_g;
 	float *receptors_b;
-#else
-	Vec3f *receptors;
-#endif
 
 	Film(int width, int height);
 	~Film();

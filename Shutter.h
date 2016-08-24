@@ -67,6 +67,7 @@ protected:
 
 public:
 	Shutter(Camera *camera= nullptr);
+	~Shutter();
 
 	void Open(Scene &scene);
 };
@@ -83,7 +84,6 @@ struct RayBlock
 	BlockState::Enum state;
 	bool is_primary;
 	bool is_coherent;
-	
 
 	RayBlock(bool is_primary, bool is_coherent);
 	RayBlock();

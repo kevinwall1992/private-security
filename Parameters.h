@@ -23,11 +23,8 @@
 #define ISPC_SHADING 1
 #define ISPC_CLEAR 1
 
-#define SOA_RECEPTORS 1
-
 #define NO_OPENGL 1
 #define DRAW_DIRECTLY_TO_SCREEN 1
 
 #define STREAM_MODE 0
 #define PACKET_MODE 1
-

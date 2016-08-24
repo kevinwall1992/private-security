@@ -15,6 +15,11 @@ public:
 	float Stop();
 
 	float GetElapsedSeconds();
+
+	static Timer get_rays_timer;
+	static Timer embree_timer;
+	static Timer shading_timer;
+	static Timer develop_timer;
 };
 
 #endif

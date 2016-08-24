@@ -2,6 +2,11 @@
 #include "GraphicsHeaders.h"
 
 
+Timer Timer::get_rays_timer;
+Timer Timer::embree_timer;
+Timer Timer::shading_timer;
+Timer Timer::develop_timer;
+
 void Timer::Start()
 {
 	if(is_stopped || is_paused)

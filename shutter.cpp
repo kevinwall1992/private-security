@@ -2,6 +2,8 @@
 #include "Scene.h"
 #include "Camera.h"
 #include "Surface.h"
+#include "Timer.h"
+
 #include "ISPCKernels.h"
 
 
@@ -100,8 +102,6 @@ Shutter::Shutter(Camera *camera_)
 {
 	camera= camera_;
 
-	Reset();
-
 #if PACKET_MODE
 	for(int i= 0; i< THREAD_COUNT; i++)
 		empty_primary_ray_packet_blocks.push(new RayPacketBlock(true, true));
@@ -109,6 +109,25 @@ Shutter::Shutter(Camera *camera_)
 #else
 	for(int i= 0; i< THREAD_COUNT; i++)
 		empty_primary_ray_blocks.push(new RayBlock(true, true));
+
+#endif
+}
+
+Shutter::~Shutter()
+{
+#if PACKET_MODE
+	while(!empty_primary_ray_packet_blocks.empty())
+	{
+		delete empty_primary_ray_packet_blocks.front();
+		empty_primary_ray_packet_blocks.pop();
+	}
+
+#else
+	while(!empty_primary_ray_packet_blocks.empty())
+	{
+		delete empty_primary_ray_blocks.front();
+		empty_primary_ray_blocks.pop();
+	}
 
 #endif
 }
@@ -272,41 +291,35 @@ void PacketedShadingKernel(CompleteRayPacket &ray_packet, Film *film, Scene *sce
 
 void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film *film)
 {
+	Timer::embree_timer.Start();
 #if STREAM_MODE
 	scene->Intersect(ray_packet_block->ray_packets, RAY_PACKET_BLOCK_SIZE, ray_packet_block->is_coherent);
 #else
 	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
 		scene->Intersect(ray_packet_block->ray_packets[i]);
 #endif
+	Timer::embree_timer.Pause();
 
+	Timer::shading_timer.Start();
 #if ISPC_SHADING
 	ISPCLighting *lighting= scene->GetISPCLighting();
-#if SOA_RECEPTORS
 	ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
 		                        reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
-								film->receptors_r, film->receptors_g, film->receptors_b, film->width,
+								film->receptors_r, film->receptors_g, film->receptors_b, 
+								film->width,
 								lighting);
-
-#else
-	ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
-		                        reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
-								reinterpret_cast<float *>(film->receptors), film->width,
-								&lighting);
-#endif
 	delete lighting;
 
 #else
 	int ray_packets_processed_count= 0;
 	for(unsigned int i= 0; i< ray_packet_block->front_index; i++)
 	{
-		//if(ray_packet_block->ray_packets[i].geomID== RTC_INVALID_GEOMETRY_ID)
-		//	continue;
-
 		PacketedShadingKernel(CompleteRayPacket(ray_packet_block->ray_packets+ i, ray_packet_block->ray_packet_extrass+ i), film, scene);
 		ray_packets_processed_count++;
 	}
 
 #endif
+	Timer::shading_timer.Pause();
 
 	ray_packet_block->Empty();
 	ReturnRayPacketBlock(ray_packet_block);
