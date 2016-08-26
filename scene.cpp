@@ -13,7 +13,8 @@ Scene::Scene()
 {
 	//need to determine if we need a second stream for packeted intersection
 	//interesting to know (as well) whether the stream mode doesn't like switching between packets and singles
-	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, RTC_INTERSECT_MODE);
+
+	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, (RTCAlgorithmFlags)(RTC_INTERSECT_MODE | (ISPC_INTERPOLATION ? 0 : RTC_INTERPOLATE)));
 }
 
 Scene::~Scene()
@@ -21,31 +22,39 @@ Scene::~Scene()
 	for(unsigned int i= 0; i< lights.size(); i++)
 		delete lights[i];
 
+	for(unsigned int i= 0; i< meshes.size(); i++)
+		delete meshes[i];
+
 	rtcDeleteScene(embree_scene);
 }
 
 void Scene::AddOBJ(string filename)
 {
-	Mesh raw_mesh(filename);
-	int vertex_count= raw_mesh.GetVertexCount();
-	int triangle_count= raw_mesh.GetTriangleCount();
+	Mesh *raw_mesh= new Mesh(filename);
+	int vertex_count= raw_mesh->GetVertexCount();
+	int triangle_count= raw_mesh->GetTriangleCount();
 	unsigned int geometry_id= rtcNewTriangleMesh(embree_scene, RTC_GEOMETRY_STATIC, triangle_count, vertex_count);
 	Vertex *vertices= (Vertex *)rtcMapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);
 	for(unsigned int i= 0; i< vertex_count; i++)
 	{
-		vertices[i].x= raw_mesh.positions[i* 3+ 0];
-		vertices[i].y= raw_mesh.positions[i* 3+ 1];
-		vertices[i].z= raw_mesh.positions[i* 3+ 2];
+		vertices[i].x= raw_mesh->positions[i* 3+ 0];
+		vertices[i].y= raw_mesh->positions[i* 3+ 1];
+		vertices[i].z= raw_mesh->positions[i* 3+ 2];
 		vertices[i].w= 0;
 	}
 	rtcUnmapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);
 	Triangle *triangles= (Triangle *)rtcMapBuffer(embree_scene, geometry_id, RTC_INDEX_BUFFER);
-	memcpy(triangles, &raw_mesh.position_indices[0], sizeof(int)* triangle_count* 3);
+	memcpy(triangles, &raw_mesh->position_indices[0], sizeof(int)* triangle_count* 3);
 	rtcUnmapBuffer(embree_scene, geometry_id, RTC_INDEX_BUFFER);
 
-	cout << "triangles: " << raw_mesh.GetTriangleCount() << endl;
+#if RTC_INTERPOLATE == 0
+	rtcSetBuffer(embree_scene, geometry_id, RTC_USER_VERTEX_BUFFER0, &(raw_mesh->normals[0]), 0, sizeof(Vec3f));
+#endif
+
+	cout << "triangles: " << raw_mesh->GetTriangleCount() << endl;
 
 	geometry_ids.push_back(geometry_id);
+	meshes.push_back(raw_mesh);
 }
 
 void Scene::AddLight(Light *light)
@@ -116,10 +125,9 @@ void Scene::Intersect(RayPacket &ray_packet)
 	assert(false && "Attempted to intersect single packet in stream mode.");
 
 #else
-	int32_t valid[PACKET_SIZE];
-	memset(valid, 0xFFFFFFFF, sizeof(int32_t)* PACKET_SIZE);
-	
-	rtcIntersectPacket(valid, embree_scene, ray_packet);
+	int32_t activity_mask[PACKET_SIZE];
+	memset(activity_mask, 0xFFFFFFFF, sizeof(int32_t)* PACKET_SIZE);
+	rtcIntersectPacket(activity_mask, embree_scene, ray_packet);
 
 #endif
 }
@@ -137,4 +145,44 @@ void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
 	assert(false && "Attempted to intersect packet stream in single mode.");
 
 #endif
+}
+
+void Scene::Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extras)
+{
+	int32_t activity_mask[PACKET_SIZE];
+	bool active= false;
+	for(int j= 0; j< PACKET_SIZE; j++)
+		if(ray_packet.geomID[j]!= RTC_INVALID_GEOMETRY_ID)
+		{
+			activity_mask[j]= 0xFFFFFFFF;
+			active= true;
+		}
+		else
+			activity_mask[j]= 0x00000000;
+		
+	if(active)
+	{
+		rtcInterpolateN2(embree_scene, 
+						 0, 
+						 activity_mask, 
+						 ray_packet.primID, 
+						 ray_packet.u, 
+						 ray_packet.v, 
+						 PACKET_SIZE, 
+						 RTC_USER_VERTEX_BUFFER0, 
+						 ray_packet_extras.surface_normal_x, 
+						 nullptr, nullptr, nullptr, nullptr, nullptr, 
+						 3);
+	}
+}
+
+//This is questionable
+Mesh * Scene::GetMesh(int geometry_id)
+{
+	for(unsigned int i= 0; i< geometry_ids.size(); i++)
+		if(geometry_id== geometry_ids[i])
+			return meshes[i];
+
+	assert(false && "Called Scene::GetMesh with invalid geometry_id.");
+	return nullptr;
 }

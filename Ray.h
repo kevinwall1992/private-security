@@ -36,6 +36,13 @@ struct RayPacketExtras
 	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
 	int bounce_count[PACKET_SIZE];
 	RayType::Enum type[PACKET_SIZE];
+
+	//float surface_position_x[PACKET_SIZE];
+	//float surface_position_y[PACKET_SIZE];
+	//float surface_position_z[PACKET_SIZE];
+	float surface_normal_x[PACKET_SIZE];
+	float surface_normal_y[PACKET_SIZE];
+	float surface_normal_z[PACKET_SIZE];
 };
 
 struct CompleteRay

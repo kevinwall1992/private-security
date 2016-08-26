@@ -16,7 +16,7 @@ int main(int argument_count, char **arguments)
 
 	{
 		Scene scene;
-		scene.AddOBJ("teapot3.obj");
+		scene.AddOBJ("teapot4.obj");
 		scene.AddLight(new AmbientLight(Color(0.5f, 0.5f, 0.5f)));
 		scene.AddLight(new PointLight(Vec3f(0.0f, 0.0f, 0.0f), Color(0.5f, 0.5f, 0.5f)));
 		scene.Commit();
@@ -35,10 +35,10 @@ int main(int argument_count, char **arguments)
 			display_timer.Start();
 			render_timer.Start();
 
-			Image image= camera.TakePicture(scene);
+			Image *image= camera.TakePicture(scene);
 			render_timer.Pause();
 		
-			System::graphics.Display(image);
+			System::graphics.Display(*image);
 			display_timer.Pause();
 		
 			if((System::graphics.GetFrameCount()% print_frame_count)== 0)
@@ -50,10 +50,11 @@ int main(int argument_count, char **arguments)
 				float embree_ms= 1000* Timer::embree_timer.Stop()/ ((float)print_frame_count);
 				float shading_ms= 1000* Timer::shading_timer.Stop()/ ((float)print_frame_count);
 				float develop_ms= 1000* Timer::develop_timer.Stop()/ ((float)print_frame_count);
+				float pre_shading_ms= 1000* Timer::pre_shading_timer.Stop()/ ((float)print_frame_count);
 
-				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << develop_ms << "ms, ";
+				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << develop_ms << "ms/"<< pre_shading_ms << "ms, ";
 				cout << "Render: " << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms";
-				cout << ", Display: " << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
+				cout << ",Display: " << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
 			}
 
 			bool exit_requested= false;
@@ -64,7 +65,7 @@ int main(int argument_count, char **arguments)
 			if(exit_requested)
 				break;
 
-			if((System::graphics.GetFrameCount()% (print_frame_count* 30))== 0)
+			if((System::graphics.GetFrameCount()% (print_frame_count* 15))== 0)
 				break;
 		}
 	}

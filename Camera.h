@@ -38,7 +38,7 @@ struct Camera
 
 	
 
-	Image & TakePicture(Scene &scene);
+	Image * TakePicture(Scene &scene);
 
 private:
 	Shutter shutter;

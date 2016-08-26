@@ -56,11 +56,11 @@ Film * Camera::RemoveFilm()
 	return LoadFilm(nullptr);
 }
 
-Image & Camera::TakePicture(Scene &scene)
+Image * Camera::TakePicture(Scene &scene)
 {
 	shutter.Open(scene);
 
-	return film->image;
+	return &(film->image);
 }
 
 bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index)

@@ -291,15 +291,39 @@ void PacketedShadingKernel(CompleteRayPacket &ray_packet, Film *film, Scene *sce
 
 void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film *film)
 {
+	//Intersection
 	Timer::embree_timer.Start();
 #if STREAM_MODE
 	scene->Intersect(ray_packet_block->ray_packets, RAY_PACKET_BLOCK_SIZE, ray_packet_block->is_coherent);
 #else
 	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+	{
 		scene->Intersect(ray_packet_block->ray_packets[i]);
+
+		//Preshading - Interpolation
+		//Cannot time because too deep in loop
+		//Really slow anyways, keeping for testing derivative solutions in the future
+#if ISPC_INTERPOLATION == 0
+		scene->Interpolate(ray_packet_block->ray_packets[i], ray_packet_block->ray_packet_extrass[i]);
+#endif
+	}
 #endif
 	Timer::embree_timer.Pause();
 
+	//Shadows
+
+	//Preshading - Interpolation
+	Timer::pre_shading_timer.Start();
+#if ISPC_INTERPOLATION
+	Mesh *mesh= scene->GetMesh(0);
+	ispc::Interpolate(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
+		             reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
+					 &(mesh->normal_indices[0]), 
+					 &(mesh->normals[0]));
+#endif
+	Timer::pre_shading_timer.Pause();
+
+	//Shading
 	Timer::shading_timer.Start();
 #if ISPC_SHADING
 	ISPCLighting *lighting= scene->GetISPCLighting();

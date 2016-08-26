@@ -20,6 +20,7 @@ public:
 	static Timer embree_timer;
 	static Timer shading_timer;
 	static Timer develop_timer;
+	static Timer pre_shading_timer;
 };
 
 #endif

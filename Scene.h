@@ -4,6 +4,7 @@
 #include "Common.h"
 #include "EmbreeSystem.h"
 #include "Light.h"
+#include "Mesh.h"
 
 class Scene
 {
@@ -13,6 +14,8 @@ class Scene
 	vector<AmbientLight *> ambient_lights;
 
 	bool commited= false;
+
+	vector<Mesh *> meshes;
 
 public:
 	Scene();
@@ -30,7 +33,11 @@ public:
 	void Intersect(Ray &ray);
 	void Intersect(Ray *rays, int count, bool is_coherent);
 	void Intersect(RayPacket &ray_packet);
-	void Intersect(RayPacket *ray_packet, int count, bool is_coherent);
+	void Intersect(RayPacket *ray_packets, int count, bool is_coherent);
+
+	void Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extras);
+
+	Mesh * GetMesh(int geometry_id);
 };
 
 struct Vertex

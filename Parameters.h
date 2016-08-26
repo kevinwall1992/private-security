@@ -28,3 +28,5 @@
 
 #define STREAM_MODE 0
 #define PACKET_MODE 1
+
+#define ISPC_INTERPOLATION 1

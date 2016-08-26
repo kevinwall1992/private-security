@@ -6,6 +6,7 @@ Timer Timer::get_rays_timer;
 Timer Timer::embree_timer;
 Timer Timer::shading_timer;
 Timer Timer::develop_timer;
+Timer Timer::pre_shading_timer;
 
 void Timer::Start()
 {

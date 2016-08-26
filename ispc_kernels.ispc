@@ -94,6 +94,10 @@ struct RayPacketExtras
 	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
 	int bounce_count[PACKET_SIZE];
 	int type[PACKET_SIZE];
+
+	float surface_normal_x[PACKET_SIZE];
+	float surface_normal_y[PACKET_SIZE];
+	float surface_normal_z[PACKET_SIZE];
 };
 
 //check that short vectors are as good as arrays
@@ -258,38 +262,6 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 	}
 }
 
-export void Foo(uniform float receptor_lanes_r[], uniform float receptor_lanes_g[], uniform float receptor_lanes_b[])
-{
-	for(uniform int j= 0; j< SCREEN_HEIGHT; j++)//may not be necessary? Extremely unlikely but maybe float arrays start at 0
-	{
-		for(uniform int i= 0; i< SCREEN_WIDTH; i++)
-		{
-			uniform int offset= j* SCREEN_WIDTH* PACKET_SIZE+ i* PACKET_SIZE;
-			receptor_lanes_r[offset+ programIndex]= 0.0f;
-			receptor_lanes_g[offset+ programIndex]= 0.0f;
-			receptor_lanes_b[offset+ programIndex]= 0.0f;
-		}
-	}
-}
-
-export void Bar(uniform float receptor_lanes_r[], uniform float receptor_lanes_g[], uniform float receptor_lanes_b[], 
-	            uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[])
-{
-	for(uniform int j= 0; j< SCREEN_HEIGHT; j++)
-	{
-		for(uniform int i= 0; i< SCREEN_WIDTH; i++)
-		{
-			uniform int lane_offset= j* SCREEN_WIDTH* PACKET_SIZE+ i* PACKET_SIZE;
-			uniform int index= j* SCREEN_WIDTH+ i;
-			
-			receptors_r[index]= reduce_add(receptor_lanes_r[lane_offset+ programIndex]);
-			receptors_g[index]= reduce_add(receptor_lanes_g[lane_offset+ programIndex]);
-			receptors_b[index]= reduce_add(receptor_lanes_b[lane_offset+ programIndex]);
-		}
-	}
-}
-
-
 export void PacketedShadingKernel(uniform RayPacket_ ray_packets[], 
 							      uniform RayPacketExtras ray_packet_extrass[], 
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
@@ -307,12 +279,9 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 			                ray_packets[i].orgy[programIndex]+ (ray_packets[i].diry[programIndex]* ray_packets[i].tfar[programIndex]), 
 							ray_packets[i].orgz[programIndex]+ (ray_packets[i].dirz[programIndex]* ray_packets[i].tfar[programIndex])};
 
-		float<3> normal= {-ray_packets[i].Ngx[programIndex], 
-			              -ray_packets[i].Ngy[programIndex], 
-						  -ray_packets[i].Ngz[programIndex]};
-		float normal_magnitude= sqrt(normal[0]* normal[0]+ 
-		                             normal[1]* normal[1]+ 
-									 normal[2]* normal[2]);
+		float<3> normal= {ray_packet_extrass[i].surface_normal_x[programIndex], 
+			              ray_packet_extrass[i].surface_normal_y[programIndex], 
+						  ray_packet_extrass[i].surface_normal_z[programIndex]};
 
 		for(uniform int j= 0; j< lighting->point_light_count; j++)
 		{
@@ -326,7 +295,7 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 
 			float geometry_term= (direction[0]* normal[0]+ 
 				                  direction[1]* normal[1]+ 
-								  direction[2]* normal[2])/ (normal_magnitude* direction_magnitude);
+								  direction[2]* normal[2])/ direction_magnitude;
 
 			if(geometry_term> 0)
 			{
@@ -375,6 +344,8 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 			receptors_g[receptor_index]= reduce_add(color[1]);
 			receptors_b[receptor_index]= reduce_add(color[2]);
 		}
+
+		//Could try foreach_unique for non-coherent (x,y) problem
 
 #endif
 
@@ -466,4 +437,64 @@ export void Clear(uniform float receptors_r[], uniform float receptors_g[], unif
 		receptors_b[index]= 0.0f;
 	}
 }
+#endif
+
+//Assuming only one geometry for now
+#if ISPC_INTERPOLATION
+export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtras ray_packet_extrass[], 
+	                   uniform int normal_indices[], uniform float normals[])
+{
+#if PACKET_MODE
+	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+	{
+		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
+			continue;
+
+		float u= ray_packets[i].u[programIndex];
+		float v= ray_packets[i].v[programIndex];
+		float w= 1- u- v;
+
+		//print("u: %,\nv: %,\nw: %\n\n", u, v, w);
+
+		uniform int geometry_id;
+		reduce_equal(ray_packets[i].geomID[programIndex], &geometry_id);
+
+		int primitive_id= ray_packets[i].primID[programIndex];
+		uniform int uniform_primitive_id;
+		if(reduce_equal(primitive_id, &uniform_primitive_id))
+		{
+			uniform int normal0_index= normal_indices[uniform_primitive_id* 3+ 0];
+			uniform int normal1_index= normal_indices[uniform_primitive_id* 3+ 1];
+			uniform int normal2_index= normal_indices[uniform_primitive_id* 3+ 2];
+
+			uniform float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
+			uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
+			uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
+
+			ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+			ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+			ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+		}
+		else
+		{
+			foreach_unique(unique_primitive_id in primitive_id)
+			{
+				int normal0_index= normal_indices[unique_primitive_id* 3+ 0];
+				int normal1_index= normal_indices[unique_primitive_id* 3+ 1];
+				int normal2_index= normal_indices[unique_primitive_id* 3+ 2];
+
+				float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
+				float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
+				float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
+
+				ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+				ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+				ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+			}
+		}
+	}
+#else
+#endif
+}
+
 #endif
