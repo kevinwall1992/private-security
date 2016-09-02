@@ -29,12 +29,17 @@ class Shutter
 	queue<RayPacketBlock *> empty_primary_ray_packet_blocks; 
 	queue<RayPacketBlock *> full_ray_packet_blocks;
 
+	int *noisy_receptors= nullptr;
+	std::atomic_int noisy_receptors_front;
+	std::atomic_int next_noisy_receptors_interval_index;
+
 	std::thread threads[THREAD_COUNT];
 	
 	std::atomic_int next_camera_tile_index;
 	std::atomic_int next_film_interval_index;
 
-	bool ray_source_exhausted;
+	bool initial_samples_exhausted;
+	bool additional_samples_exhausted;
 	bool develop_finished;
 
 	std::mutex task_mutex;
@@ -43,6 +48,8 @@ class Shutter
 	Barrier barrier;
 
 protected:
+	void ReportNoisyReceptors(int *indices, int count);
+
 	RayBlock * TakeEmptyPrimaryRayBlock();
 	RayBlock * TakeEmptyCoherentRayBlock();
 	RayBlock * TakeEmptyIncoherentRayBlock();
@@ -84,6 +91,7 @@ struct RayBlock
 	BlockState::Enum state;
 	bool is_primary;
 	bool is_coherent;
+	bool is_additional;//naming
 
 	RayBlock(bool is_primary, bool is_coherent);
 	RayBlock();
@@ -100,7 +108,7 @@ struct RayPacketBlock
 	BlockState::Enum state;
 	bool is_primary;
 	bool is_coherent;
-
+	bool is_additional;//naming
 
 	RayPacketBlock(bool is_primary, bool is_coherent);
 	RayPacketBlock();

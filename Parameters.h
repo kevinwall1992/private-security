@@ -1,8 +1,12 @@
 
 #define PACKET_SIZE 8
 
-#define SAMPLES_PER_PIXEL 8
-#define CAMERA_TILE_WIDTH (64/ SAMPLES_PER_PIXEL)
+//Might consider renaming min as sample set size or something
+//OR maybe pixels per packet maybe
+#define MIN_SAMPLES_PER_PIXEL 8
+#define ADDITIONAL_SAMPLES_PER_PIXEL 16
+#define MAX_SAMPLES_PER_PIXEL (MIN_SAMPLES_PER_PIXEL+ ADDITIONAL_SAMPLES_PER_PIXEL)
+#define CAMERA_TILE_WIDTH (64/ MIN_SAMPLES_PER_PIXEL)
 #define CAMERA_TILE_HEIGHT 32
 
 #define FILM_INTERVAL_SIZE 8192
@@ -12,8 +16,9 @@
 
 //We want to have a way to test out ray block sizes and tile sizes independently
 //We can at least use a multiple pretty easily
-#define RAY_BLOCK_SIZE (CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT* SAMPLES_PER_PIXEL)
+#define RAY_BLOCK_SIZE (CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT* MIN_SAMPLES_PER_PIXEL)
 #define RAY_PACKET_BLOCK_SIZE (RAY_BLOCK_SIZE/ PACKET_SIZE)
+
 
 #define THREAD_COUNT 1
 #define SERIAL_MODE 1
@@ -30,3 +35,14 @@
 #define PACKET_MODE 1
 
 #define ISPC_INTERPOLATION 1
+
+#define ADAPTIVE_SAMPLING 0
+#define COLOR_VARIANCE_THRESHOLD (0.05f)
+#define FILTERING 0
+#define SINC_FILTERING 1
+#define GAUSSIAN_FILTERING 2
+#define CURATED_SAMPLES 1
+
+
+#define PRINT_AVERAGES 1
+

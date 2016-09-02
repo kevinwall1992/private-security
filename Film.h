@@ -15,6 +15,7 @@ struct Film
 	float *receptors_r;
 	float *receptors_g;
 	float *receptors_b;
+	int *sample_counts;
 
 	Film(int width, int height);
 	~Film();

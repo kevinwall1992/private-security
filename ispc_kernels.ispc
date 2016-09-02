@@ -17,8 +17,8 @@ struct Vec3f
 
 //Want some way to 1) make my classes standard across ISPC and C++, and
 //2) Not have to update my RTC structures when embree changes
-//CAn accomplish 2 by figuring out how to include embree's ISPC interface
-//CAn accomplish 1 by having mangled name base class in C format and then derive
+//Can accomplish 2 by figuring out how to include embree's ISPC interface
+//Can accomplish 1 by having mangled name base class in C format and then derive
 //In C++ with correct name, typedef it here.
 
 struct Ray
@@ -153,74 +153,77 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 							uniform int width, uniform int height,
 							uniform RayPacket_ ray_packets[], 
 							uniform RayPacketExtras ray_packet_extrass[], 
-							uniform float halton_samples_x[], uniform float halton_samples_y[])
+							uniform float samples_x[], uniform float samples_y[],
+							uniform int count,
+							uniform int indices[])
 {
-	//Try with these arrays as arguments, computed once.
-	/*uniform float halton_samples_x[programCount];
-	uniform float halton_samples_y[programCount];
-	for(uniform int i= 0; i< programCount; i++)
+	for(uniform int i= 0; i< count; i++)
 	{
-		halton_samples_x[i]= HaltonSequence(2, i);
-		halton_samples_y[i]= HaltonSequence(3, i);
-	}*/
+		uniform int x_base;
+		uniform int y;
+		if(indices== NULL)
+		{
+			uniform int index= i* (programCount/ MIN_SAMPLES_PER_PIXEL);
+			x_base= (index% CAMERA_TILE_WIDTH)+ x_offset;
+			y= index/ CAMERA_TILE_WIDTH+ y_offset;
+		}
+		else
+		{
+			uniform int index= indices[i];
 
-	for(uniform int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
-	{
-		uniform int index= i* (programCount/ SAMPLES_PER_PIXEL);
-		uniform int x_base= (index% CAMERA_TILE_WIDTH)+ x_offset;
-		uniform int y= index/ CAMERA_TILE_WIDTH+ y_offset;
+			x_base= index% width;
+			y= (height- 1)- (index/ height);//map to view plane space
+		}
+		uniform int packet_index= i;
 
 		//These are hardcoded for 256 bit vectorization 
-#if SAMPLES_PER_PIXEL== 1
+#if MIN_SAMPLES_PER_PIXEL== 1
 		int x= x_base+ programIndex;
 		float normalized_x= ((x+ 0.5f)/ width)* 2- 1;
 		uniform float normalized_y= ((y+ 0.5f)/ height)* 2- 1;
 
-#elif SAMPLES_PER_PIXEL== 4
-		int set_index= programIndex/ SAMPLES_PER_PIXEL;
+#elif MIN_SAMPLES_PER_PIXEL== 4
+		int set_index= programIndex/ MIN_SAMPLES_PER_PIXEL;
 		int x= x_base+ set_index;
-		float normalized_x= ((x+ HaltonSequence(2, programIndex- set_index* SAMPLES_PER_PIXEL))/ width)* 2- 1;
-		float normalized_y= ((y+ HaltonSequence(3, programIndex- set_index* SAMPLES_PER_PIXEL))/ height)* 2- 1;
+		float normalized_x= ((x+ HaltonSequence(2, programIndex- set_index* MIN_SAMPLES_PER_PIXEL))/ width)* 2- 1;
+		float normalized_y= ((y+ HaltonSequence(3, programIndex- set_index* MIN_SAMPLES_PER_PIXEL))/ height)* 2- 1;
 
-#elif SAMPLES_PER_PIXEL== 8
+#elif MIN_SAMPLES_PER_PIXEL== 8
 		uniform int x= x_base;
-		float normalized_x= ((x+ halton_samples_x[programIndex])/ width)* 2- 1;
-		float normalized_y= ((y+ halton_samples_y[programIndex])/ height)* 2- 1;
+		float normalized_x= ((x+ samples_x[programIndex])/ width)* 2- 1;
+		float normalized_y= ((y+ samples_y[programIndex])/ height)* 2- 1;
 
 #endif
 
-
-
-		//print("x_base: %, y: %, x: %, normx: %\n", x_base, y, x, normalized_x);
-
-		ray_packets[i].orgx[programIndex]= camera_position[0];
-		ray_packets[i].orgy[programIndex]= camera_position[1];
-		ray_packets[i].orgz[programIndex]= camera_position[2];
+		ray_packets[packet_index].orgx[programIndex]= camera_position[0];
+		ray_packets[packet_index].orgy[programIndex]= camera_position[1];
+		ray_packets[packet_index].orgz[programIndex]= camera_position[2];
 
 		//-normalized is quick hack
-		ray_packets[i].dirx[programIndex]= camera_forward[0]+ view_plane_u[0]* -normalized_x+ view_plane_v[0]* normalized_y;
-		ray_packets[i].diry[programIndex]= camera_forward[1]+ view_plane_u[1]* -normalized_x+ view_plane_v[1]* normalized_y;
-		ray_packets[i].dirz[programIndex]= camera_forward[2]+ view_plane_u[2]* -normalized_x+ view_plane_v[2]* normalized_y;
+		ray_packets[packet_index].dirx[programIndex]= camera_forward[0]+ view_plane_u[0]* -normalized_x+ view_plane_v[0]* normalized_y;
+		ray_packets[packet_index].diry[programIndex]= camera_forward[1]+ view_plane_u[1]* -normalized_x+ view_plane_v[1]* normalized_y;
+		ray_packets[packet_index].dirz[programIndex]= camera_forward[2]+ view_plane_u[2]* -normalized_x+ view_plane_v[2]* normalized_y;
 
-		ray_packets[i].tnear[programIndex] = 0.0f;
-		ray_packets[i].tfar[programIndex] = 1000000000;
-		ray_packets[i].geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-		ray_packets[i].primID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-		ray_packets[i].mask[programIndex] = -1;
-		ray_packets[i].time[programIndex] = 0;
+		ray_packets[packet_index].tnear[programIndex] = 0.0f;
+		ray_packets[packet_index].tfar[programIndex] = 1000000000;
+		ray_packets[packet_index].geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].primID[programIndex] = RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].mask[programIndex] = -1;
+		ray_packets[packet_index].time[programIndex] = 0;
 
-		ray_packet_extrass[i].absorption_r[programIndex]= 1.0f;
-		ray_packet_extrass[i].absorption_g[programIndex]= 1.0f;
-		ray_packet_extrass[i].absorption_b[programIndex]= 1.0f;
+		ray_packet_extrass[packet_index].absorption_r[programIndex]= 1.0f;
+		ray_packet_extrass[packet_index].absorption_g[programIndex]= 1.0f;
+		ray_packet_extrass[packet_index].absorption_b[programIndex]= 1.0f;
 
-		ray_packet_extrass[i].bounce_count[programIndex]= 0;
-		ray_packet_extrass[i].type[programIndex]= 0;
-		ray_packet_extrass[i].x[programIndex]= x;
+		ray_packet_extrass[packet_index].bounce_count[programIndex]= 0;
+		ray_packet_extrass[packet_index].type[programIndex]= 0;
+		ray_packet_extrass[packet_index].x[programIndex]= x;
 #if NO_OPENGL
-		ray_packet_extrass[i].y[programIndex]= (height- 1)- y;
+		ray_packet_extrass[packet_index].y[programIndex]= (height- 1)- y;//map to image space
 #else
-		ray_packet_extrass[i].y[programIndex]= y;
+		ray_packet_extrass[packet_index].y[programIndex]= y;
 #endif
+
 	}
 }
 
@@ -248,27 +251,62 @@ export void GetRayDirections(uniform int x_offset, uniform int y_offset,
 #endif
 }
 
-export void Develop(uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
-	                 uniform int8 image[], uniform float max_component, uniform int count)
+export void Develop(uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[], 
+	                 uniform int8 image[], uniform float normalization_term, uniform int count)
 {
 	for(uniform int i= 0; i< count; i+= programCount)
 	{
 		int index= i+ programIndex;
 		int image_offset= index* 4;
 
-		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ max_component);
-		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ max_component);
-		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ max_component);
+#if FILTERING
+		image[image_offset+ 0]= max((int)(255* receptors_r[index]/ (normalization_term* sample_counts[index])), (int)0);
+		image[image_offset+ 1]= max((int)(255* receptors_g[index]/ (normalization_term* sample_counts[index])), (int)0);
+		image[image_offset+ 2]= max((int)(255* receptors_b[index]/ (normalization_term* sample_counts[index])), (int)0);
+#else
+		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ (normalization_term* sample_counts[index]));
+		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ (normalization_term* sample_counts[index]));
+		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ (normalization_term* sample_counts[index]));
+#endif
+
+#if 0
+		if(sample_counts[index]> 39)
+		{
+			image[image_offset+ 0]= 0;
+			image[image_offset+ 1]= 255;
+			image[image_offset+ 2]= 0;
+		}
+		else
+		{
+			image[image_offset+ 0]= 0;
+			image[image_offset+ 1]= 0;
+			image[image_offset+ 2]= 255;
+		}
+
+		if(receptors_r[index]< 0.000001f)
+		{
+			image[image_offset+ 0]= 255;
+			image[image_offset+ 1]= 0;
+			image[image_offset+ 2]= 0;
+		}
+#endif
+
 	}
 }
 
 export void PacketedShadingKernel(uniform RayPacket_ ray_packets[], 
 							      uniform RayPacketExtras ray_packet_extrass[], 
-								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
+								  uniform int packet_count,
+								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
 								  uniform int film_width,
-								  Lighting * uniform lighting)
+								  Lighting * uniform lighting, 
+								  uniform float filtering_kernels[],
+								  uniform int noisy_receptors[], uniform int noisy_receptor_count[])
 {
-	for(uniform int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+	//if(high_variance_pixel_indices!= NULL)
+	//	high_variance_pixel_count[0]= 0;
+
+	for(uniform int i= 0; i< packet_count; i++)
 	{
 		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
 			continue;
@@ -312,10 +350,40 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 		color[1]*= ray_packet_extrass[i].absorption_g[programIndex];
 		color[2]*= ray_packet_extrass[i].absorption_b[programIndex];
 
+
 		int x= ray_packet_extrass[i].x[programIndex];
 		int y= ray_packet_extrass[i].y[programIndex];
 
-#if SAMPLES_PER_PIXEL== 1
+#if FILTERING
+		uniform int uniform_y;
+		uniform int uniform_x;
+		if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
+		{
+			for(uniform int j= 0; j< 9; j++)
+			{
+				float weight= filtering_kernels[j* 8+ programIndex];
+
+				uniform float<3> color_sum= {reduce_add(color[0]* weight), reduce_add(color[1]* weight), reduce_add(color[2]* weight)};
+
+				uniform int receptor_index= (uniform_y+ ((j/ 3)- 1))* film_width+ (uniform_x+ ((j% 3)- 1));
+				receptors_r[receptor_index]+= color_sum[0];
+				receptors_g[receptor_index]+= color_sum[1];
+				receptors_b[receptor_index]+= color_sum[2];
+			}
+
+			if(high_variance_pixel_indices!= NULL)
+				sample_counts[uniform_y* film_width+ uniform_x]= MIN_SAMPLES_PER_PIXEL;
+		}
+		else
+		{
+			int receptor_index= y* film_width+ x;
+			receptors_r[receptor_index]= 1.0f;
+			receptors_g[receptor_index]= 0.0f;
+			receptors_b[receptor_index]= 0.0f;
+		}
+
+#else
+#if MIN_SAMPLES_PER_PIXEL== 1
 		uniform int uniform_y;
 		uniform int packet_x;
 		if(reduce_equal(y, &uniform_y) && reduce_equal(x/ programCount, &packet_x))
@@ -339,13 +407,42 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 		uniform int uniform_x;
 		if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
 		{
+			uniform float<3> color_sum= {reduce_add(color[0]), reduce_add(color[1]), reduce_add(color[2])};
+
 			uniform int receptor_index= uniform_y* film_width+ uniform_x;
-			receptors_r[receptor_index]= reduce_add(color[0]);
-			receptors_g[receptor_index]= reduce_add(color[1]);
-			receptors_b[receptor_index]= reduce_add(color[2]);
+			receptors_r[receptor_index]+= color_sum[0];
+			receptors_g[receptor_index]+= color_sum[1];
+			receptors_b[receptor_index]+= color_sum[2];
+
+#if ADAPTIVE_SAMPLING
+			if(noisy_receptors!= NULL)
+			{
+				uniform float<3> color_mean= color_sum/ programCount;
+				float<3> displacement= (color- color_mean);//try using intrisic to square resulting vector
+				float squared_distance= displacement[0]* displacement[0]+ displacement[1]* displacement[1]+ displacement[2]* displacement[2];
+
+				uniform float variance= reduce_add(squared_distance);
+				if(variance> COLOR_VARIANCE_THRESHOLD)
+				{
+					uniform int foo= atomic_add_global(noisy_receptor_count, 1);
+					noisy_receptors[foo]= receptor_index;
+
+					sample_counts[receptor_index]= MAX_SAMPLES_PER_PIXEL;
+				}
+				else
+					sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
+
+			}
+
+#else
+			sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
+
+#endif
 		}
 
 		//Could try foreach_unique for non-coherent (x,y) problem
+
+#endif
 
 #endif
 
@@ -358,7 +455,7 @@ export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet,
 								  uniform int film_width,
 								  Lighting * uniform lighting)
 {
-#if SAMPLES_PER_PIXEL== 1
+#if MIN_SAMPLES_PER_PIXEL== 1
 	cif(ray_packet->geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
 		return;
 

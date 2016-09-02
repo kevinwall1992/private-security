@@ -15,12 +15,12 @@
 float HaltonSequence(int base, int i)
 {
 	float result= 0;
-	float f = 1.0f/ base;
+	float f = 1.0f;
 	while(i> 0) 
 	{
-		result= result+ f* (i% base);
+		f= f/ base;
+		result+= f* (i% base);
 		i= i/ base;
-		f= i/ base;
 	}
 		
 	return result;

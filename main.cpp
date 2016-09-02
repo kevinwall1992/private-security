@@ -7,6 +7,7 @@
 
 
 const int print_frame_count= 20;
+int frame_set_count= 1;
 
 int main(int argument_count, char **arguments)
 {
@@ -46,11 +47,16 @@ int main(int argument_count, char **arguments)
 				float seconds_to_render= render_timer.Stop()/ (float)print_frame_count;
 				float seconds_to_display= display_timer.Stop()/ (float)print_frame_count;
 
-				float get_rays_ms= 1000* Timer::get_rays_timer.Stop()/ ((float)print_frame_count);
-				float embree_ms= 1000* Timer::embree_timer.Stop()/ ((float)print_frame_count);
-				float shading_ms= 1000* Timer::shading_timer.Stop()/ ((float)print_frame_count);
-				float develop_ms= 1000* Timer::develop_timer.Stop()/ ((float)print_frame_count);
-				float pre_shading_ms= 1000* Timer::pre_shading_timer.Stop()/ ((float)print_frame_count);
+				
+				float get_rays_ms= 1000* Timer::get_rays_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+				float embree_ms= 1000* Timer::embree_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+				float shading_ms= 1000* Timer::shading_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+				float develop_ms= 1000* Timer::develop_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+				float pre_shading_ms= 1000* Timer::pre_shading_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+
+#if PRINT_AVERAGES
+				frame_set_count++;
+#endif
 
 				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << develop_ms << "ms/"<< pre_shading_ms << "ms, ";
 				cout << "Render: " << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms";

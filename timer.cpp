@@ -26,6 +26,9 @@ void Timer::Start()
 
 float Timer::Pause()
 {
+	if(is_paused || is_stopped)
+		return 0.0f;
+
 	unsigned int ticks= SDL_GetTicks();
 	int difference= ticks- last_ticks;
 	elapsed_milliseconds+= difference;
@@ -37,7 +40,7 @@ float Timer::Pause()
 
 float Timer::Stop()
 {
-	if(!is_paused)
+	if(!is_paused && !is_stopped)
 		elapsed_milliseconds+= SDL_GetTicks()- last_ticks;
 
 	is_stopped= true;

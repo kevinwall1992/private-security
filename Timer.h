@@ -3,7 +3,7 @@
 
 class Timer
 {
-	unsigned int elapsed_milliseconds;
+	unsigned int elapsed_milliseconds= 0;
 	int last_ticks;
 
 	bool is_paused= false;

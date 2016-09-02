@@ -111,6 +111,7 @@ Shutter::Shutter(Camera *camera_)
 		empty_primary_ray_blocks.push(new RayBlock(true, true));
 
 #endif
+
 }
 
 Shutter::~Shutter()
@@ -130,6 +131,18 @@ Shutter::~Shutter()
 	}
 
 #endif
+
+	if(noisy_receptors!= nullptr)
+		 delete noisy_receptors;
+}
+
+void Shutter::ReportNoisyReceptors(int *indices, int count)
+{
+	if(count== 0)
+		return;
+
+	int first= std::atomic_fetch_add(&noisy_receptors_front, count);
+	memcpy(noisy_receptors+ first, indices, sizeof(int)* count);//Could try this with ispc
 }
 
 void Shutter::Refill(RayBlock *primary_ray_block)
@@ -145,7 +158,7 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 	if(primary_ray_block->front_index== 0)
 	{
 		primary_ray_block->state= BlockState::Empty;
-		ray_source_exhausted= true;
+		initial_samples_exhausted= true;
 	}
 	if(primary_ray_block->front_index< (RAY_BLOCK_SIZE- 1))
 		primary_ray_block->state= BlockState::Partial;
@@ -227,15 +240,32 @@ void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 	int camera_tile_index= next_camera_tile_index++;
 	bool successful= camera->GetRayPackets(complete_ray_packet, camera_tile_index);
 	if(successful)
-		primary_ray_packet_block->front_index+= RAY_PACKET_BLOCK_SIZE;//assumes blocks fit perfectly
+	{
+		primary_ray_packet_block->front_index+= RAY_PACKET_BLOCK_SIZE;
+		primary_ray_packet_block->is_additional= false;
+	}
 
 	primary_ray_packet_block->is_coherent= true;
 	if(primary_ray_packet_block->front_index== 0)
 	{
 		primary_ray_packet_block->state= BlockState::Empty;
-		ray_source_exhausted= true;
+		initial_samples_exhausted= true;
+
+		int sample_set_count= ADDITIONAL_SAMPLES_PER_PIXEL/ MIN_SAMPLES_PER_PIXEL;
+		int interval_size= RAY_PACKET_BLOCK_SIZE/ sample_set_count;
+		int offset= std::atomic_fetch_add(&next_noisy_receptors_interval_index, 1)* interval_size;
+		int index_count= std::min((noisy_receptors_front- offset), interval_size);
+		if(offset< noisy_receptors_front)
+		{
+			camera->GetRayPackets(complete_ray_packet, 0, noisy_receptors+ offset, index_count);
+			primary_ray_packet_block->front_index+= index_count* sample_set_count;
+			primary_ray_packet_block->state= BlockState::Full;
+			primary_ray_packet_block->is_additional= true;
+		}
+		else
+			additional_samples_exhausted= true;
 	}
-	if(primary_ray_packet_block->front_index< (RAY_PACKET_BLOCK_SIZE- 1))
+	else if(primary_ray_packet_block->front_index< (RAY_PACKET_BLOCK_SIZE- 1))
 		primary_ray_packet_block->state= BlockState::Partial;
 	else
 		primary_ray_packet_block->state= BlockState::Full;
@@ -296,7 +326,8 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #if STREAM_MODE
 	scene->Intersect(ray_packet_block->ray_packets, RAY_PACKET_BLOCK_SIZE, ray_packet_block->is_coherent);
 #else
-	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+
+	for(int i= 0; i< ray_packet_block->front_index; i++)
 	{
 		scene->Intersect(ray_packet_block->ray_packets[i]);
 
@@ -312,6 +343,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 
 	//Shadows
 
+
 	//Preshading - Interpolation
 	Timer::pre_shading_timer.Start();
 #if ISPC_INTERPOLATION
@@ -323,15 +355,40 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #endif
 	Timer::pre_shading_timer.Pause();
 
+
 	//Shading
 	Timer::shading_timer.Start();
 #if ISPC_SHADING
 	ISPCLighting *lighting= scene->GetISPCLighting();
-	ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
-		                        reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
-								film->receptors_r, film->receptors_g, film->receptors_b, 
-								film->width,
-								lighting);
+
+	if(!ray_packet_block->is_additional)
+	{
+		int noisy_receptors[CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT];
+		int noisy_receptors_count= 0;
+
+		ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
+									reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
+									ray_packet_block->front_index,
+									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
+									film->width,
+									lighting, 
+									camera->GetFilteringKernels(),
+									noisy_receptors, &noisy_receptors_count);
+
+		ReportNoisyReceptors(noisy_receptors, noisy_receptors_count);
+	}
+	else
+	{
+		ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
+									reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
+									ray_packet_block->front_index,
+									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
+									film->width,
+									lighting, 
+									nullptr,
+									nullptr, nullptr);
+	}
+
 	delete lighting;
 
 #else
@@ -359,7 +416,7 @@ Task Shutter::GetTask()
 
 #if PACKET_MODE
 	RayPacketBlock *primary_ray_block= nullptr;
-	if(!ray_source_exhausted)
+	if(!initial_samples_exhausted || !additional_samples_exhausted)
 		primary_ray_block= TakeEmptyPrimaryRayPacketBlock();
 	if(primary_ray_block!= nullptr)
 		task= Task(TaskType::Refill, primary_ray_block);
@@ -403,13 +460,19 @@ Task Shutter::GetTask()
 
 void Shutter::Reset()
 {
-	ray_source_exhausted= false;
+	initial_samples_exhausted= false;
+	additional_samples_exhausted= false;
 	develop_finished= false;
 
 	next_camera_tile_index= 0;
 	next_film_interval_index= 0;
 
 	barrier.Reset();
+
+	if(noisy_receptors== nullptr)
+		noisy_receptors= new int[camera->film->width* camera->film->height];
+	noisy_receptors_front= 0;
+	next_noisy_receptors_interval_index= 0;
 }
 
 void Shutter::TaskLoop(Scene *scene)
@@ -481,6 +544,7 @@ RayBlock::RayBlock(bool is_primary_, bool is_coherent_)
 {
 	is_primary= is_primary_;
 	is_coherent= is_coherent_;
+	is_additional= false;
 
 	Empty();
 }
@@ -500,6 +564,7 @@ RayPacketBlock::RayPacketBlock(bool is_primary_, bool is_coherent_)
 {
 	is_primary= is_primary_;
 	is_coherent= is_coherent_;
+	is_additional= false;
 
 	Empty();
 }

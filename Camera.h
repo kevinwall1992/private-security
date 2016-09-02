@@ -17,9 +17,6 @@ struct Camera
 
 	Film *film;
 
-	float halton_samples_x[SAMPLES_PER_PIXEL];
-	float halton_samples_y[SAMPLES_PER_PIXEL];
-
 
 	Camera(float fov_in_degrees, Vec3f position, Vec3f direction= Vec3f(0, 0, -1));
 
@@ -33,9 +30,10 @@ struct Camera
 	//Try using reference for completeray here
 
 	//Is "Get" the best word here?
-	bool GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index);
-	bool GetRays(CompleteRay first_ray, int tile_index);
+	bool GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, int *indices= nullptr, int index_count= 0);
+	bool GetRays(CompleteRay first_ray, int tile_index, int *indices= nullptr);
 
+	float * GetFilteringKernels();
 	
 
 	Image * TakePicture(Scene &scene);
@@ -43,6 +41,9 @@ struct Camera
 private:
 	Shutter shutter;
 
+	float samples_x[MAX_SAMPLES_PER_PIXEL];//Might consider finding a better place for this
+	float samples_y[MAX_SAMPLES_PER_PIXEL];
+	float filtering_kernels[MAX_SAMPLES_PER_PIXEL* 9];
 };
 
 #endif

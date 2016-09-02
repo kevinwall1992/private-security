@@ -20,6 +20,7 @@ Film::Film(int width_, int height_)
 	receptors_r= new float[width* height];
 	receptors_g= new float[width* height];
 	receptors_b= new float[width* height];
+	sample_counts= new int[width* height];
 
 	Clear();
 }
@@ -29,6 +30,7 @@ Film::~Film()
 	delete receptors_r;
 	delete receptors_g;
 	delete receptors_b;
+	delete sample_counts;
 }
 
 void Film::Clear()
@@ -112,8 +114,9 @@ bool Film::Develop_Parallel(int interval_index)
 	ispc::Develop(receptors_r+ interval_offset, 
 		           receptors_g+ interval_offset, 
 				   receptors_b+ interval_offset, 
+				   sample_counts+ interval_offset,
 				   reinterpret_cast<int8_t *>(image.GetPixels()+ interval_offset), 
-				   1* SAMPLES_PER_PIXEL, FILM_INTERVAL_SIZE);
+				   1, FILM_INTERVAL_SIZE);
 
 #else
 	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);
