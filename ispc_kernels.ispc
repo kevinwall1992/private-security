@@ -98,6 +98,8 @@ struct RayPacketExtras
 	float surface_normal_x[PACKET_SIZE];
 	float surface_normal_y[PACKET_SIZE];
 	float surface_normal_z[PACKET_SIZE];
+
+	int material_id[PACKET_SIZE];
 };
 
 //check that short vectors are as good as arrays
@@ -118,6 +120,28 @@ struct Lighting
 	float ambient[3];
 
 	int point_light_count;
+};
+
+struct Mesh_
+{
+	float *positions;
+	float *texture_coordinates;
+	float *normals;
+
+	int *position_indices;
+	int *texture_coordinate_indices;
+	int *normal_indices;
+
+	int vertex_count;
+	int triangle_count;
+};
+
+struct PhongMaterial_
+{
+	float diffuse[3];
+	float specular[3];
+	float glossiness;
+	float index_of_refraction;
 };
 
 //Try making point a pointer (heh)
@@ -300,12 +324,10 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
 								  uniform int film_width,
 								  Lighting * uniform lighting, 
+								  uniform PhongMaterial_ materials[],
 								  uniform float filtering_kernels[],
 								  uniform int noisy_receptors[], uniform int noisy_receptor_count[])
 {
-	//if(high_variance_pixel_indices!= NULL)
-	//	high_variance_pixel_count[0]= 0;
-
 	for(uniform int i= 0; i< packet_count; i++)
 	{
 		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
@@ -337,11 +359,41 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 
 			if(geometry_term> 0)
 			{
-				color[0]+= lighting->point_lights[j].intensity[0]* geometry_term;
-				color[1]+= lighting->point_lights[j].intensity[1]* geometry_term;
-				color[2]+= lighting->point_lights[j].intensity[2]* geometry_term;
+				color[0]+= (lighting->point_lights[j].intensity[0]* geometry_term);
+				color[1]+= (lighting->point_lights[j].intensity[1]* geometry_term);
+				color[2]+= (lighting->point_lights[j].intensity[2]* geometry_term);
 			}
 		}
+		int material_id= ray_packet_extrass[i].material_id[programIndex];
+#if 1
+		uniform int uniform_material_id;
+		if(reduce_equal(material_id, &uniform_material_id))//try just using foreach_unique
+		{
+			uniform float diffuse[3]= materials[uniform_material_id].diffuse;
+			color[0]*= diffuse[0];
+			color[1]*= diffuse[1];
+			color[2]*= diffuse[2];
+		}
+		else
+		{
+			foreach_unique(unique_material_id in material_id)
+			{
+				uniform float diffuse[3]= materials[unique_material_id].diffuse;
+				color[0]*= diffuse[0];
+				color[1]*= diffuse[1];
+				color[2]*= diffuse[2];
+			}
+		}
+#else
+		foreach_unique(unique_material_id in material_id)
+		{
+			uniform float diffuse[3]= materials[unique_material_id].diffuse;
+			color[0]*= diffuse[0];
+			color[1]*= diffuse[1];
+			color[2]*= diffuse[2];
+		}
+#endif
+
 		color[0]+= lighting->ambient[0];
 		color[1]+= lighting->ambient[1];
 		color[2]+= lighting->ambient[2];
@@ -539,7 +591,7 @@ export void Clear(uniform float receptors_r[], uniform float receptors_g[], unif
 //Assuming only one geometry for now
 #if ISPC_INTERPOLATION
 export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtras ray_packet_extrass[], 
-	                   uniform int normal_indices[], uniform float normals[])
+	                    uniform Mesh_ meshes[], uniform int material_ids[])
 {
 #if PACKET_MODE
 	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
@@ -553,40 +605,97 @@ export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtra
 
 		//print("u: %,\nv: %,\nw: %\n\n", u, v, w);
 
-		uniform int geometry_id;
-		reduce_equal(ray_packets[i].geomID[programIndex], &geometry_id);
-
-		int primitive_id= ray_packets[i].primID[programIndex];
-		uniform int uniform_primitive_id;
-		if(reduce_equal(primitive_id, &uniform_primitive_id))
+		//ugh, have to repeat code 4 times...
+		int geometry_id= ray_packets[i].geomID[programIndex];
+		uniform int uniform_geometry_id;
+		if(reduce_equal(geometry_id, &uniform_geometry_id))
 		{
-			uniform int normal0_index= normal_indices[uniform_primitive_id* 3+ 0];
-			uniform int normal1_index= normal_indices[uniform_primitive_id* 3+ 1];
-			uniform int normal2_index= normal_indices[uniform_primitive_id* 3+ 2];
+			int * uniform normal_indices= meshes[uniform_geometry_id].normal_indices;
+			float * uniform normals= meshes[uniform_geometry_id].normals;
 
-			uniform float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
-			uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
-			uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
-
-			ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-			ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-			ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
-		}
-		else
-		{
-			foreach_unique(unique_primitive_id in primitive_id)
+			int primitive_id= ray_packets[i].primID[programIndex];
+			uniform int uniform_primitive_id;
+			if(reduce_equal(primitive_id, &uniform_primitive_id))
 			{
-				int normal0_index= normal_indices[unique_primitive_id* 3+ 0];
-				int normal1_index= normal_indices[unique_primitive_id* 3+ 1];
-				int normal2_index= normal_indices[unique_primitive_id* 3+ 2];
+				uniform int normal0_index= normal_indices[uniform_primitive_id* 3+ 0];
+				uniform int normal1_index= normal_indices[uniform_primitive_id* 3+ 1];
+				uniform int normal2_index= normal_indices[uniform_primitive_id* 3+ 2];
 
-				float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
-				float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
-				float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
+				uniform float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
+				uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
+				uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
 				ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
 				ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
 				ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+
+				ray_packet_extrass[i].material_id[programIndex]= material_ids[uniform_geometry_id];
+			}
+			else
+			{
+				foreach_unique(unique_primitive_id in primitive_id)
+				{
+					//Not sure if this is right... is it uniform since all active programs share primitive id?
+					uniform int normal0_index= normal_indices[unique_primitive_id* 3+ 0];
+					uniform int normal1_index= normal_indices[unique_primitive_id* 3+ 1];
+					uniform int normal2_index= normal_indices[unique_primitive_id* 3+ 2];
+
+					float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
+					float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
+					float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
+
+					ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+					ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+					ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+
+					ray_packet_extrass[i].material_id[programIndex]= material_ids[uniform_geometry_id];
+				}
+			}
+		}
+		else
+		{
+			foreach_unique(unique_geometry_id in ray_packets[i].geomID[programIndex])
+			{
+				int * uniform normal_indices= meshes[unique_geometry_id].normal_indices;
+				float * uniform normals= meshes[unique_geometry_id].normals;
+
+				int primitive_id= ray_packets[i].primID[programIndex];
+				uniform int uniform_primitive_id;
+				if(reduce_equal(primitive_id, &uniform_primitive_id))
+				{
+					uniform int normal0_index= normal_indices[uniform_primitive_id* 3+ 0];
+					uniform int normal1_index= normal_indices[uniform_primitive_id* 3+ 1];
+					uniform int normal2_index= normal_indices[uniform_primitive_id* 3+ 2];
+
+					uniform float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
+					uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
+					uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
+
+					ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+					ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+					ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+
+					ray_packet_extrass[i].material_id[programIndex]= material_ids[unique_geometry_id];
+				}
+				else
+				{
+					foreach_unique(unique_primitive_id in primitive_id)
+					{
+						uniform int normal0_index= normal_indices[unique_primitive_id* 3+ 0];
+						uniform int normal1_index= normal_indices[unique_primitive_id* 3+ 1];
+						uniform int normal2_index= normal_indices[unique_primitive_id* 3+ 2];
+
+						float<3> normal0= {normals[normal0_index* 3+ 0], normals[normal0_index* 3+ 1], normals[normal0_index* 3+ 2]};
+						float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
+						float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
+
+						ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+						ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+						ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+
+						ray_packet_extrass[i].material_id[programIndex]= material_ids[unique_geometry_id];
+					}
+				}
 			}
 		}
 	}

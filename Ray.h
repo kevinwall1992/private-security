@@ -43,6 +43,8 @@ struct RayPacketExtras
 	float surface_normal_x[PACKET_SIZE];
 	float surface_normal_y[PACKET_SIZE];
 	float surface_normal_z[PACKET_SIZE];
+
+	int material_id[PACKET_SIZE];
 };
 
 struct CompleteRay

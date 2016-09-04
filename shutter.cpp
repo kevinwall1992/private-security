@@ -343,15 +343,15 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 
 	//Shadows
 
-
 	//Preshading - Interpolation
 	Timer::pre_shading_timer.Start();
 #if ISPC_INTERPOLATION
-	Mesh *mesh= scene->GetMesh(0);
+	ISPCMesh *meshes= scene->GetISPCMeshes();
+	int *material_ids= scene->GetMaterialIDs();
+
 	ispc::Interpolate(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
 		             reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
-					 &(mesh->normal_indices[0]), 
-					 &(mesh->normals[0]));
+					 meshes, material_ids);
 #endif
 	Timer::pre_shading_timer.Pause();
 
@@ -360,6 +360,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	Timer::shading_timer.Start();
 #if ISPC_SHADING
 	ISPCLighting *lighting= scene->GetISPCLighting();
+	ISPCMaterial *materials= scene->GetISPCMaterials();
 
 	if(!ray_packet_block->is_additional)
 	{
@@ -371,7 +372,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									ray_packet_block->front_index,
 									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
 									film->width,
-									lighting, 
+									lighting, materials, 
 									camera->GetFilteringKernels(),
 									noisy_receptors, &noisy_receptors_count);
 
@@ -384,12 +385,10 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									ray_packet_block->front_index,
 									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
 									film->width,
-									lighting, 
+									lighting, &(materials[0]), 
 									nullptr,
 									nullptr, nullptr);
 	}
-
-	delete lighting;
 
 #else
 	int ray_packets_processed_count= 0;

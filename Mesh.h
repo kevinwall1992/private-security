@@ -2,8 +2,9 @@
 #define EBR_MESH
 
 #include "Common.h"
+#include "Resource.h"
 
-struct Mesh
+struct Mesh : public Resource
 {
 	vector<float> positions;
 	vector<float> texture_coordinates;
@@ -13,13 +14,11 @@ struct Mesh
 	vector<int> texture_coordinate_indices;
 	vector<int> normal_indices;
 
-	Mesh(string filename);
-	Mesh();
+	Mesh(string name);
 
 	int GetTriangleCount();
 	int GetVertexCount();
 
-	void LoadOBJ(string filename);
 	void Clear();
 };
 

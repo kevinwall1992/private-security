@@ -1,5 +1,106 @@
 #include "Scene.h"
 #include "Mesh.h"
+#include "Timer.h"
+
+ISPCLighting::ISPCLighting()
+{
+	point_lights= nullptr;
+}
+
+ISPCLighting::~ISPCLighting()
+{
+	if(point_lights!= nullptr)
+		delete point_lights;
+}
+
+
+void Scene::BuildISPCLighting()
+{
+	ispc_lighting= ISPCLighting();
+	ispc_lighting.point_lights= new ispc::PointLight_[lights.size()];
+	for(unsigned int i= 0; i< lights.size(); i++)
+	{
+		Vec3f position= lights[i]->GetPosition();
+		SetFloat3(ispc_lighting.point_lights[i].position, position);
+
+		Color intensity= lights[i]->GetIntensity();
+		SetFloat3(ispc_lighting.point_lights[i].intensity, intensity);
+	}
+	ispc_lighting.point_light_count= lights.size();
+
+	Vec3f ambient(0.0f, 0.0f, 0.0f);
+	for(unsigned int i= 0; i< ambient_lights.size(); i++)
+		ambient+= ambient_lights[i]->GetIntensity();
+	SetFloat3(ispc_lighting.ambient, ambient);
+}
+
+void Scene::BuildISPCMeshes()
+{
+	for(unsigned int i= 0; i< props.size(); i++)
+	{
+		ISPCMesh mesh;
+
+		mesh.positions= &(props[i].mesh->positions[0]);
+		mesh.position_indices= &(props[i].mesh->position_indices[0]);
+
+		mesh.normals= &(props[i].mesh->normals[0]);
+		mesh.normal_indices= &(props[i].mesh->normal_indices[0]);
+		
+		if(props[i].mesh->texture_coordinates.size()> 0)
+		{
+			mesh.texture_coordinates= &(props[i].mesh->texture_coordinates[0]);
+			mesh.texture_coordinate_indices= &(props[i].mesh->texture_coordinate_indices[0]);
+		}
+		else
+		{
+			mesh.texture_coordinates= nullptr;
+			mesh.texture_coordinate_indices= nullptr;
+		}
+
+		ispc_meshes.push_back(mesh);
+	}
+}
+
+void Scene::BuildISPCMaterials()
+{
+	vector<Material *> materials= Material::GetMaterials();
+	for(unsigned int i= 0; i< materials.size(); i++)
+	{
+		ISPCMaterial ispc_material;
+		PhongMaterial *material= dynamic_cast<PhongMaterial *>(materials[i]);
+
+		SetFloat3(ispc_material.diffuse, material->diffuse);
+		SetFloat3(ispc_material.specular, material->specular);
+		ispc_material.glossiness= material->glossiness;
+		ispc_material.index_of_refraction= material->index_of_refraction;
+
+		ispc_materials.push_back(ispc_material);
+	}
+
+	for(unsigned int i= 0; i< geometry_ids.size(); i++)
+	{
+		if(geometry_ids[i]>= material_ids.size())
+			material_ids.resize(geometry_ids[i]+ 1);
+
+		Material *material= props[i].material;
+		int material_id;
+		for(unsigned int j= 0; j< materials.size(); j++)
+			if(materials[j]== material)
+			{
+				material_id= j;
+				break;
+			}
+
+		material_ids[geometry_ids[i]]= material_id;
+	}
+}
+
+void Scene::BuildISPCData()
+{
+	BuildISPCLighting();
+	BuildISPCMeshes();
+	BuildISPCMaterials();
+}
 
 #if STREAM_MODE
 #define RTC_INTERSECT_MODE RTC_INTERSECT_STREAM
@@ -22,39 +123,43 @@ Scene::~Scene()
 	for(unsigned int i= 0; i< lights.size(); i++)
 		delete lights[i];
 
-	for(unsigned int i= 0; i< meshes.size(); i++)
-		delete meshes[i];
-
 	rtcDeleteScene(embree_scene);
 }
 
-void Scene::AddOBJ(string filename)
+void Scene::AddProp(Prop prop)
 {
-	Mesh *raw_mesh= new Mesh(filename);
-	int vertex_count= raw_mesh->GetVertexCount();
-	int triangle_count= raw_mesh->GetTriangleCount();
+	Mesh *mesh= prop.mesh;
+	int vertex_count= mesh->GetVertexCount();
+	int triangle_count= mesh->GetTriangleCount();
 	unsigned int geometry_id= rtcNewTriangleMesh(embree_scene, RTC_GEOMETRY_STATIC, triangle_count, vertex_count);
 	Vertex *vertices= (Vertex *)rtcMapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);
-	for(unsigned int i= 0; i< vertex_count; i++)
+	for(unsigned int j= 0; j< vertex_count; j++)
 	{
-		vertices[i].x= raw_mesh->positions[i* 3+ 0];
-		vertices[i].y= raw_mesh->positions[i* 3+ 1];
-		vertices[i].z= raw_mesh->positions[i* 3+ 2];
-		vertices[i].w= 0;
+		vertices[j].x= mesh->positions[j* 3+ 0];
+		vertices[j].y= mesh->positions[j* 3+ 1];
+		vertices[j].z= mesh->positions[j* 3+ 2];
+		vertices[j].w= 0;
 	}
 	rtcUnmapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);
 	Triangle *triangles= (Triangle *)rtcMapBuffer(embree_scene, geometry_id, RTC_INDEX_BUFFER);
-	memcpy(triangles, &raw_mesh->position_indices[0], sizeof(int)* triangle_count* 3);
+	memcpy(triangles, &mesh->position_indices[0], sizeof(int)* triangle_count* 3);
 	rtcUnmapBuffer(embree_scene, geometry_id, RTC_INDEX_BUFFER);
 
 #if RTC_INTERPOLATE == 0
-	rtcSetBuffer(embree_scene, geometry_id, RTC_USER_VERTEX_BUFFER0, &(raw_mesh->normals[0]), 0, sizeof(Vec3f));
+	rtcSetBuffer(embree_scene, geometry_id, RTC_USER_VERTEX_BUFFER0, &(mesh->normals[0]), 0, sizeof(Vec3f));
 #endif
 
-	cout << "triangles: " << raw_mesh->GetTriangleCount() << endl;
+	cout << mesh->GetName() << " triangles: " << mesh->GetTriangleCount() << endl;
 
 	geometry_ids.push_back(geometry_id);
-	meshes.push_back(raw_mesh);
+
+	props.push_back(prop);
+}
+
+void Scene::AddProps(vector<Prop> props)
+{
+	for(unsigned int i= 0; i< props.size(); i++)
+		AddProp(props[i]);
 }
 
 void Scene::AddLight(Light *light)
@@ -77,30 +182,34 @@ vector<AmbientLight *> * Scene::GetAmbientLights()
 
 ISPCLighting * Scene::GetISPCLighting()
 {
-	ISPCLighting *lighting= new ISPCLighting();
+	return &ispc_lighting;	
+}
 
-	lighting->point_lights= new ispc::PointLight_[lights.size()];
-	for(unsigned int i= 0; i< lights.size(); i++)
-	{
-		Vec3f position= lights[i]->GetPosition();
-		SetFloat3(lighting->point_lights[i].position, position);
+//This isn't quite right, we can't assume that geometry ids map 1:1 as well as 
+//are exactly equal to mesh ids. Should have mesh id array that maps geometry 
+//ids to mesh ids. 
+ISPCMesh * Scene::GetISPCMeshes()
+{
+	return &(ispc_meshes[0]);
+}
 
-		Color intensity= lights[i]->GetIntensity();
-		SetFloat3(lighting->point_lights[i].intensity, intensity);
-	}
-	lighting->point_light_count= lights.size();
+ISPCMaterial * Scene::GetISPCMaterials()
+{
+	return &(ispc_materials[0]);
+}
 
-	Vec3f ambient(0.0f, 0.0f, 0.0f);
-	for(unsigned int i= 0; i< ambient_lights.size(); i++)
-		ambient+= ambient_lights[i]->GetIntensity();
-	SetFloat3(lighting->ambient, ambient);
-
-	return lighting;
+//Assumes that geometry ids are not arbitrary- if theres a geometry id 
+//1000000, then we will end up having a very long array.
+int * Scene::GetMaterialIDs()
+{
+	return &(material_ids[0]);
 }
 
 void Scene::Commit()
 {
 	rtcCommit(embree_scene);
+	BuildISPCData();
+
 	commited= true;
 }
 
@@ -177,11 +286,11 @@ void Scene::Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extra
 }
 
 //This is questionable
-Mesh * Scene::GetMesh(int geometry_id)
+Prop * Scene::GetProp(int geometry_id)
 {
 	for(unsigned int i= 0; i< geometry_ids.size(); i++)
 		if(geometry_id== geometry_ids[i])
-			return meshes[i];
+			return &(props[i]);
 
 	assert(false && "Called Scene::GetMesh with invalid geometry_id.");
 	return nullptr;

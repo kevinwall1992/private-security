@@ -110,9 +110,3 @@ Vec3f DiscLight::SampleDirectionAtPoint(Vec3f point, int sample_index)
 	return Vec3f(0, 0, 0);
 }
 */
-
-
-ISPCLighting::~ISPCLighting()
-{
-	delete point_lights;
-}

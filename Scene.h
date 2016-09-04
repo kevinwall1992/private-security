@@ -4,7 +4,12 @@
 #include "Common.h"
 #include "EmbreeSystem.h"
 #include "Light.h"
-#include "Mesh.h"
+#include "Prop.h"
+#include "ISPCKernels.h"
+
+struct ISPCLighting : public ispc::Lighting { ISPCLighting(); ~ISPCLighting(); };
+typedef ispc::Mesh_ ISPCMesh;
+typedef ispc::PhongMaterial_ ISPCMaterial;
 
 class Scene
 {
@@ -13,20 +18,36 @@ class Scene
 	vector<Light *> lights;
 	vector<AmbientLight *> ambient_lights;
 
+	ISPCLighting ispc_lighting;
+	vector<ISPCMesh> ispc_meshes;
+	vector<ISPCMaterial> ispc_materials;
+	vector<int> material_ids;
+
 	bool commited= false;
 
-	vector<Mesh *> meshes;
+	vector<Prop> props;
+
+	void BuildISPCLighting();
+	void BuildISPCMeshes();
+	void BuildISPCMaterials();
+	void BuildISPCData();
 
 public:
 	Scene();
 	~Scene();
 
-	void AddOBJ(string filename);
+	void AddProp(Prop prop);
+	void AddProps(vector<Prop> props);
 	void AddLight(Light *light);
 
 	vector<Light *> * GetLights();
 	vector<AmbientLight *> * GetAmbientLights();
+
+	//Might consider some way of not regenerating these two every time
 	ISPCLighting * GetISPCLighting();
+	ISPCMesh * GetISPCMeshes();
+	ISPCMaterial * GetISPCMaterials();
+	int * GetMaterialIDs();
 
 	void Commit();
 
@@ -37,7 +58,7 @@ public:
 
 	void Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extras);
 
-	Mesh * GetMesh(int geometry_id);
+	Prop * GetProp(int geometry_id);
 };
 
 struct Vertex

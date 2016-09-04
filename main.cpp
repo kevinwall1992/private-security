@@ -17,13 +17,13 @@ int main(int argument_count, char **arguments)
 
 	{
 		Scene scene;
-		scene.AddOBJ("teapot4.obj");
-		scene.AddLight(new AmbientLight(Color(0.5f, 0.5f, 0.5f)));
-		scene.AddLight(new PointLight(Vec3f(0.0f, 0.0f, 0.0f), Color(0.5f, 0.5f, 0.5f)));
+		scene.AddProps(Prop::ParseOBJ("test_scene_1.obj"));
+		scene.AddLight(new AmbientLight(Color(0.3f, 0.3f, 0.3f)));
+		scene.AddLight(new PointLight(Vec3f(26.5f, 45.0f, -30.0f), Color(0.5f, 0.5f, 0.5f)));
 		scene.Commit();
 
-		Camera camera(90, Vec3f(0.0f, 0.0f, -3.0f));
-		camera.LookAt(Vec3f(0.0f, 0.0f, 10.0f));
+		Camera camera(60, Vec3f(13.70f, 26.70, -66.64f));
+		camera.LookAt(Vec3f(27.67f, 5.39f, 0.18f));
 		Film film(System::graphics.screen_width, System::graphics.screen_height);
 		camera.LoadFilm(&film);
 
@@ -44,10 +44,9 @@ int main(int argument_count, char **arguments)
 		
 			if((System::graphics.GetFrameCount()% print_frame_count)== 0)
 			{
-				float seconds_to_render= render_timer.Stop()/ (float)print_frame_count;
-				float seconds_to_display= display_timer.Stop()/ (float)print_frame_count;
-
-				
+				float seconds_to_render= render_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+				float seconds_to_display= display_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+	
 				float get_rays_ms= 1000* Timer::get_rays_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
 				float embree_ms= 1000* Timer::embree_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
 				float shading_ms= 1000* Timer::shading_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
@@ -58,7 +57,7 @@ int main(int argument_count, char **arguments)
 				frame_set_count++;
 #endif
 
-				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << develop_ms << "ms/"<< pre_shading_ms << "ms, ";
+				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << pre_shading_ms << "ms, ";
 				cout << "Render: " << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms";
 				cout << ",Display: " << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
 			}

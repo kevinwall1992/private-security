@@ -72,9 +72,4 @@ public:
 	Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index);
 };*/
 
-struct ISPCLighting : public ispc::Lighting
-{
-	~ISPCLighting();
-};
-
 #endif
