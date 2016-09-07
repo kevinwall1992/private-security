@@ -18,8 +18,8 @@ int main(int argument_count, char **arguments)
 	{
 		Scene scene;
 		scene.AddProps(Prop::ParseOBJ("test_scene_1.obj"));
-		scene.AddLight(new AmbientLight(Color(0.3f, 0.3f, 0.3f)));
-		scene.AddLight(new PointLight(Vec3f(26.5f, 45.0f, -30.0f), Color(0.5f, 0.5f, 0.5f)));
+		scene.AddLight(new AmbientLight(Color(0.2f, 0.2f, 0.2f)));
+		scene.AddLight(new PointLight(Vec3f(26.5f, 45.0f, -30.0f), Color(0.8f, 0.8f, 0.8f)));
 		scene.Commit();
 
 		Camera camera(60, Vec3f(13.70f, 26.70, -66.64f));
@@ -52,14 +52,15 @@ int main(int argument_count, char **arguments)
 				float shading_ms= 1000* Timer::shading_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
 				float develop_ms= 1000* Timer::develop_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
 				float pre_shading_ms= 1000* Timer::pre_shading_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
+				float shadow_ms= 1000* Timer::shadow_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
 
 #if PRINT_AVERAGES
 				frame_set_count++;
 #endif
 
-				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << pre_shading_ms << "ms, ";
-				cout << "Render: " << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms";
-				cout << ",Display: " << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
+				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << pre_shading_ms << "ms/" << shadow_ms << "ms,";
+				cout << "Render:" << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms";
+				cout << ",Display:" << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
 			}
 
 			bool exit_requested= false;

@@ -13,7 +13,10 @@ struct Vec3f
 #include "Sampling.h"
 #undef ISPC_CODE
 
-#define RTC_INVALID_GEOMETRY_ID ((unsigned int)-1)
+#include <embree2\rtcore.isph>
+#include <embree2\rtcore_ray.isph>
+
+//#define RTC_INVALID_GEOMETRY_ID ((unsigned int)-1)
 
 //Want some way to 1) make my classes standard across ISPC and C++, and
 //2) Not have to update my RTC structures when embree changes
@@ -94,6 +97,10 @@ struct RayPacketExtras
 	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
 	int bounce_count[PACKET_SIZE];
 	int type[PACKET_SIZE];
+
+	float surface_position_x[PACKET_SIZE];
+	float surface_position_y[PACKET_SIZE];
+	float surface_position_z[PACKET_SIZE];
 
 	float surface_normal_x[PACKET_SIZE];
 	float surface_normal_y[PACKET_SIZE];
@@ -323,7 +330,7 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 								  uniform int packet_count,
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
 								  uniform int film_width,
-								  Lighting * uniform lighting, 
+								  Lighting * uniform lighting, uniform float occlusions[],
 								  uniform PhongMaterial_ materials[],
 								  uniform float filtering_kernels[],
 								  uniform int noisy_receptors[], uniform int noisy_receptor_count[])
@@ -335,9 +342,9 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 
 		float<3> color= {0.0f, 0.0f, 0.0f};
 
-		float<3> position= {ray_packets[i].orgx[programIndex]+ (ray_packets[i].dirx[programIndex]* ray_packets[i].tfar[programIndex]), 
-			                ray_packets[i].orgy[programIndex]+ (ray_packets[i].diry[programIndex]* ray_packets[i].tfar[programIndex]), 
-							ray_packets[i].orgz[programIndex]+ (ray_packets[i].dirz[programIndex]* ray_packets[i].tfar[programIndex])};
+		float<3> position= {ray_packet_extrass[i].surface_position_x[programIndex], 
+			                ray_packet_extrass[i].surface_position_y[programIndex], 
+						    ray_packet_extrass[i].surface_position_z[programIndex]};
 
 		float<3> normal= {ray_packet_extrass[i].surface_normal_x[programIndex], 
 			              ray_packet_extrass[i].surface_normal_y[programIndex], 
@@ -345,6 +352,7 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 
 		for(uniform int j= 0; j< lighting->point_light_count; j++)
 		{
+#if 0
 			float<3> direction;
 			direction[0]= lighting->point_lights[j].position[0]- position[0];
 			direction[1]= lighting->point_lights[j].position[1]- position[1];
@@ -363,6 +371,14 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 				color[1]+= (lighting->point_lights[j].intensity[1]* geometry_term);
 				color[2]+= (lighting->point_lights[j].intensity[2]* geometry_term);
 			}
+
+#else
+			float occlusion= occlusions[i* PACKET_SIZE* lighting->point_light_count+ j* PACKET_SIZE+ programIndex];
+			color[0]+= lighting->point_lights[j].intensity[0]* occlusion;
+			color[1]+= lighting->point_lights[j].intensity[1]* occlusion;
+			color[2]+= lighting->point_lights[j].intensity[2]* occlusion;
+
+#endif
 		}
 		int material_id= ray_packet_extrass[i].material_id[programIndex];
 #if 1
@@ -599,6 +615,10 @@ export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtra
 		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
+		ray_packet_extrass[i].surface_position_x[programIndex]= ray_packets[i].orgx[programIndex]+ (ray_packets[i].dirx[programIndex]* ray_packets[i].tfar[programIndex]); 
+		ray_packet_extrass[i].surface_position_y[programIndex]= ray_packets[i].orgy[programIndex]+ (ray_packets[i].diry[programIndex]* ray_packets[i].tfar[programIndex]);
+		ray_packet_extrass[i].surface_position_z[programIndex]= ray_packets[i].orgz[programIndex]+ (ray_packets[i].dirz[programIndex]* ray_packets[i].tfar[programIndex]);
+
 		float u= ray_packets[i].u[programIndex];
 		float v= ray_packets[i].v[programIndex];
 		float w= 1- u- v;
@@ -704,3 +724,225 @@ export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtra
 }
 
 #endif
+
+export void ComputeOcclusions(uniform RayPacket_ ray_packets[], 
+							    uniform RayPacketExtras ray_packet_extrass[], 
+								uniform int packet_count,
+								Lighting * uniform lighting, 
+								uniform RayPacket_ shadow_ray_packets[],
+								RTCScene * uniform embree_scene,
+								uniform float occlusions[])
+{
+#if 0
+	for(uniform int light_index= 0; light_index< lighting->point_light_count; light_index++)
+	{
+		uniform float light_position[3]= lighting->point_lights[light_index].position;
+
+		for(uniform int i= 0; i< packet_count; i++)
+		{
+			cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
+				continue;
+
+			float surface_normal[3]= {ray_packet_extrass[i].surface_normal_x[programIndex], 
+			                          ray_packet_extrass[i].surface_normal_y[programIndex],
+			                          ray_packet_extrass[i].surface_normal_z[programIndex]};
+
+			float surface_position[3]= {ray_packet_extrass[i].surface_position_x[programIndex],
+			                            ray_packet_extrass[i].surface_position_y[programIndex],
+										ray_packet_extrass[i].surface_position_z[programIndex]};
+
+			//Assuming we add surface position to ray extras via Interpolate
+			float direction[3]= {light_position[0]- surface_position[0], 
+				                 light_position[1]- surface_position[1], 
+								 light_position[2]- surface_position[2]};
+			float direction_magnitude= sqrt(direction[0]* direction[0]+ 
+											 direction[1]* direction[1]+ 
+											 direction[2]* direction[2]);
+			direction[0]/= direction_magnitude;
+			direction[1]/= direction_magnitude;
+			direction[2]/= direction_magnitude;
+
+			float geometry_term= (direction[0]* surface_normal[0]+ 
+				                 direction[1]* surface_normal[1]+ 
+								 direction[2]* surface_normal[2]);
+
+			if(all(geometry_term< 0))
+			{
+				occlusions[i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE+ programIndex]= 0.0f;
+				continue;
+			}
+
+
+			uniform RayPacket_ shadow_packet;
+
+			cif(geometry_term< 0)
+			{
+				geometry_term= 0.0f;
+#if 0
+			}
+#else
+				shadow_packet.mask[programIndex] = 0;
+			}
+			else
+				shadow_packet.mask[programIndex] = -1;
+#endif
+
+#if 1
+			cif(geometry_term< 0.1f)
+			{
+				shadow_packet.orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
+				shadow_packet.orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
+				shadow_packet.orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
+			}
+			else
+			{
+				shadow_packet.orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.001f;
+				shadow_packet.orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.001f;
+				shadow_packet.orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.001f;
+			}
+#else
+			shadow_packet.orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
+			shadow_packet.orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
+			shadow_packet.orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
+
+#endif
+
+			shadow_packet.dirx[programIndex]= direction[0];
+			shadow_packet.diry[programIndex]= direction[1];
+			shadow_packet.dirz[programIndex]= direction[2];
+
+			shadow_packet.tnear[programIndex] = 0.0f;
+			shadow_packet.tfar[programIndex] = direction_magnitude;
+			shadow_packet.geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
+			shadow_packet.primID[programIndex] = RTC_INVALID_GEOMETRY_ID;
+			shadow_packet.time[programIndex] = 0;
+
+
+			uniform RTCIntersectContext context;
+			context.flags= RTC_INTERSECT_COHERENT;
+			context.userRayExt= NULL;
+			rtcOccludedNM(*embree_scene, &context, (RTCRayN *)(&shadow_packet), PACKET_SIZE, 1, sizeof(RayPacket_)/ 8);
+
+
+			uniform int occlusion_offset= i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
+			occlusions[occlusion_offset+ programIndex]= shadow_packet.geomID[programIndex]== 0 ? 0.0f : geometry_term;
+		}
+	}
+
+#else
+	uniform int ray_packet_indices[RAY_PACKET_BLOCK_SIZE];
+	uniform int shadow_ray_packet_count;
+	uniform float geometry_terms[RAY_PACKET_BLOCK_SIZE* PACKET_SIZE];
+
+	for(uniform int light_index= 0; light_index< lighting->point_light_count; light_index++)
+	{
+		uniform float light_position[3]= lighting->point_lights[light_index].position;
+
+		shadow_ray_packet_count= 0;
+		for(uniform int packet_index= 0; packet_index< packet_count; packet_index++)
+		{
+			cif(ray_packets[packet_index].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
+				continue;
+
+			float surface_normal[3]= {ray_packet_extrass[packet_index].surface_normal_x[programIndex], 
+			                          ray_packet_extrass[packet_index].surface_normal_y[programIndex],
+			                          ray_packet_extrass[packet_index].surface_normal_z[programIndex]};
+
+			float surface_position[3]= {ray_packet_extrass[packet_index].surface_position_x[programIndex],
+			                            ray_packet_extrass[packet_index].surface_position_y[programIndex],
+										ray_packet_extrass[packet_index].surface_position_z[programIndex]};
+
+			//Assuming we add surface position to ray extras via Interpolate
+			float direction[3]= {light_position[0]- surface_position[0], 
+				                 light_position[1]- surface_position[1], 
+								 light_position[2]- surface_position[2]};
+			float direction_magnitude= sqrt(direction[0]* direction[0]+ 
+											 direction[1]* direction[1]+ 
+											 direction[2]* direction[2]);
+			direction[0]/= direction_magnitude;
+			direction[1]/= direction_magnitude;
+			direction[2]/= direction_magnitude;
+
+			float geometry_term= (direction[0]* surface_normal[0]+ 
+				                 direction[1]* surface_normal[1]+ 
+								 direction[2]* surface_normal[2]);
+
+			if(all(geometry_term< 0))
+			{
+				occlusions[packet_index* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE+ programIndex]= 0.0f;
+				continue;
+			}
+
+
+			uniform int shadow_ray_packet_index= shadow_ray_packet_count++;
+
+			cif(geometry_term< 0)
+			{
+				geometry_term= 0.0f;
+#if 0
+			}
+#else
+				shadow_ray_packets[shadow_ray_packet_index].mask[programIndex] = 0;
+			}
+			else
+				shadow_ray_packets[shadow_ray_packet_index].mask[programIndex] = -1;
+#endif
+
+#if 1
+			cif(geometry_term< 0.1f)
+			{
+				shadow_ray_packets[shadow_ray_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
+				shadow_ray_packets[shadow_ray_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
+				shadow_ray_packets[shadow_ray_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
+			}
+			else
+			{
+				shadow_ray_packets[shadow_ray_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.001f;
+				shadow_ray_packets[shadow_ray_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.001f;
+				shadow_ray_packets[shadow_ray_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.001f;
+			}
+#else
+			shadow_ray_packets[shadow_ray_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
+			shadow_ray_packets[shadow_ray_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
+			shadow_ray_packets[shadow_ray_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
+#endif
+
+			geometry_terms[packet_index* PACKET_SIZE+ programIndex]= geometry_term;
+
+			shadow_ray_packets[shadow_ray_packet_index].dirx[programIndex]= direction[0];
+			shadow_ray_packets[shadow_ray_packet_index].diry[programIndex]= direction[1];
+			shadow_ray_packets[shadow_ray_packet_index].dirz[programIndex]= direction[2];
+
+			shadow_ray_packets[shadow_ray_packet_index].tnear[programIndex] = 0.0f;
+			shadow_ray_packets[shadow_ray_packet_index].tfar[programIndex] = direction_magnitude;
+			shadow_ray_packets[shadow_ray_packet_index].geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
+			shadow_ray_packets[shadow_ray_packet_index].primID[programIndex] = RTC_INVALID_GEOMETRY_ID;
+			shadow_ray_packets[shadow_ray_packet_index].time[programIndex] = 0;
+
+
+			ray_packet_indices[shadow_ray_packet_index]= packet_index;
+		}
+
+		uniform RTCIntersectContext context;
+		context.flags= RTC_INTERSECT_COHERENT;
+		context.userRayExt= NULL;
+		rtcOccludedNM(*embree_scene, &context, (RTCRayN *)shadow_ray_packets, PACKET_SIZE, shadow_ray_packet_count, sizeof(RayPacket_)/ 8);
+
+		for(uniform int shadow_ray_packet_index= 0; shadow_ray_packet_index< shadow_ray_packet_count; shadow_ray_packet_index++)
+		{
+			uniform int packet_index= ray_packet_indices[shadow_ray_packet_index];
+
+			float occlusion;
+			cif(shadow_ray_packets[shadow_ray_packet_index].geomID[programIndex]== 0)
+				occlusion= 0.0f;
+			else
+				occlusion= geometry_terms[packet_index* PACKET_SIZE+ programIndex];
+
+			//occlusion= geometry_terms[ray_packet_indices[packet_index]* PACKET_SIZE+ programIndex];
+
+			uniform int occlusion_offset= packet_index* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
+			occlusions[occlusion_offset+ programIndex]= occlusion;
+		}
+	}
+#endif
+}

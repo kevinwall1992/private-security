@@ -47,7 +47,14 @@ class Shutter
 
 	Barrier barrier;
 
-protected:
+	vector<RayPacket *> shadow_ray_buffers;
+	vector<float *> occlusion_buffers;
+
+
+	int GetThreadIndex();
+	RayPacket * GetShadowRayBuffer();
+	float * GetOcclusionBuffer();
+
 	void ReportNoisyReceptors(int *indices, int count);
 
 	RayBlock * TakeEmptyPrimaryRayBlock();

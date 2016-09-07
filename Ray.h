@@ -37,9 +37,10 @@ struct RayPacketExtras
 	int bounce_count[PACKET_SIZE];
 	RayType::Enum type[PACKET_SIZE];
 
-	//float surface_position_x[PACKET_SIZE];
-	//float surface_position_y[PACKET_SIZE];
-	//float surface_position_z[PACKET_SIZE];
+	float surface_position_x[PACKET_SIZE];
+	float surface_position_y[PACKET_SIZE];
+	float surface_position_z[PACKET_SIZE];
+
 	float surface_normal_x[PACKET_SIZE];
 	float surface_normal_y[PACKET_SIZE];
 	float surface_normal_z[PACKET_SIZE];

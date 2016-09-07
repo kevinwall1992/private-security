@@ -115,7 +115,7 @@ Scene::Scene()
 	//need to determine if we need a second stream for packeted intersection
 	//interesting to know (as well) whether the stream mode doesn't like switching between packets and singles
 
-	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, (RTCAlgorithmFlags)(RTC_INTERSECT_MODE | (ISPC_INTERPOLATION ? 0 : RTC_INTERPOLATE)));
+	embree_scene = rtcDeviceNewScene(System::embree.device, RTC_SCENE_STATIC, (RTCAlgorithmFlags)(RTC_INTERSECT_MODE | (ISPC_INTERPOLATION ? 0 : RTC_INTERPOLATE) | RTC_INTERSECT_STREAM));
 }
 
 Scene::~Scene()
@@ -198,6 +198,11 @@ ISPCMaterial * Scene::GetISPCMaterials()
 	return &(ispc_materials[0]);
 }
 
+RTCScene * Scene::GetEmbreeScene()
+{
+	return &embree_scene;
+}
+
 //Assumes that geometry ids are not arbitrary- if theres a geometry id 
 //1000000, then we will end up having a very long array.
 int * Scene::GetMaterialIDs()
@@ -252,6 +257,19 @@ void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
 
 #else
 	assert(false && "Attempted to intersect packet stream in single mode.");
+
+#endif
+}
+
+#define rtcOccludedPacket JOIN(rtcOccluded, PACKET_SIZE)
+void Scene::Occluded(RayPacket &ray_packet)
+{
+#if STREAM_MODE
+	assert(false && "Attempted to occlude single packet in stream mode.");
+#else
+	int32_t activity_mask[PACKET_SIZE];
+	memset(activity_mask, 0xFFFFFFFF, sizeof(int32_t)* PACKET_SIZE);
+	rtcOccludedPacket(activity_mask, embree_scene, ray_packet);
 
 #endif
 }

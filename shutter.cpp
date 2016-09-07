@@ -37,6 +37,31 @@ T * PopFrontOrInstanciate(queue<T *> &ray_blocks, std::mutex &mutex, bool is_pri
 }
 
 
+int Shutter::GetThreadIndex()
+{
+#if SERIAL_MODE
+	return 0;
+#else
+	std::thread::id thread_id= std::this_thread::get_id();
+
+	for(int i= 0; i< THREAD_COUNT; i++)
+		if(threads[i].get_id()== thread_id)
+			return i;
+
+	return -1;
+#endif
+}
+
+RayPacket * Shutter::GetShadowRayBuffer()
+{
+	return shadow_ray_buffers[GetThreadIndex()];
+}
+
+float * Shutter::GetOcclusionBuffer()
+{
+	return occlusion_buffers[GetThreadIndex()];
+}
+
 RayBlock * Shutter::TakeEmptyPrimaryRayBlock()
 {
 	return PopFront(empty_primary_ray_blocks, resource_mutex);
@@ -104,14 +129,18 @@ Shutter::Shutter(Camera *camera_)
 
 #if PACKET_MODE
 	for(int i= 0; i< THREAD_COUNT; i++)
+	{
 		empty_primary_ray_packet_blocks.push(new RayPacketBlock(true, true));
+
+		shadow_ray_buffers.push_back(new RayPacket[RAY_PACKET_BLOCK_SIZE]);
+		occlusion_buffers.push_back(new float[RAY_PACKET_BLOCK_SIZE* PACKET_SIZE]);
+	}
 
 #else
 	for(int i= 0; i< THREAD_COUNT; i++)
 		empty_primary_ray_blocks.push(new RayBlock(true, true));
 
 #endif
-
 }
 
 Shutter::~Shutter()
@@ -121,6 +150,12 @@ Shutter::~Shutter()
 	{
 		delete empty_primary_ray_packet_blocks.front();
 		empty_primary_ray_packet_blocks.pop();
+	}
+
+	for(int i= 0; i< THREAD_COUNT; i++)
+	{
+		delete shadow_ray_buffers[i];
+		delete occlusion_buffers[i];
 	}
 
 #else
@@ -355,16 +390,32 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #endif
 	Timer::pre_shading_timer.Pause();
 
+	//Shadows
+	ISPCLighting *lighting= scene->GetISPCLighting();
+	float *occlusion_buffer= GetOcclusionBuffer();
+
+	Timer::shadow_timer.Start();
+	ispc::ComputeOcclusions(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
+							    reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
+								ray_packet_block->front_index,
+								lighting, 
+								reinterpret_cast<ispc::RayPacket_ *>(GetShadowRayBuffer()), 
+								reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()),
+								occlusion_buffer);
+	Timer::shadow_timer.Pause();
 
 	//Shading
 	Timer::shading_timer.Start();
 #if ISPC_SHADING
-	ISPCLighting *lighting= scene->GetISPCLighting();
 	ISPCMaterial *materials= scene->GetISPCMaterials();
 
 	if(!ray_packet_block->is_additional)
 	{
+#if ADAPTIVE_SAMPLING
 		int noisy_receptors[CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT];
+#else
+		int *noise_receptors= nullptr;
+#endif
 		int noisy_receptors_count= 0;
 
 		ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
@@ -372,7 +423,8 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									ray_packet_block->front_index,
 									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
 									film->width,
-									lighting, materials, 
+									lighting, occlusion_buffer,
+									materials, 
 									camera->GetFilteringKernels(),
 									noisy_receptors, &noisy_receptors_count);
 
@@ -385,7 +437,8 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									ray_packet_block->front_index,
 									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
 									film->width,
-									lighting, &(materials[0]), 
+									lighting, occlusion_buffer,
+									materials, 
 									nullptr,
 									nullptr, nullptr);
 	}

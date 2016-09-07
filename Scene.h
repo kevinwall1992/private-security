@@ -48,6 +48,7 @@ public:
 	ISPCMesh * GetISPCMeshes();
 	ISPCMaterial * GetISPCMaterials();
 	int * GetMaterialIDs();
+	RTCScene * GetEmbreeScene();
 
 	void Commit();
 
@@ -55,6 +56,8 @@ public:
 	void Intersect(Ray *rays, int count, bool is_coherent);
 	void Intersect(RayPacket &ray_packet);
 	void Intersect(RayPacket *ray_packets, int count, bool is_coherent);
+
+	void Occluded(RayPacket &ray_packet);
 
 	void Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extras);
 
