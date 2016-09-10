@@ -10,6 +10,7 @@ using std::queue;
 #include "Ray.h"
 #include "Film.h"
 #include "Scene.h"
+#include "ISPCInterop.h"
 
 
 struct Camera;
@@ -26,7 +27,8 @@ class Shutter
 	queue<RayBlock *> empty_incoherent_ray_blocks; 
 	queue<RayBlock *> full_ray_blocks;
 
-	queue<RayPacketBlock *> empty_primary_ray_packet_blocks; 
+	queue<RayPacketBlock *> empty_primary_ray_packet_blocks;
+	queue<RayPacketBlock *> empty_indirect_ray_packet_blocks; 
 	queue<RayPacketBlock *> full_ray_packet_blocks;
 
 	int *noisy_receptors= nullptr;
@@ -64,6 +66,7 @@ class Shutter
 	void ReturnRayBlock(RayBlock *ray_block);
 
 	RayPacketBlock * TakeEmptyPrimaryRayPacketBlock();
+	RayPacketBlock * TakeEmptyIndirectRayPacketBlock();
 	RayPacketBlock * TakeFullRayPacketBlock();
 	void ReturnRayPacketBlock(RayPacketBlock *ray_packet_block);
 
@@ -84,6 +87,10 @@ public:
 	~Shutter();
 
 	void Open(Scene &scene);
+
+	//ISPC Interop
+	friend void TakeRayPacketBuffer(intptr_t *ray_packet_buffer_id, int **packet_count, intptr_t camera_id, void **ray_packets, void **ray_packet_extras);
+	friend void ReturnRayPacketBuffer(intptr_t ray_packet_buffer_id, intptr_t camera_id);
 };
 
 

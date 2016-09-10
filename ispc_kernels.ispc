@@ -10,7 +10,6 @@ struct Vec3f
 
 #define ISPC_CODE
 #include "Parameters.h"
-#include "Sampling.h"
 #undef ISPC_CODE
 
 #include <embree2\rtcore.isph>
@@ -149,7 +148,13 @@ struct PhongMaterial_
 	float specular[3];
 	float glossiness;
 	float index_of_refraction;
+	int chrome;
 };
+
+#define ISPC_CODE
+#include "ISPCInterop.h"
+#undef ISPC_CODE
+
 
 //Try making point a pointer (heh)
 //need to make sure lighting is a uniform, not sure how yet
@@ -325,6 +330,46 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 	}
 }
 
+unmasked void WriteRayPacket(RayPacket_ ** uniform ray_packets, RayPacketExtras ** uniform ray_packet_extrass, int ** uniform next_packet_index, 
+	                         varying int mask, 
+							 varying float<3> position, varying float<3> direction, 
+							 uniform float tnear, uniform float tfar, 
+							 uniform float x[], uniform float y[],
+							 uniform intptr_t camera_id, intptr_t * uniform ray_packet_buffer_id)
+{
+	if((*next_packet_index)[0]>= RAY_PACKET_BLOCK_SIZE)
+		TakeRayPacketBuffer(ray_packet_buffer_id, next_packet_index, camera_id, ray_packets, ray_packet_extrass);
+	uniform int packet_index= (*next_packet_index)[0]++;
+
+
+	//Test whether if'ing out most of these writes effects performance
+
+	(*ray_packets)[packet_index].orgx[programIndex]= position[0];
+	(*ray_packets)[packet_index].orgy[programIndex]= position[1];
+	(*ray_packets)[packet_index].orgz[programIndex]= position[2];
+
+	(*ray_packets)[packet_index].dirx[programIndex]= direction[0];
+	(*ray_packets)[packet_index].diry[programIndex]= direction[1];
+	(*ray_packets)[packet_index].dirz[programIndex]= direction[2];
+
+	(*ray_packets)[packet_index].tnear[programIndex]= 0.0f;
+	(*ray_packets)[packet_index].tfar[programIndex]= 1000000000;
+	(*ray_packets)[packet_index].geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
+	(*ray_packets)[packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+	(*ray_packets)[packet_index].time[programIndex]= 0;
+
+	(*ray_packets)[packet_index].mask[programIndex] = mask ? -1 : 0;
+
+	(*ray_packet_extrass)[packet_index].bounce_count[programIndex]= 1;
+	(*ray_packet_extrass)[packet_index].type[programIndex]= 1;
+	(*ray_packet_extrass)[packet_index].x[programIndex]= x[programIndex];
+	(*ray_packet_extrass)[packet_index].y[programIndex]= y[programIndex];
+
+	(*ray_packet_extrass)[packet_index].absorption_r[programIndex]= 1.0f;
+	(*ray_packet_extrass)[packet_index].absorption_g[programIndex]= 1.0f;
+	(*ray_packet_extrass)[packet_index].absorption_b[programIndex]= 1.0f;
+}
+
 export void PacketedShadingKernel(uniform RayPacket_ ray_packets[], 
 							      uniform RayPacketExtras ray_packet_extrass[], 
 								  uniform int packet_count,
@@ -333,11 +378,19 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 								  Lighting * uniform lighting, uniform float occlusions[],
 								  uniform PhongMaterial_ materials[],
 								  uniform float filtering_kernels[],
-								  uniform int noisy_receptors[], uniform int noisy_receptor_count[])
+								  uniform int noisy_receptors[], uniform int noisy_receptor_count[], 
+								  uniform intptr_t camera_id)
 {
+	uniform intptr_t indirect_ray_packet_buffer_id= 0;
+	RayPacket_ * uniform indirect_ray_packets= NULL;
+	RayPacketExtras * uniform indirect_ray_packet_extrass= NULL;
+	int * uniform indirect_ray_packet_count= NULL;
+	TakeRayPacketBuffer(&indirect_ray_packet_buffer_id, &indirect_ray_packet_count, camera_id, &indirect_ray_packets, &indirect_ray_packet_extrass);
+
+
 	for(uniform int i= 0; i< packet_count; i++)
 	{
-		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
+		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID || ray_packets[i].mask[programIndex]!= -1)
 			continue;
 
 		float<3> color= {0.0f, 0.0f, 0.0f};
@@ -350,162 +403,206 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 			              ray_packet_extrass[i].surface_normal_y[programIndex], 
 						  ray_packet_extrass[i].surface_normal_z[programIndex]};
 
-		for(uniform int j= 0; j< lighting->point_light_count; j++)
-		{
-#if 0
-			float<3> direction;
-			direction[0]= lighting->point_lights[j].position[0]- position[0];
-			direction[1]= lighting->point_lights[j].position[1]- position[1];
-			direction[2]= lighting->point_lights[j].position[2]- position[2];
-			float direction_magnitude= sqrt(direction[0]* direction[0]+ 
-				                            direction[1]* direction[1]+ 
-											direction[2]* direction[2]);
-
-			float geometry_term= (direction[0]* normal[0]+ 
-				                  direction[1]* normal[1]+ 
-								  direction[2]* normal[2])/ direction_magnitude;
-
-			if(geometry_term> 0)
-			{
-				color[0]+= (lighting->point_lights[j].intensity[0]* geometry_term);
-				color[1]+= (lighting->point_lights[j].intensity[1]* geometry_term);
-				color[2]+= (lighting->point_lights[j].intensity[2]* geometry_term);
-			}
-
-#else
-			float occlusion= occlusions[i* PACKET_SIZE* lighting->point_light_count+ j* PACKET_SIZE+ programIndex];
-			color[0]+= lighting->point_lights[j].intensity[0]* occlusion;
-			color[1]+= lighting->point_lights[j].intensity[1]* occlusion;
-			color[2]+= lighting->point_lights[j].intensity[2]* occlusion;
-
-#endif
-		}
 		int material_id= ray_packet_extrass[i].material_id[programIndex];
-#if 1
+
+		uniform int bounce_limit_achieved;
+		reduce_equal(ray_packet_extrass[i].bounce_count[programIndex]>= 1, &bounce_limit_achieved);
+
+		int is_chrome;
 		uniform int uniform_material_id;
-		if(reduce_equal(material_id, &uniform_material_id))//try just using foreach_unique
-		{
-			uniform float diffuse[3]= materials[uniform_material_id].diffuse;
-			color[0]*= diffuse[0];
-			color[1]*= diffuse[1];
-			color[2]*= diffuse[2];
-		}
+		if(reduce_equal(material_id, &uniform_material_id))
+			is_chrome= materials[uniform_material_id].chrome;
 		else
 		{
 			foreach_unique(unique_material_id in material_id)
+				is_chrome= materials[unique_material_id].chrome;
+		}
+
+		if(any(is_chrome) && !bounce_limit_achieved)
+		{
+			cif(is_chrome)
 			{
-				uniform float diffuse[3]= materials[unique_material_id].diffuse;
-				color[0]*= diffuse[0];
-				color[1]*= diffuse[1];
-				color[2]*= diffuse[2];
+				float<3> reflection_position= {position[0]+ normal[0]* 0.01f, 
+											   position[1]+ normal[1]* 0.01f, 
+											   position[2]+ normal[2]* 0.01f};
+
+				float dot= (ray_packets[i].dirx[programIndex]* normal[0]+ 
+						   ray_packets[i].diry[programIndex]* normal[1]+ 
+						   ray_packets[i].dirz[programIndex]* normal[2])* 2;
+
+				float<3> reflection_direction= {ray_packets[i].dirx[programIndex]- normal[0]* dot, 
+											    ray_packets[i].diry[programIndex]- normal[1]* dot, 
+											    ray_packets[i].dirz[programIndex]- normal[2]* dot};
+
+				WriteRayPacket(&indirect_ray_packets, &indirect_ray_packet_extrass, &indirect_ray_packet_count, 
+	                           is_chrome, reflection_position, reflection_direction, 0.0f, 1000000, 
+							   ray_packet_extrass[i].x, ray_packet_extrass[i].y, 
+							   camera_id, &indirect_ray_packet_buffer_id);
 			}
 		}
-#else
-		foreach_unique(unique_material_id in material_id)
+
+		if(bounce_limit_achieved || any(!is_chrome))
 		{
-			uniform float diffuse[3]= materials[unique_material_id].diffuse;
-			color[0]*= diffuse[0];
-			color[1]*= diffuse[1];
-			color[2]*= diffuse[2];
-		}
+			cif(bounce_limit_achieved || !is_chrome)//this is weird... seems like you ask this followup question every time. Maybe they already optimize for this?
+			{
+				for(uniform int j= 0; j< lighting->point_light_count; j++)
+				{
+#if 0
+					float<3> direction;
+					direction[0]= lighting->point_lights[j].position[0]- position[0];
+					direction[1]= lighting->point_lights[j].position[1]- position[1];
+					direction[2]= lighting->point_lights[j].position[2]- position[2];
+					float direction_magnitude= sqrt(direction[0]* direction[0]+ 
+													direction[1]* direction[1]+ 
+													direction[2]* direction[2]);
+
+					float geometry_term= (direction[0]* normal[0]+ 
+											direction[1]* normal[1]+ 
+											direction[2]* normal[2])/ direction_magnitude;
+
+					if(geometry_term> 0)
+					{
+						color[0]+= (lighting->point_lights[j].intensity[0]* geometry_term);
+						color[1]+= (lighting->point_lights[j].intensity[1]* geometry_term);
+						color[2]+= (lighting->point_lights[j].intensity[2]* geometry_term);
+					}
+
+#else
+					float occlusion= occlusions[i* PACKET_SIZE* lighting->point_light_count+ j* PACKET_SIZE+ programIndex];
+					color[0]+= lighting->point_lights[j].intensity[0]* occlusion;
+					color[1]+= lighting->point_lights[j].intensity[1]* occlusion;
+					color[2]+= lighting->point_lights[j].intensity[2]* occlusion;
+
+#endif
+				}
+		
+#if 1
+				uniform int uniform_material_id;
+				if(reduce_equal(material_id, &uniform_material_id))//try just using foreach_unique
+				{
+					uniform float diffuse[3]= materials[uniform_material_id].diffuse;
+					color[0]*= diffuse[0];
+					color[1]*= diffuse[1];
+					color[2]*= diffuse[2];
+				}
+				else
+				{
+					foreach_unique(unique_material_id in material_id)
+					{
+						uniform float diffuse[3]= materials[unique_material_id].diffuse;
+						color[0]*= diffuse[0];
+						color[1]*= diffuse[1];
+						color[2]*= diffuse[2];
+					}
+				}
+#else
+				foreach_unique(unique_material_id in material_id)
+				{
+					uniform float diffuse[3]= materials[unique_material_id].diffuse;
+					color[0]*= diffuse[0];
+					color[1]*= diffuse[1];
+					color[2]*= diffuse[2];
+				}
 #endif
 
-		color[0]+= lighting->ambient[0];
-		color[1]+= lighting->ambient[1];
-		color[2]+= lighting->ambient[2];
-
-		color[0]*= ray_packet_extrass[i].absorption_r[programIndex];
-		color[1]*= ray_packet_extrass[i].absorption_g[programIndex];
-		color[2]*= ray_packet_extrass[i].absorption_b[programIndex];
-
-
-		int x= ray_packet_extrass[i].x[programIndex];
-		int y= ray_packet_extrass[i].y[programIndex];
-
-#if FILTERING
-		uniform int uniform_y;
-		uniform int uniform_x;
-		if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
-		{
-			for(uniform int j= 0; j< 9; j++)
-			{
-				float weight= filtering_kernels[j* 8+ programIndex];
-
-				uniform float<3> color_sum= {reduce_add(color[0]* weight), reduce_add(color[1]* weight), reduce_add(color[2]* weight)};
-
-				uniform int receptor_index= (uniform_y+ ((j/ 3)- 1))* film_width+ (uniform_x+ ((j% 3)- 1));
-				receptors_r[receptor_index]+= color_sum[0];
-				receptors_g[receptor_index]+= color_sum[1];
-				receptors_b[receptor_index]+= color_sum[2];
+				color[0]+= lighting->ambient[0];
+				color[1]+= lighting->ambient[1];
+				color[2]+= lighting->ambient[2];
 			}
 
-			if(high_variance_pixel_indices!= NULL)
-				sample_counts[uniform_y* film_width+ uniform_x]= MIN_SAMPLES_PER_PIXEL;
-		}
-		else
-		{
-			int receptor_index= y* film_width+ x;
-			receptors_r[receptor_index]= 1.0f;
-			receptors_g[receptor_index]= 0.0f;
-			receptors_b[receptor_index]= 0.0f;
-		}
+			color[0]*= ray_packet_extrass[i].absorption_r[programIndex];
+			color[1]*= ray_packet_extrass[i].absorption_g[programIndex];
+			color[2]*= ray_packet_extrass[i].absorption_b[programIndex];
+
+			int x= ray_packet_extrass[i].x[programIndex];
+			int y= ray_packet_extrass[i].y[programIndex];
+
+#if FILTERING
+			uniform int uniform_y;
+			uniform int uniform_x;
+			if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
+			{
+				for(uniform int j= 0; j< 9; j++)
+				{
+					float weight= filtering_kernels[j* 8+ programIndex];
+
+					uniform float<3> color_sum= {reduce_add(color[0]* weight), reduce_add(color[1]* weight), reduce_add(color[2]* weight)};
+
+					uniform int receptor_index= (uniform_y+ ((j/ 3)- 1))* film_width+ (uniform_x+ ((j% 3)- 1));
+					receptors_r[receptor_index]+= color_sum[0];
+					receptors_g[receptor_index]+= color_sum[1];
+					receptors_b[receptor_index]+= color_sum[2];
+				}
+
+				if(high_variance_pixel_indices!= NULL)
+					sample_counts[uniform_y* film_width+ uniform_x]= MIN_SAMPLES_PER_PIXEL;
+			}
+			else
+			{
+				int receptor_index= y* film_width+ x;
+				receptors_r[receptor_index]= 1.0f;
+				receptors_g[receptor_index]= 0.0f;
+				receptors_b[receptor_index]= 0.0f;
+			}
 
 #else
 #if MIN_SAMPLES_PER_PIXEL== 1
-		uniform int uniform_y;
-		uniform int packet_x;
-		if(reduce_equal(y, &uniform_y) && reduce_equal(x/ programCount, &packet_x))
-		{
-			int receptor_index= uniform_y* film_width+ packet_x* programCount+ programIndex;
-			receptors_r[receptor_index]= color[0];
-			receptors_g[receptor_index]= color[1];
-			receptors_b[receptor_index]= color[2];
-
-		}
-		else
-		{
-			int receptor_index= y* film_width+ x;
-			receptors_r[receptor_index]= 1.0f;
-			receptors_g[receptor_index]= 0.0f;
-			receptors_b[receptor_index]= 0.0f;
-		}
-
-#else
-		uniform int uniform_y;
-		uniform int uniform_x;
-		if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
-		{
-			uniform float<3> color_sum= {reduce_add(color[0]), reduce_add(color[1]), reduce_add(color[2])};
-
-			uniform int receptor_index= uniform_y* film_width+ uniform_x;
-			receptors_r[receptor_index]+= color_sum[0];
-			receptors_g[receptor_index]+= color_sum[1];
-			receptors_b[receptor_index]+= color_sum[2];
-
-#if ADAPTIVE_SAMPLING
-			if(noisy_receptors!= NULL)
+			uniform int uniform_y;
+			uniform int packet_x;
+			if(reduce_equal(y, &uniform_y) && reduce_equal(x/ programCount, &packet_x))
 			{
-				uniform float<3> color_mean= color_sum/ programCount;
-				float<3> displacement= (color- color_mean);//try using intrisic to square resulting vector
-				float squared_distance= displacement[0]* displacement[0]+ displacement[1]* displacement[1]+ displacement[2]* displacement[2];
+				int receptor_index= uniform_y* film_width+ packet_x* programCount+ programIndex;
+				receptors_r[receptor_index]= color[0];
+				receptors_g[receptor_index]= color[1];
+				receptors_b[receptor_index]= color[2];
 
-				uniform float variance= reduce_add(squared_distance);
-				if(variance> COLOR_VARIANCE_THRESHOLD)
-				{
-					uniform int foo= atomic_add_global(noisy_receptor_count, 1);
-					noisy_receptors[foo]= receptor_index;
-
-					sample_counts[receptor_index]= MAX_SAMPLES_PER_PIXEL;
-				}
-				else
-					sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
-
+			}
+			else
+			{
+				int receptor_index= y* film_width+ x;
+				receptors_r[receptor_index]= 1.0f;
+				receptors_g[receptor_index]= 0.0f;
+				receptors_b[receptor_index]= 0.0f;
 			}
 
 #else
-			sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
+			uniform int uniform_y;
+			uniform int uniform_x;
+			if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
+			{
+				uniform float<3> color_sum= {reduce_add(color[0]), reduce_add(color[1]), reduce_add(color[2])};
+
+				uniform int receptor_index= uniform_y* film_width+ uniform_x;
+				receptors_r[receptor_index]+= color_sum[0];
+				receptors_g[receptor_index]+= color_sum[1];
+				receptors_b[receptor_index]+= color_sum[2];
+
+#if ADAPTIVE_SAMPLING
+				if(noisy_receptors!= NULL)
+				{
+					uniform float<3> color_mean= color_sum/ programCount;
+					float<3> displacement= (color- color_mean);//try using intrisic to square resulting vector
+					float squared_distance= displacement[0]* displacement[0]+ displacement[1]* displacement[1]+ displacement[2]* displacement[2];
+
+					uniform float variance= reduce_add(squared_distance);
+					if(variance> COLOR_VARIANCE_THRESHOLD)
+					{
+						uniform int foo= atomic_add_global(noisy_receptor_count, 1);
+						noisy_receptors[foo]= receptor_index;
+
+						sample_counts[receptor_index]= MAX_SAMPLES_PER_PIXEL;
+					}
+					else
+						sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
+
+				}
+
+#else
+				sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
 
 #endif
+			}
+
 		}
 
 		//Could try foreach_unique for non-coherent (x,y) problem
@@ -515,6 +612,8 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 #endif
 
 	}
+
+	ReturnRayPacketBuffer(indirect_ray_packet_buffer_id, camera_id);
 }
 
 export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet, 
@@ -606,13 +705,13 @@ export void Clear(uniform float receptors_r[], uniform float receptors_g[], unif
 
 //Assuming only one geometry for now
 #if ISPC_INTERPOLATION
-export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtras ray_packet_extrass[], 
+export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtras ray_packet_extrass[], uniform int packet_count,
 	                    uniform Mesh_ meshes[], uniform int material_ids[])
 {
 #if PACKET_MODE
-	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+	for(int i= 0; i< packet_count; i++)
 	{
-		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
+		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID || ray_packets[i].mask[programIndex]!= -1)
 			continue;
 
 		ray_packet_extrass[i].surface_position_x[programIndex]= ray_packets[i].orgx[programIndex]+ (ray_packets[i].dirx[programIndex]* ray_packets[i].tfar[programIndex]); 
@@ -841,7 +940,7 @@ export void ComputeOcclusions(uniform RayPacket_ ray_packets[],
 		shadow_ray_packet_count= 0;
 		for(uniform int packet_index= 0; packet_index< packet_count; packet_index++)
 		{
-			cif(ray_packets[packet_index].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
+			cif(ray_packets[packet_index].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID  || ray_packets[packet_index].mask[programIndex]!= -1)
 				continue;
 
 			float surface_normal[3]= {ray_packet_extrass[packet_index].surface_normal_x[programIndex], 

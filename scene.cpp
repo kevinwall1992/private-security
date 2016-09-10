@@ -73,6 +73,7 @@ void Scene::BuildISPCMaterials()
 		SetFloat3(ispc_material.specular, material->specular);
 		ispc_material.glossiness= material->glossiness;
 		ispc_material.index_of_refraction= material->index_of_refraction;
+		ispc_material.chrome= i== 2 ? 1 : material->chrome;
 
 		ispc_materials.push_back(ispc_material);
 	}

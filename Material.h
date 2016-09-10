@@ -30,6 +30,8 @@ struct PhongMaterial : public Material
 
 	float index_of_refraction;
 
+	int chrome= 0;
+
 	PhongMaterial(string name, 
 		          Color diffuse,
 				  Color specular, float glossiness, 

@@ -27,6 +27,8 @@ struct Camera
 	Film * LoadFilm(Film *film);
 	Film * RemoveFilm();
 
+	Shutter * GetShutter();
+
 	//Try using reference for completeray here
 
 	//Is "Get" the best word here?

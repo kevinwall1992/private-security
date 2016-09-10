@@ -31,7 +31,7 @@ T * PopFrontOrInstanciate(queue<T *> &ray_blocks, std::mutex &mutex, bool is_pri
 	T *ray_block= PopFront(ray_blocks, mutex);
 
 	if(ray_block== nullptr)
-		return new RayBlock(is_primary, is_coherent);
+		return new T(is_primary, is_coherent);
 
 	return ray_block;
 }
@@ -106,9 +106,28 @@ RayPacketBlock * Shutter::TakeEmptyPrimaryRayPacketBlock()
 	return PopFront(empty_primary_ray_packet_blocks, resource_mutex);
 }
 
+RayPacketBlock * Shutter::TakeEmptyIndirectRayPacketBlock()
+{
+	return PopFrontOrInstanciate(empty_indirect_ray_packet_blocks, resource_mutex, false, false);
+}
+
 RayPacketBlock * Shutter::TakeFullRayPacketBlock()
 {
-	return PopFront(full_ray_packet_blocks, resource_mutex);
+	RayPacketBlock *ray_packet_block= PopFront(full_ray_packet_blocks, resource_mutex);
+	while(ray_packet_block== nullptr && empty_indirect_ray_packet_blocks.size()> 0)
+	{
+		ray_packet_block= PopFront(empty_indirect_ray_packet_blocks, resource_mutex);
+		if(ray_packet_block!= nullptr)
+		{
+			if(ray_packet_block->front_index== 0)
+			{
+				delete ray_packet_block;
+				ray_packet_block= nullptr;
+			}
+		}
+	}
+
+	return ray_packet_block;
 }
 
 void Shutter::ReturnRayPacketBlock(RayPacketBlock *ray_packet_block)
@@ -117,8 +136,10 @@ void Shutter::ReturnRayPacketBlock(RayPacketBlock *ray_packet_block)
 
 	if(ray_packet_block->state== BlockState::Full)
 		full_ray_packet_blocks.push(ray_packet_block);
-	else
+	else if(ray_packet_block->is_primary)
 		empty_primary_ray_packet_blocks.push(ray_packet_block);
+	else
+		empty_indirect_ray_packet_blocks.push(ray_packet_block);
 
 	resource_mutex.unlock();
 }
@@ -386,6 +407,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 
 	ispc::Interpolate(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
 		             reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
+					 ray_packet_block->front_index,
 					 meshes, material_ids);
 #endif
 	Timer::pre_shading_timer.Pause();
@@ -409,6 +431,8 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #if ISPC_SHADING
 	ISPCMaterial *materials= scene->GetISPCMaterials();
 
+	//RayPacketBlock *indirect_ray_packet_block= TakeEmptyIndirectRayPacketBlock();
+
 	if(!ray_packet_block->is_additional)
 	{
 #if ADAPTIVE_SAMPLING
@@ -418,15 +442,19 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #endif
 		int noisy_receptors_count= 0;
 
+		//int foo= indirect_ray_packet_block->front_index;
 		ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket_ *>(ray_packet_block->ray_packets), 
 									reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
-									ray_packet_block->front_index,
-									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
-									film->width,
-									lighting, occlusion_buffer,
+									ray_packet_block->front_index, 
+									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts, 
+									film->width, 
+									lighting, occlusion_buffer, 
 									materials, 
-									camera->GetFilteringKernels(),
-									noisy_receptors, &noisy_receptors_count);
+									camera->GetFilteringKernels(), 
+									noisy_receptors, &noisy_receptors_count, 
+									reinterpret_cast<intptr_t>(camera));
+		//if(foo!= indirect_ray_packet_block->front_index)
+		//	foo= -1;
 
 		ReportNoisyReceptors(noisy_receptors, noisy_receptors_count);
 	}
@@ -440,8 +468,15 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									lighting, occlusion_buffer,
 									materials, 
 									nullptr,
-									nullptr, nullptr);
+									nullptr, nullptr, 
+									reinterpret_cast<intptr_t>(camera));
 	}
+
+	/*if(indirect_ray_packet_block->front_index>= (int)(RAY_PACKET_BLOCK_SIZE* 0.9f))
+		indirect_ray_packet_block->state= BlockState::Full;
+	else if(indirect_ray_packet_block->front_index> 0)
+		indirect_ray_packet_block->state= BlockState::Partial;
+	ReturnRayPacketBlock(indirect_ray_packet_block);*/
 
 #else
 	int ray_packets_processed_count= 0;
@@ -628,6 +663,9 @@ RayPacketBlock::RayPacketBlock()
 
 void RayPacketBlock::Empty()
 {
+	//ray_packets[0].mask[0]= 7;
+	//ray_packet_extrass[0].bounce_count[0]= 7;
+
 	front_index= 0;
 	state= BlockState::Empty;
 }

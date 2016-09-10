@@ -121,6 +121,11 @@ Film * Camera::RemoveFilm()
 	return LoadFilm(nullptr);
 }
 
+Shutter * Camera::GetShutter()
+{
+	return &shutter;
+}
+
 Image * Camera::TakePicture(Scene &scene)
 {
 	shutter.Open(scene);
