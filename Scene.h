@@ -53,14 +53,14 @@ public:
 	void Commit();
 
 	void Intersect(Ray &ray);
-	void Intersect(Ray *rays, int count, bool is_coherent);
-	void Intersect(RayPacket &ray_packet);
+	void Intersect(Ray *rays, int count, bool is_coherenty);
+	void Intersect(RayPacket &ray_packety);
 	void Intersect(RayPacket *ray_packets, int count, bool is_coherent);
 
-	void Intersect_Occlusion(Ray *rays, int count, bool is_coherent);
-	void Intersect_Occlusion(RayPacket &ray_packet);
+	void Intersect_Occlusion(ShadowRay *rays, int count, bool is_coherent);
+	void Intersect_Occlusion(ShadowRayPacket &ray_packet);
 
-	void Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extras);
+	void Interpolate(RayPacket &ray_packet);
 };
 
 struct Vertex

@@ -7,13 +7,13 @@
 #include "Surface.h"
 
 
-#define Ray RTCRay
+#define ShadowRay RTCRay
 
 //need to test compile time packet sizes vs run time packet sizes
 #if STREAM_MODE
-#define RayPacket RTCRayNt<PACKET_SIZE>
+#define ShadowRayPacket RTCRayNt<PACKET_SIZE>
 #else
-#define RayPacket JOIN(RTCRay, PACKET_SIZE)
+#define ShadowRayPacket JOIN(RTCRay, PACKET_SIZE)
 #endif
 
 
@@ -51,22 +51,32 @@ struct RayPacketExtras
 	int material_id[PACKET_SIZE];
 };
 
-struct CompleteRay
+struct RayPacket : public ShadowRayPacket
 {
-	Ray *ray;
-	RayExtras *extras;
+	float x[PACKET_SIZE], y[PACKET_SIZE];
+	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
+	int bounce_count[PACKET_SIZE];
+	RayType::Enum type[PACKET_SIZE];
 
-	CompleteRay(Ray *ray, RayExtras *extras);
+	float surface_position_x[PACKET_SIZE];
+	float surface_position_y[PACKET_SIZE];
+	float surface_position_z[PACKET_SIZE];
+
+	float surface_normal_x[PACKET_SIZE];
+	float surface_normal_y[PACKET_SIZE];
+	float surface_normal_z[PACKET_SIZE];
+
+	int material_id[PACKET_SIZE];
 };
 
-struct CompleteRayPacket
+struct Ray : public ShadowRay
 {
-	RayPacket *ray_packet;
-	int ray_index;
+	float x, y;
+	Color absorption;
+	int bounce_count;
+	RayType::Enum type;
 
-	RayPacketExtras *extras;
-
-	CompleteRayPacket(RayPacket *ray_packet, RayPacketExtras *ray_extras);
+	Surface surface;
 };
 
 #endif

@@ -48,12 +48,12 @@ class Shutter
 
 	Barrier barrier;
 
-	vector<RayPacket *> shadow_ray_buffers;
+	vector<ShadowRayPacket *> shadow_ray_buffers;
 	vector<float *> occlusion_buffers;
 
 
 	int GetThreadIndex();
-	RayPacket * GetShadowRayBuffer();
+	ShadowRayPacket * GetShadowRayBuffer();
 	float * GetOcclusionBuffer();
 
 	void ReportNoisyReceptors(int *indices, int count);
@@ -92,10 +92,10 @@ public:
 
 struct BlockState{enum Enum {Empty, Partial, Full};};
 
+//Add GetFront()?
 struct RayBlock
 {
 	Ray rays[RAY_BLOCK_SIZE];
-	RayExtras ray_extrass[RAY_BLOCK_SIZE];
 	int front_index;
 
 	BlockState::Enum state;
@@ -107,12 +107,13 @@ struct RayBlock
 	RayBlock();
 
 	void Empty();
+
+	Ray * GetFront();
 };
 
 struct RayPacketBlock
 {
 	RayPacket ray_packets[RAY_PACKET_BLOCK_SIZE];
-	RayPacketExtras ray_packet_extrass[RAY_PACKET_BLOCK_SIZE];
 	int front_index;
 
 	BlockState::Enum state;
@@ -124,6 +125,8 @@ struct RayPacketBlock
 	RayPacketBlock();
 
 	void Empty();
+
+	RayPacket * GetFront();
 };
 
 /*#define SHADOW_BLOCKS_PER_RAY_BLOCK 1

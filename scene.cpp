@@ -274,7 +274,7 @@ void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
 #endif
 }
 
-void Scene::Intersect_Occlusion(Ray *rays, int count, bool is_coherent)
+void Scene::Intersect_Occlusion(ShadowRay *rays, int count, bool is_coherent)
 {
 #if STREAM_MODE || !PACKETED_SECONDARY_RAYS
 	RTCIntersectContext context;
@@ -288,7 +288,7 @@ void Scene::Intersect_Occlusion(Ray *rays, int count, bool is_coherent)
 }
 
 #define rtcOccludedPacket JOIN(rtcOccluded, PACKET_SIZE)
-void Scene::Intersect_Occlusion(RayPacket &ray_packet)
+void Scene::Intersect_Occlusion(ShadowRayPacket &ray_packet)
 {
 #if STREAM_MODE
 	assert(false && "Attempted to occlude single packet in stream mode.");
@@ -300,7 +300,7 @@ void Scene::Intersect_Occlusion(RayPacket &ray_packet)
 #endif
 }
 
-void Scene::Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extras)
+void Scene::Interpolate(RayPacket &ray_packet)
 {
 	int32_t activity_mask[PACKET_SIZE];
 	bool active= false;
@@ -323,7 +323,7 @@ void Scene::Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extra
 						 ray_packet.v, 
 						 PACKET_SIZE, 
 						 RTC_USER_VERTEX_BUFFER0, 
-						 ray_packet_extras.surface_normal_x, 
+						 ray_packet.surface_normal_x, 
 						 nullptr, nullptr, nullptr, nullptr, nullptr, 
 						 3);
 	}

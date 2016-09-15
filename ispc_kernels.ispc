@@ -23,7 +23,7 @@ struct Vec3f
 //Can accomplish 1 by having mangled name base class in C format and then derive
 //In C++ with correct name, typedef it here.
 
-struct Ray
+struct ShadowRay
 {
 	float org[3];
 	float align0;
@@ -64,7 +64,7 @@ struct RayExtras
 	intptr_t material;
 };
 
-struct RayPacket
+struct ShadowRayPacket
 {
 	float orgx[PACKET_SIZE];
 	float orgy[PACKET_SIZE];
@@ -110,6 +110,87 @@ struct RayPacketExtras
 	float surface_normal_z[PACKET_SIZE];
 
 	int material_id[PACKET_SIZE];
+};
+
+struct RayPacket
+{
+	float orgx[PACKET_SIZE];
+	float orgy[PACKET_SIZE];
+	float orgz[PACKET_SIZE]; 
+  
+	float dirx[PACKET_SIZE]; 
+	float diry[PACKET_SIZE]; 
+	float dirz[PACKET_SIZE]; 
+  
+	float tnear[PACKET_SIZE]; 
+	float tfar[PACKET_SIZE];
+
+	float time[PACKET_SIZE]; 
+	unsigned int mask[PACKET_SIZE]; 
+  
+
+	float Ngx[PACKET_SIZE]; 
+	float Ngy[PACKET_SIZE];
+	float Ngz[PACKET_SIZE];
+  
+	float u[PACKET_SIZE];
+	float v[PACKET_SIZE];
+  
+	unsigned int geomID[PACKET_SIZE]; 
+	unsigned int primID[PACKET_SIZE]; 
+	unsigned int instID[PACKET_SIZE]; 
+
+
+	float x[PACKET_SIZE], y[PACKET_SIZE];
+	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
+	int bounce_count[PACKET_SIZE];
+	int type[PACKET_SIZE];
+
+	float surface_position_x[PACKET_SIZE];
+	float surface_position_y[PACKET_SIZE];
+	float surface_position_z[PACKET_SIZE];
+
+	float surface_normal_x[PACKET_SIZE];
+	float surface_normal_y[PACKET_SIZE];
+	float surface_normal_z[PACKET_SIZE];
+
+	int material_id[PACKET_SIZE];
+};
+
+struct Ray
+{
+	float org[3];
+	float align0;
+  
+	float dir[3];
+	float align1;
+  
+	float tnear;
+	float tfar;
+
+	float time;
+	unsigned int mask;
+  
+
+	float Ng[3];
+	float align2;
+  
+	float u;
+	float v;
+
+	unsigned int geomID;
+	unsigned int primID;
+	unsigned int instID;
+
+
+	float x, y;
+	float absorption[3];
+	int bounce_count;
+	int type;
+
+	float surface_position[3];
+	float surface_normal[3];
+	intptr_t material;
 };
 
 //check that short vectors are as good as arrays
@@ -192,7 +273,6 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 							uniform float view_plane_u[], uniform float view_plane_v[],
 							uniform int width, uniform int height,
 							uniform RayPacket ray_packets[], 
-							uniform RayPacketExtras ray_packet_extrass[], 
 							uniform float samples_x[], uniform float samples_y[],
 							uniform int count,
 							uniform int indices[])
@@ -244,44 +324,20 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 		ray_packets[packet_index].mask[programIndex]= -1;
 		ray_packets[packet_index].time[programIndex]= 0;
 
-		ray_packet_extrass[packet_index].absorption_r[programIndex]= 1.0f;
-		ray_packet_extrass[packet_index].absorption_g[programIndex]= 1.0f;
-		ray_packet_extrass[packet_index].absorption_b[programIndex]= 1.0f;
+		ray_packets[packet_index].absorption_r[programIndex]= 1.0f;
+		ray_packets[packet_index].absorption_g[programIndex]= 1.0f;
+		ray_packets[packet_index].absorption_b[programIndex]= 1.0f;
 
-		ray_packet_extrass[packet_index].bounce_count[programIndex]= 0;
-		ray_packet_extrass[packet_index].type[programIndex]= 0;
-		ray_packet_extrass[packet_index].x[programIndex]= x;
+		ray_packets[packet_index].bounce_count[programIndex]= 0;
+		ray_packets[packet_index].type[programIndex]= 0;
+		ray_packets[packet_index].x[programIndex]= x;
 #if NO_OPENGL
-		ray_packet_extrass[packet_index].y[programIndex]= (height- 1)- y;//map to image space
+		ray_packets[packet_index].y[programIndex]= (height- 1)- y;//map to image space
 #else
-		ray_packet_extrass[packet_index].y[programIndex]= y;
+		ray_packets[packet_index].y[programIndex]= y;
 #endif
 
 	}
-}
-
-export void GetRayDirections(uniform int x_offset, uniform int y_offset, 
-							uniform float camera_position[], uniform float camera_forward[], 
-							uniform float view_plane_u[], uniform float view_plane_v[],
-							uniform int width, uniform int height,
-							uniform Ray rays[])
-{
-//Just to quiet warnings
-#if !PACKET_MODE
-	for(uniform int j= 0; j< CAMERA_TILE_HEIGHT; j++)
-	{
-		uniform float normalized_y= (((y_offset+ j)+ 0.5f)/ height)* 2- 1;
-
-		for(uniform int i= 0; i< CAMERA_TILE_WIDTH; i++)
-		{
-			uniform float normalized_x= (((x_offset+ i)+ 0.5f)/ width)* 2- 1;
-			uniform int ray_index= i+ j* CAMERA_TILE_WIDTH;
-
-			rays[ray_index].org[programIndex]= camera_position[programIndex];
-			rays[ray_index].dir[programIndex]= camera_forward[programIndex]+ view_plane_u[programIndex]* -normalized_x+ view_plane_v[programIndex]* normalized_y;
-		}
-	}
-#endif
 }
 
 export void Develop(uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[], 
@@ -341,7 +397,7 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 }
 
 #if PACKETED_SECONDARY_RAYS
-unmasked void WriteRayPacket(RayPacket * uniform ray_packets, RayPacketExtras * uniform ray_packet_extrass, int * uniform packet_count, 
+unmasked void WriteRayPacket(RayPacket * uniform ray_packets, int * uniform packet_count, 
 	                         varying int mask, 
 							 varying float<3> position, varying float<3> direction, 
 							 uniform float tnear, uniform float tfar, 
@@ -366,21 +422,21 @@ unmasked void WriteRayPacket(RayPacket * uniform ray_packets, RayPacketExtras * 
 		ray_packets[packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
 		ray_packets[packet_index].time[programIndex]= 0;
 
-		ray_packet_extrass[packet_index].bounce_count[programIndex]= bounce_count;
-		ray_packet_extrass[packet_index].type[programIndex]= 1;
-		ray_packet_extrass[packet_index].x[programIndex]= x[programIndex];
-		ray_packet_extrass[packet_index].y[programIndex]= y[programIndex];
+		ray_packets[packet_index].bounce_count[programIndex]= bounce_count;
+		ray_packets[packet_index].type[programIndex]= 1;
+		ray_packets[packet_index].x[programIndex]= x[programIndex];
+		ray_packets[packet_index].y[programIndex]= y[programIndex];
 
-		ray_packet_extrass[packet_index].absorption_r[programIndex]= 1.0f;
-		ray_packet_extrass[packet_index].absorption_g[programIndex]= 1.0f;
-		ray_packet_extrass[packet_index].absorption_b[programIndex]= 1.0f;
+		ray_packets[packet_index].absorption_r[programIndex]= 1.0f;
+		ray_packets[packet_index].absorption_g[programIndex]= 1.0f;
+		ray_packets[packet_index].absorption_b[programIndex]= 1.0f;
 	}
 
 	ray_packets[packet_index].mask[programIndex]= mask ? -1 : 0;
 }
 #else
 
-unmasked void WriteRays(Ray * uniform rays, RayExtras * uniform ray_extrass, int * uniform ray_count, 
+unmasked void WriteRays(Ray * uniform rays, int * uniform ray_count, 
 	                    varying int mask, 
 						varying float<3> position, varying float<3> direction, 
 						uniform float tnear, uniform float tfar, 
@@ -406,14 +462,14 @@ unmasked void WriteRays(Ray * uniform rays, RayExtras * uniform ray_extrass, int
 		rays[ray_index].primID= RTC_INVALID_GEOMETRY_ID;
 		rays[ray_index].time= 0;
 
-		ray_extrass[ray_index].bounce_count= bounce_count;
-		ray_extrass[ray_index].type= 1;
-		ray_extrass[ray_index].x= x[programIndex];
-		ray_extrass[ray_index].y= y[programIndex];
+		rays[ray_index].bounce_count= bounce_count;
+		rays[ray_index].type= 1;
+		rays[ray_index].x= x[programIndex];
+		rays[ray_index].y= y[programIndex];
 
-		ray_extrass[ray_index].absorption[0]= 1.0f;
-		ray_extrass[ray_index].absorption[1]= 1.0f;
-		ray_extrass[ray_index].absorption[2]= 1.0f;
+		rays[ray_index].absorption[0]= 1.0f;
+		rays[ray_index].absorption[1]= 1.0f;
+		rays[ray_index].absorption[2]= 1.0f;
 
 		rays[ray_index].mask= -1;
 	}
@@ -422,7 +478,6 @@ unmasked void WriteRays(Ray * uniform rays, RayExtras * uniform ray_extrass, int
 #endif
 
 export void PacketedShadingKernel(uniform RayPacket ray_packets[], 
-							      uniform RayPacketExtras ray_packet_extrass[], 
 								  uniform int packet_count,
 								  int * uniform packets_shaded_count, 
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
@@ -432,10 +487,10 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 								  uniform float filtering_kernels[],
 								  uniform int noisy_receptors[], uniform int noisy_receptor_count[], 
 #if PACKETED_SECONDARY_RAYS
-								  uniform RayPacket secondary_ray_packets[], uniform RayPacketExtras secondary_ray_packet_extrass[],
+								  uniform RayPacket secondary_ray_packets[],
 								  int * uniform secondary_packet_count
 #else
-								  uniform Ray secondary_rays[], uniform RayExtras secondary_ray_extrass[],
+								  uniform Ray secondary_rays[], 
 								  int * uniform secondary_ray_count
 #endif
 								  )
@@ -456,19 +511,19 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 
 		float<3> color= {0.0f, 0.0f, 0.0f};
 
-		float<3> position= {ray_packet_extrass[i].surface_position_x[programIndex], 
-			                ray_packet_extrass[i].surface_position_y[programIndex], 
-						    ray_packet_extrass[i].surface_position_z[programIndex]};
+		float<3> position= {ray_packets[i].surface_position_x[programIndex], 
+			                ray_packets[i].surface_position_y[programIndex], 
+						    ray_packets[i].surface_position_z[programIndex]};
 
-		float<3> normal= {ray_packet_extrass[i].surface_normal_x[programIndex], 
-			              ray_packet_extrass[i].surface_normal_y[programIndex], 
-						  ray_packet_extrass[i].surface_normal_z[programIndex]};
+		float<3> normal= {ray_packets[i].surface_normal_x[programIndex], 
+			              ray_packets[i].surface_normal_y[programIndex], 
+						  ray_packets[i].surface_normal_z[programIndex]};
 
 		uniform int bounce_count;
-		reduce_equal(ray_packet_extrass[i].bounce_count[programIndex], &bounce_count);
+		reduce_equal(ray_packets[i].bounce_count[programIndex], &bounce_count);
 		uniform bool bounce_limit_achieved= bounce_count>= 1;
 
-		int material_id= ray_packet_extrass[i].material_id[programIndex];
+		int material_id= ray_packets[i].material_id[programIndex];
 		int is_chrome;
 		uniform int uniform_material_id;
 		uniform bool material_is_uniform= reduce_equal(material_id, &uniform_material_id);
@@ -495,14 +550,14 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 											    ray_packets[i].dirz[programIndex]- normal[2]* dot};
 
 #if PACKETED_SECONDARY_RAYS
-				WriteRayPacket(secondary_ray_packets, secondary_ray_packet_extrass, secondary_packet_count, 
+				WriteRayPacket(secondary_ray_packets, secondary_packet_count, 
 	                           is_chrome, reflection_position, reflection_direction, 0.0f, 1000000, 
-							   ray_packet_extrass[i].x, ray_packet_extrass[i].y, 
+							   ray_packets[i].x, ray_packets[i].y, 
 							   bounce_count+ 1);
 #else
-				WriteRays(secondary_rays, secondary_ray_extrass, secondary_ray_count, 
+				WriteRays(secondary_rays, secondary_ray_count, 
 	                        is_chrome, reflection_position, reflection_direction, 0.0f, 1000000, 
-							ray_packet_extrass[i].x, ray_packet_extrass[i].y, 
+							ray_packets[i].x, ray_packets[i].y, 
 							bounce_count+ 1);
 #endif
 			}
@@ -574,12 +629,12 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 				color[2]+= lighting->ambient[2];
 			}
 
-			color[0]*= ray_packet_extrass[i].absorption_r[programIndex];
-			color[1]*= ray_packet_extrass[i].absorption_g[programIndex];
-			color[2]*= ray_packet_extrass[i].absorption_b[programIndex];
+			color[0]*= ray_packets[i].absorption_r[programIndex];
+			color[1]*= ray_packets[i].absorption_g[programIndex];
+			color[2]*= ray_packets[i].absorption_b[programIndex];
 
-			int x= ray_packet_extrass[i].x[programIndex];
-			int y= ray_packet_extrass[i].y[programIndex];
+			int x= ray_packets[i].x[programIndex];
+			int y= ray_packets[i].y[programIndex];
 
 #if FILTERING
 			uniform int uniform_y;
@@ -651,8 +706,8 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 					uniform float variance= reduce_add(squared_distance);
 					if(variance> COLOR_VARIANCE_THRESHOLD)
 					{
-						uniform int foo= atomic_add_global(noisy_receptor_count, 1);
-						noisy_receptors[foo]= receptor_index;
+						//This is technically not tested in its current state
+						noisy_receptors[atomic_add_global(noisy_receptor_count, 1)]= receptor_index;
 
 						sample_counts[receptor_index]= MAX_SAMPLES_PER_PIXEL;
 					}
@@ -689,7 +744,7 @@ export void Clear(uniform float receptors_r[], uniform float receptors_g[], unif
 
 //Assuming only one geometry for now
 #if ISPC_INTERPOLATION
-export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras ray_packet_extrass[], uniform int packet_count,
+export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_count,
 	                    uniform Mesh meshes[], uniform int material_ids[])
 {
 #if PACKET_MODE
@@ -698,9 +753,9 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras
 		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID || ray_packets[i].mask[programIndex]!= -1)
 			continue;
 
-		ray_packet_extrass[i].surface_position_x[programIndex]= ray_packets[i].orgx[programIndex]+ (ray_packets[i].dirx[programIndex]* ray_packets[i].tfar[programIndex]); 
-		ray_packet_extrass[i].surface_position_y[programIndex]= ray_packets[i].orgy[programIndex]+ (ray_packets[i].diry[programIndex]* ray_packets[i].tfar[programIndex]);
-		ray_packet_extrass[i].surface_position_z[programIndex]= ray_packets[i].orgz[programIndex]+ (ray_packets[i].dirz[programIndex]* ray_packets[i].tfar[programIndex]);
+		ray_packets[i].surface_position_x[programIndex]= ray_packets[i].orgx[programIndex]+ (ray_packets[i].dirx[programIndex]* ray_packets[i].tfar[programIndex]); 
+		ray_packets[i].surface_position_y[programIndex]= ray_packets[i].orgy[programIndex]+ (ray_packets[i].diry[programIndex]* ray_packets[i].tfar[programIndex]);
+		ray_packets[i].surface_position_z[programIndex]= ray_packets[i].orgz[programIndex]+ (ray_packets[i].dirz[programIndex]* ray_packets[i].tfar[programIndex]);
 
 		float u= ray_packets[i].u[programIndex];
 		float v= ray_packets[i].v[programIndex];
@@ -728,11 +783,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras
 				uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 				uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-				ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-				ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-				ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+				ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+				ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+				ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-				ray_packet_extrass[i].material_id[programIndex]= material_ids[uniform_geometry_id];
+				ray_packets[i].material_id[programIndex]= material_ids[uniform_geometry_id];
 			}
 			else
 			{
@@ -747,11 +802,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras
 					float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 					float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-					ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-					ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-					ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+					ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+					ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+					ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-					ray_packet_extrass[i].material_id[programIndex]= material_ids[uniform_geometry_id];
+					ray_packets[i].material_id[programIndex]= material_ids[uniform_geometry_id];
 				}
 			}
 		}
@@ -774,11 +829,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras
 					uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 					uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-					ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-					ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-					ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+					ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+					ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+					ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-					ray_packet_extrass[i].material_id[programIndex]= material_ids[unique_geometry_id];
+					ray_packets[i].material_id[programIndex]= material_ids[unique_geometry_id];
 				}
 				else
 				{
@@ -792,11 +847,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras
 						float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 						float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-						ray_packet_extrass[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-						ray_packet_extrass[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-						ray_packet_extrass[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+						ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+						ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+						ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-						ray_packet_extrass[i].material_id[programIndex]= material_ids[unique_geometry_id];
+						ray_packets[i].material_id[programIndex]= material_ids[unique_geometry_id];
 					}
 				}
 			}
@@ -809,10 +864,9 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras
 #endif
 
 export void ComputeOcclusions(uniform RayPacket ray_packets[], 
-							    uniform RayPacketExtras ray_packet_extrass[], 
 								uniform int packet_count,
 								Lighting * uniform lighting, 
-								uniform RayPacket shadow_ray_packets[],
+								uniform ShadowRayPacket shadow_ray_packets[],
 								RTCScene * uniform embree_scene,
 								uniform float occlusions[])
 {
@@ -826,13 +880,13 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 			cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
 				continue;
 
-			float surface_normal<3>= {ray_packet_extrass[i].surface_normal_x[programIndex], 
-			                          ray_packet_extrass[i].surface_normal_y[programIndex],
-			                          ray_packet_extrass[i].surface_normal_z[programIndex]};
+			float surface_normal<3>= {ray_packets[i].surface_normal_x[programIndex], 
+			                          ray_packets[i].surface_normal_y[programIndex],
+			                          ray_packets[i].surface_normal_z[programIndex]};
 
-			float surface_position<3>= {ray_packet_extrass[i].surface_position_x[programIndex],
-			                            ray_packet_extrass[i].surface_position_y[programIndex],
-										ray_packet_extrass[i].surface_position_z[programIndex]};
+			float surface_position<3>= {ray_packets[i].surface_position_x[programIndex],
+			                            ray_packets[i].surface_position_y[programIndex],
+										ray_packets[i].surface_position_z[programIndex]};
 
 			//Assuming we add surface position to ray extras via Interpolate
 			float direction<3>= {light_position[0]- surface_position[0], 
@@ -856,7 +910,7 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 			}
 
 
-			uniform RayPacket shadow_packet;
+			uniform ShadowRayPacket shadow_packet;
 
 			cif(geometry_term< 0)
 			{
@@ -927,13 +981,13 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 			cif(ray_packets[packet_index].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID  || ray_packets[packet_index].mask[programIndex]!= -1)
 				continue;
 
-			float<3> surface_normal= {ray_packet_extrass[packet_index].surface_normal_x[programIndex], 
-			                          ray_packet_extrass[packet_index].surface_normal_y[programIndex],
-			                          ray_packet_extrass[packet_index].surface_normal_z[programIndex]};
+			float<3> surface_normal= {ray_packets[packet_index].surface_normal_x[programIndex], 
+			                          ray_packets[packet_index].surface_normal_y[programIndex],
+			                          ray_packets[packet_index].surface_normal_z[programIndex]};
 
-			float<3> surface_position= {ray_packet_extrass[packet_index].surface_position_x[programIndex],
-			                            ray_packet_extrass[packet_index].surface_position_y[programIndex],
-										ray_packet_extrass[packet_index].surface_position_z[programIndex]};
+			float<3> surface_position= {ray_packets[packet_index].surface_position_x[programIndex],
+			                            ray_packets[packet_index].surface_position_y[programIndex],
+										ray_packets[packet_index].surface_position_z[programIndex]};
 
 			//Assuming we add surface position to ray extras via Interpolate
 			float<3> direction= {light_position[0]- surface_position[0], 
@@ -999,7 +1053,7 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 		uniform RTCIntersectContext context;
 		context.flags= RTC_INTERSECT_COHERENT;
 		context.userRayExt= NULL;
-		rtcOccludedNM(*embree_scene, &context, (RTCRayN *)shadow_ray_packets, PACKET_SIZE, shadow_packet_count, sizeof(RayPacket)/ 8);
+		rtcOccludedNM(*embree_scene, &context, (RTCRayN *)shadow_ray_packets, PACKET_SIZE, shadow_packet_count, sizeof(ShadowRayPacket)/ 8);
 
 		for(uniform int shadow_packet_index= 0; shadow_packet_index< shadow_packet_count; shadow_packet_index++)
 		{

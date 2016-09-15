@@ -29,11 +29,9 @@ struct Camera
 
 	Shutter * GetShutter();
 
-	//Try using reference for completeray here
-
 	//Is "Get" the best word here?
-	bool GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, int *indices= nullptr, int index_count= 0);
-	bool GetRays(CompleteRay first_ray, int tile_index, int *indices= nullptr);
+	bool GetRayPackets(RayPacket *ray_packets, int tile_index, int *indices= nullptr, int index_count= 0);
+	bool GetRays(Ray *rays, int tile_index, int *indices= nullptr);
 
 	float * GetFilteringKernels();
 	

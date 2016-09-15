@@ -52,7 +52,7 @@ int Shutter::GetThreadIndex()
 #endif
 }
 
-RayPacket * Shutter::GetShadowRayBuffer()
+ShadowRayPacket * Shutter::GetShadowRayBuffer()
 {
 	return shadow_ray_buffers[GetThreadIndex()];
 }
@@ -163,11 +163,7 @@ Shutter::Shutter(Camera *camera_)
 	camera= camera_;
 
 #if PACKET_MODE
-
-	int foo= sizeof(Ray)* PACKET_SIZE;
-	int bar= sizeof(RayPacket);
-
-	float ratio= sizeof(RayPacket)/ (float)(sizeof(Ray)* PACKET_SIZE);
+	float ratio= sizeof(ShadowRayPacket)/ (float)(sizeof(ShadowRay)* PACKET_SIZE);
 	ratio= std::max(ratio, 1/ ratio);
 	int shadow_ray_buffer_size= (int)(RAY_PACKET_BLOCK_SIZE* ratio)+ 1;
 
@@ -175,7 +171,7 @@ Shutter::Shutter(Camera *camera_)
 	{
 		empty_primary_ray_packet_blocks.push(new RayPacketBlock(true, true));
 
-		shadow_ray_buffers.push_back(new RayPacket[shadow_ray_buffer_size]);
+		shadow_ray_buffers.push_back(new ShadowRayPacket[shadow_ray_buffer_size]);
 		occlusion_buffers.push_back(new float[RAY_PACKET_BLOCK_SIZE* PACKET_SIZE]);
 	}
 
@@ -225,10 +221,8 @@ void Shutter::ReportNoisyReceptors(int *indices, int count)
 
 void Shutter::Refill(RayBlock *primary_ray_block)
 {
-	CompleteRay complete_ray= CompleteRay(primary_ray_block->rays+ primary_ray_block->front_index, 
-		                                  primary_ray_block->ray_extrass+ primary_ray_block->front_index);
 	int camera_tile_index= next_camera_tile_index++;
-	bool successful= camera->GetRays(complete_ray, camera_tile_index);
+	bool successful= camera->GetRays(primary_ray_block->rays+ primary_ray_block->front_index, camera_tile_index);
 	if(successful)
 		primary_ray_block->front_index+= RAY_BLOCK_SIZE;//assumes blocks fit perfectly
 
@@ -246,15 +240,12 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 	ReturnRayBlock(primary_ray_block);
 }
 
-void ShadingKernel(CompleteRay &ray, float *occlusions, Film *film, Scene *scene)
+void ShadingKernel(Ray &ray, float *occlusions, Film *film, Scene *scene)
 {
-	int x= ray.extras->x;
-	int y= ray.extras->y;
-
-	if(ray.ray->geomID== RTC_INVALID_GEOMETRY_ID)
+	if(ray.geomID== RTC_INVALID_GEOMETRY_ID)
 		return;
 
-	PhongMaterial *material= dynamic_cast<PhongMaterial *>(ray.extras->surface.material);
+	PhongMaterial *material= dynamic_cast<PhongMaterial *>(ray.surface.material);
 
 	Color color= Color(0, 0, 0);
 
@@ -265,14 +256,14 @@ void ShadingKernel(CompleteRay &ray, float *occlusions, Film *film, Scene *scene
 		if(occlusion<= 0)
 			continue;
 		
-		color+= (*lights)[i]->GetLuminosity(ray.extras->surface.position)* occlusion* material->diffuse;
+		color+= (*lights)[i]->GetLuminosity(ray.surface.position)* occlusion* material->diffuse;
 	}
 
 	vector<AmbientLight *> *ambient_lights= scene->GetAmbientLights();
 	for(unsigned int i= 0; i< ambient_lights->size(); i++)
-		color+= (*ambient_lights)[i]->GetLuminosity(ray.extras->surface.position);
+		color+= (*ambient_lights)[i]->GetLuminosity(ray.surface.position);
 
-	film->Stimulate(ray.extras->x, ray.extras->y, color* ray.extras->absorption);
+	film->Stimulate(ray.x, ray.y, color* ray.absorption);
 }
 
 //We are currently computing occlusions for failed hits...
@@ -300,15 +291,14 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 	for(int i= 0; i< ray_block->front_index; i++)
 	{
 		Ray *ray= &ray_block->rays[i];
-		RayExtras *ray_extras= &ray_block->ray_extrass[i];
 
 		if(ray->geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
 		Prop *prop= scene->GetProp(ray->geomID);
-		ray_extras->surface.material= prop->material;
+		ray->surface.material= prop->material;
 
-		ray_extras->surface.position= Vec3f(ray->org[0]+ ray->dir[0]* ray->tfar, 
+		ray->surface.position= Vec3f(ray->org[0]+ ray->dir[0]* ray->tfar, 
 			                                ray->org[1]+ ray->dir[1]* ray->tfar, 
 											ray->org[2]+ ray->dir[2]* ray->tfar);
 
@@ -321,7 +311,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		Vec3f normal1= MakeVec3f(&(prop->mesh->normals[normal_indices[1]* 3]));
 		Vec3f normal2= MakeVec3f(&(prop->mesh->normals[normal_indices[2]* 3]));
 
-		ray_extras->surface.normal= normal0* w+ normal1* u+ normal2* v;
+		ray->surface.normal= normal0* w+ normal1* u+ normal2* v;
 	}
 
 	Timer::pre_shading_timer.Pause();
@@ -333,7 +323,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 	vector<Light *> *lights= scene->GetLights();
 	float *occlusions= GetOcclusionBuffer();
-	Ray *shadow_rays= reinterpret_cast<Ray *>(this->GetShadowRayBuffer());
+	ShadowRay *shadow_rays= reinterpret_cast<ShadowRay *>(this->GetShadowRayBuffer());
 
 	for(int light_index= 0; light_index< lights->size(); light_index++)
 	{
@@ -344,13 +334,12 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		for(int i= 0; i< ray_block->front_index; i++)
 		{
 			Ray *ray= &ray_block->rays[i];
-			RayExtras *ray_extras= &ray_block->ray_extrass[i];
 
 			if(ray->geomID== RTC_INVALID_GEOMETRY_ID)
 				continue;
 
-			Vec3f direction= -(*lights)[light_index]->SampleDirectionAtPoint(ray_extras->surface.position);
-			float geometry_term= dot(normalize(direction), ray_extras->surface.normal);
+			Vec3f direction= -(*lights)[light_index]->SampleDirectionAtPoint(ray->surface.position);
+			float geometry_term= dot(normalize(direction), ray->surface.normal);
 
 			if(geometry_term< 0)
 			{
@@ -363,7 +352,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 			ray_indices[shadow_ray_index]= i;
 			geometry_terms[shadow_ray_index]= geometry_term;
 
-			SetFloat3(shadow_rays[shadow_ray_index].org, ray_extras->surface.position+ ray_extras->surface.normal* 0.01f);
+			SetFloat3(shadow_rays[shadow_ray_index].org, ray->surface.position+ ray->surface.normal* 0.01f);
 			SetFloat3(shadow_rays[shadow_ray_index].dir, direction);
 
 			shadow_rays[shadow_ray_index].tnear= 0.0f;
@@ -401,7 +390,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		if(ray_block->rays[i].geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
-		ShadingKernel(CompleteRay(ray_block->rays+ i, ray_block->ray_extrass+ i), occlusions+ i* lights->size(), film, scene);
+		ShadingKernel(ray_block->rays[i], occlusions+ i* lights->size(), film, scene);
 		rays_processed_count++;
 	}
 
@@ -422,10 +411,8 @@ void Shutter::Develop(Film *film)
 
 void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 {
-	CompleteRayPacket complete_ray_packet= CompleteRayPacket(primary_ray_packet_block->ray_packets+ primary_ray_packet_block->front_index, 
-		                                              primary_ray_packet_block->ray_packet_extrass+ primary_ray_packet_block->front_index);
 	int camera_tile_index= next_camera_tile_index++;
-	bool successful= camera->GetRayPackets(complete_ray_packet, camera_tile_index);
+	bool successful= camera->GetRayPackets(primary_ray_packet_block->GetFront(), camera_tile_index);
 	if(successful)
 	{
 		primary_ray_packet_block->front_index+= RAY_PACKET_BLOCK_SIZE;
@@ -444,7 +431,7 @@ void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 		int index_count= std::min((noisy_receptors_front- offset), interval_size);
 		if(offset< noisy_receptors_front)
 		{
-			camera->GetRayPackets(complete_ray_packet, 0, noisy_receptors+ offset, index_count);
+			camera->GetRayPackets(primary_ray_packet_block->GetFront(), 0, noisy_receptors+ offset, index_count);
 			primary_ray_packet_block->front_index+= index_count* sample_set_count;
 			primary_ray_packet_block->state= BlockState::Full;
 			primary_ray_packet_block->is_additional= true;
@@ -460,49 +447,41 @@ void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 	ReturnRayPacketBlock(primary_ray_packet_block);
 }
 
-void PacketedShadingKernel(CompleteRayPacket &ray_packet, Film *film, Scene *scene)
+void PacketedShadingKernel(RayPacket &ray_packet, Film *film, Scene *scene)
 {
 	for(int i= 0; i< PACKET_SIZE; i++)
 	{
-		int x= ray_packet.extras->x[i];
-		int y= ray_packet.extras->y[i];
-
-		if(ray_packet.ray_packet->geomID[i]== RTC_INVALID_GEOMETRY_ID)
+		if(ray_packet.geomID[i]== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
 		Color color= Color(0, 0, 0);
 
 		Surface surface;
-		surface.position[0]= ray_packet.ray_packet->orgx[i]+ (ray_packet.ray_packet->dirx[i]* ray_packet.ray_packet->tfar[i]);
-		surface.position[1]= ray_packet.ray_packet->orgy[i]+ (ray_packet.ray_packet->diry[i]* ray_packet.ray_packet->tfar[i]);
-		surface.position[2]= ray_packet.ray_packet->orgz[i]+ (ray_packet.ray_packet->dirz[i]* ray_packet.ray_packet->tfar[i]);
-		surface.normal[0]= -ray_packet.ray_packet->Ngx[i];
-		surface.normal[1]= -ray_packet.ray_packet->Ngy[i];
-		surface.normal[2]= -ray_packet.ray_packet->Ngz[i];
+		surface.position[0]= ray_packet.orgx[i]+ (ray_packet.dirx[i]* ray_packet.tfar[i]);
+		surface.position[1]= ray_packet.orgy[i]+ (ray_packet.diry[i]* ray_packet.tfar[i]);
+		surface.position[2]= ray_packet.orgz[i]+ (ray_packet.dirz[i]* ray_packet.tfar[i]);
+		surface.normal[0]= -ray_packet.Ngx[i];
+		surface.normal[1]= -ray_packet.Ngy[i];
+		surface.normal[2]= -ray_packet.Ngz[i];
 		surface.normal= normalize(surface.normal);
 
 		vector<Light *> *lights= scene->GetLights();
 		for(unsigned int j= 0; j< lights->size(); j++)
 		{
-			//geometry term is now wrapped in occlusions
 			float geometry_term= dot(surface.normal, normalize(-(*lights)[j]->SampleDirectionAtPoint(surface.position, 0)));
-			//float foo_term= occlusions[i]* geometry_term;
-			float foo_term= geometry_term;
-			if(foo_term<= 0)
-				continue;
-		
-			color+= (*lights)[j]->GetLuminosity(surface.position)* foo_term;
+
+			color+= (*lights)[j]->GetLuminosity(surface.position)* geometry_term;
 		}
 
 		vector<AmbientLight *> *ambient_lights= scene->GetAmbientLights();
 		for(unsigned int j= 0; j< ambient_lights->size(); j++)
 			color+= (*ambient_lights)[j]->GetLuminosity(surface.position);
 
-		color[0]*= ray_packet.extras->absorption_r[i];
-		color[1]*= ray_packet.extras->absorption_g[i];
-		color[2]*= ray_packet.extras->absorption_b[i];
+		color[0]*= ray_packet.absorption_r[i];
+		color[1]*= ray_packet.absorption_g[i];
+		color[2]*= ray_packet.absorption_b[i];
 
-		film->Stimulate(ray_packet.extras->x[i], ray_packet.extras->y[i], color);
+		film->Stimulate(ray_packet.x[i], ray_packet.y[i], color);
 	}
 }
 
@@ -537,7 +516,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	int *material_ids= scene->GetMaterialIDs();
 
 	ispc::Interpolate(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
-		             reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
 					 ray_packet_block->front_index,
 					 meshes, material_ids);
 #endif
@@ -549,12 +527,11 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 
 	Timer::shadow_timer.Start();
 	ispc::ComputeOcclusions(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
-							    reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
-								ray_packet_block->front_index,
-								lighting, 
-								reinterpret_cast<ispc::RayPacket *>(GetShadowRayBuffer()), 
-								reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()),
-								occlusion_buffer);
+							ray_packet_block->front_index,
+							lighting, 
+							reinterpret_cast<ispc::ShadowRayPacket *>(GetShadowRayBuffer()), 
+							reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()),
+							occlusion_buffer);
 	Timer::shadow_timer.Pause();
 
 	//Shading
@@ -582,18 +559,16 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 
 			int rays_shaded_count= 0;
 			ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets+ total_rays_shaded_count), 
-									reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass+ total_rays_shaded_count), 
-									ray_packet_block->front_index- total_rays_shaded_count, 
-									&rays_shaded_count,
-									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts, 
-									film->width, 
-									lighting, occlusion_buffer+ total_rays_shaded_count* PACKET_SIZE* lighting->point_light_count, 
-									materials, 
-									camera->GetFilteringKernels(), 
-									noisy_receptors, &noisy_receptors_count, 
-									reinterpret_cast<ispc::RayPacket *>(secondary_ray_packet_block->ray_packets), 
-									reinterpret_cast<ispc::RayPacketExtras *>(secondary_ray_packet_block->ray_packet_extrass), 
-									&(secondary_ray_packet_block->front_index));
+										ray_packet_block->front_index- total_rays_shaded_count, 
+										&rays_shaded_count,
+										film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts, 
+										film->width, 
+										lighting, occlusion_buffer+ total_rays_shaded_count* PACKET_SIZE* lighting->point_light_count, 
+										materials, 
+										camera->GetFilteringKernels(), 
+										noisy_receptors, &noisy_receptors_count, 
+										reinterpret_cast<ispc::RayPacket *>(secondary_ray_packet_block->ray_packets), 
+										&(secondary_ray_packet_block->front_index));
 
 			if(secondary_ray_packet_block->front_index> 0)
 				secondary_ray_packet_block->state= secondary_ray_packet_block->front_index>= (RAY_PACKET_BLOCK_SIZE- 1)? BlockState::Full : BlockState::Partial;
@@ -604,7 +579,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 
 			int rays_shaded_count= 0;
 			ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets+ total_rays_shaded_count), 
-										reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass+ total_rays_shaded_count), 
 										ray_packet_block->front_index- total_rays_shaded_count, 
 										&rays_shaded_count,
 										film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts, 
@@ -614,7 +588,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 										camera->GetFilteringKernels(), 
 										noisy_receptors, &noisy_receptors_count, 
 										reinterpret_cast<ispc::Ray *>(secondary_ray_block->rays), 
-										reinterpret_cast<ispc::RayExtras *>(secondary_ray_block->ray_extrass), 
 										&(secondary_ray_block->front_index));
 
 			if(secondary_ray_block->front_index> 0)
@@ -627,7 +600,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 		}
 
 #else
-		//int foo= secondary_ray_packet_block->front_index;
 		ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
 									reinterpret_cast<ispc::RayPacketExtras *>(ray_packet_block->ray_packet_extrass), 
 									ray_packet_block->front_index, 
@@ -638,8 +610,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									camera->GetFilteringKernels(), 
 									noisy_receptors, &noisy_receptors_count, 
 									reinterpret_cast<intptr_t>(camera));
-		//if(foo!= secondary_ray_packet_block->front_index)
-		//	foo= -1;
 
 		ReportNoisyReceptors(noisy_receptors, noisy_receptors_count);
 #endif
@@ -835,6 +805,11 @@ void RayBlock::Empty()
 	state= BlockState::Empty;
 }
 
+Ray * RayBlock::GetFront()
+{
+	return rays+ front_index;
+}
+
 RayPacketBlock::RayPacketBlock(bool is_primary_, bool is_coherent_)
 {
 	is_primary= is_primary_;
@@ -856,6 +831,11 @@ void RayPacketBlock::Empty()
 
 	front_index= 0;
 	state= BlockState::Empty;
+}
+
+RayPacket * RayPacketBlock::GetFront()
+{
+	return ray_packets+ front_index;
 }
 
 

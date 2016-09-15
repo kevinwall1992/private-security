@@ -133,7 +133,7 @@ Image * Camera::TakePicture(Scene &scene)
 	return &(film->image);
 }
 
-bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, int *indices, int index_count)
+bool Camera::GetRayPackets(RayPacket *ray_packets, int tile_index, int *indices, int index_count)
 {
 	if((indices== nullptr) && (tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT))))
 		return false;
@@ -153,8 +153,7 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, i
 							reinterpret_cast<float *>(&position), reinterpret_cast<float *>(&forward), 
 							reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
 							film->width, film->height, 
-							reinterpret_cast<ispc::RayPacket *>(first_ray_packet.ray_packet), 
-							reinterpret_cast<ispc::RayPacketExtras *>(first_ray_packet.extras), 
+							reinterpret_cast<ispc::RayPacket *>(ray_packets), 
 							samples_x, samples_y, 
 							RAY_PACKET_BLOCK_SIZE,
 							indices);
@@ -172,8 +171,7 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, i
 								reinterpret_cast<float *>(&position), reinterpret_cast<float *>(&forward), 
 								reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
 								film->width, film->height, 
-								reinterpret_cast<ispc::RayPacket *>(first_ray_packet.ray_packet+ i* index_count), 
-								reinterpret_cast<ispc::RayPacketExtras *>(first_ray_packet.extras+ i* index_count), 
+								reinterpret_cast<ispc::RayPacket *>(ray_packets+ i* index_count), 
 								samples_x+ sample_offset, samples_y+ sample_offset,
 								index_count,
 								indices);
@@ -238,7 +236,7 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, i
 	return true;
 }
 
-bool Camera::GetRays(CompleteRay first_ray, int tile_index, int *indices)
+bool Camera::GetRays(Ray *rays, int tile_index, int *indices)
 {
 	if(tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT)))
 		return false;
@@ -270,8 +268,7 @@ bool Camera::GetRays(CompleteRay first_ray, int tile_index, int *indices)
 							*/
 	delete pos, forw, u, v;
 
-	
-	CompleteRay next_ray= first_ray;
+	int ray_count= 0;
 	for(int j= 0; j< CAMERA_TILE_HEIGHT; j++)
 	{
 		for(int i= 0; i< CAMERA_TILE_WIDTH; i++)
@@ -282,21 +279,20 @@ bool Camera::GetRays(CompleteRay first_ray, int tile_index, int *indices)
 			else
 				continue;
 
-			next_ray.ray->tnear = 0.0f;
-			next_ray.ray->tfar = FLT_MAX;
-			next_ray.ray->geomID = RTC_INVALID_GEOMETRY_ID;
-			next_ray.ray->primID = RTC_INVALID_GEOMETRY_ID;
-			next_ray.ray->mask = -1;
-			next_ray.ray->time = 0;
+			int ray_index= ray_count++;
 
-			next_ray.extras->absorption= Color(1.0f, 1.0f, 1.0f);
-			next_ray.extras->bounce_count= 0;
-			next_ray.extras->type= RayType::Primary;
-			next_ray.extras->x= x;
-			next_ray.extras->y= y;
+			rays[ray_index].tnear = 0.0f;
+			rays[ray_index].tfar = FLT_MAX;
+			rays[ray_index].geomID = RTC_INVALID_GEOMETRY_ID;
+			rays[ray_index].primID = RTC_INVALID_GEOMETRY_ID;
+			rays[ray_index].mask = -1;
+			rays[ray_index].time = 0;
 
-			next_ray.ray++;
-			next_ray.extras++;
+			rays[ray_index].absorption= Color(1.0f, 1.0f, 1.0f);
+			rays[ray_index].bounce_count= 0;
+			rays[ray_index].type= RayType::Primary;
+			rays[ray_index].x= x;
+			rays[ray_index].y= y;
 		}
 	}
 
