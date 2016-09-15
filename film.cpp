@@ -70,7 +70,9 @@ bool Film::Clear_Parallel(int interval_index)
 
 void Film::Stimulate(int x, int y, Color light)
 {
-	assert(false && "Stimulate() not implemented");
+	receptors_r[y* width+ x]+= light[0];
+	receptors_g[y* width+ x]+= light[1];
+	receptors_b[y* width+ x]+= light[2];
 }
 
 void Film::Develop()

@@ -20,7 +20,7 @@ public:
 	virtual Vec3f GetPosition()= 0;
 
 	virtual Color GetLuminosity(Vec3f point)= 0;
-	virtual Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index);
+	virtual Vec3f SampleDirectionAtPoint(Vec3f point, int sample_index= 0);
 	
 	//virtual Ray SampleLightRay(int sample_index);//put this in GenerativeLight?
 };

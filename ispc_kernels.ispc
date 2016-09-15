@@ -58,9 +58,13 @@ struct RayExtras
 	float absorption[3];
 	int bounce_count;
 	int type;
+
+	float surface_position[3];
+	float surface_normal[3];
+	intptr_t material;
 };
 
-struct RayPacket_
+struct RayPacket
 {
 	float orgx[PACKET_SIZE];
 	float orgy[PACKET_SIZE];
@@ -109,7 +113,7 @@ struct RayPacketExtras
 };
 
 //check that short vectors are as good as arrays
-struct PointLight_
+struct PointLight
 {
 	float position[3];
 	float intensity[3];
@@ -122,13 +126,13 @@ struct AmbientLight
 
 struct Lighting
 {
-	PointLight_ *point_lights;
+	PointLight *point_lights;
 	float ambient[3];
 
 	int point_light_count;
 };
 
-struct Mesh_
+struct Mesh
 {
 	float *positions;
 	float *texture_coordinates;
@@ -142,7 +146,7 @@ struct Mesh_
 	int triangle_count;
 };
 
-struct PhongMaterial_
+struct PhongMaterial
 {
 	float diffuse[3];
 	float specular[3];
@@ -180,14 +184,14 @@ struct PhongMaterial_
 /*void soa_to_aos(soa<8> Vec3f pts_soa[], uniform int count,  uniform Vec3f pts_aos[]) 
 {
      foreach (i = 0 ... count)
-         pts_aos[i] = pts_soa[i];
+         pts_aos[i]= pts_soa[i];
 }*/
 
 export void GetRayPackets(uniform int x_offset, uniform int y_offset, 
 							uniform float camera_position[], uniform float camera_forward[], 
 							uniform float view_plane_u[], uniform float view_plane_v[],
 							uniform int width, uniform int height,
-							uniform RayPacket_ ray_packets[], 
+							uniform RayPacket ray_packets[], 
 							uniform RayPacketExtras ray_packet_extrass[], 
 							uniform float samples_x[], uniform float samples_y[],
 							uniform int count,
@@ -212,17 +216,10 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 		}
 		uniform int packet_index= i;
 
-		//These are hardcoded for 256 bit vectorization 
 #if MIN_SAMPLES_PER_PIXEL== 1
 		int x= x_base+ programIndex;
 		float normalized_x= ((x+ 0.5f)/ width)* 2- 1;
 		uniform float normalized_y= ((y+ 0.5f)/ height)* 2- 1;
-
-#elif MIN_SAMPLES_PER_PIXEL== 4
-		int set_index= programIndex/ MIN_SAMPLES_PER_PIXEL;
-		int x= x_base+ set_index;
-		float normalized_x= ((x+ HaltonSequence(2, programIndex- set_index* MIN_SAMPLES_PER_PIXEL))/ width)* 2- 1;
-		float normalized_y= ((y+ HaltonSequence(3, programIndex- set_index* MIN_SAMPLES_PER_PIXEL))/ height)* 2- 1;
 
 #elif MIN_SAMPLES_PER_PIXEL== 8
 		uniform int x= x_base;
@@ -240,12 +237,12 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 		ray_packets[packet_index].diry[programIndex]= camera_forward[1]+ view_plane_u[1]* -normalized_x+ view_plane_v[1]* normalized_y;
 		ray_packets[packet_index].dirz[programIndex]= camera_forward[2]+ view_plane_u[2]* -normalized_x+ view_plane_v[2]* normalized_y;
 
-		ray_packets[packet_index].tnear[programIndex] = 0.0f;
-		ray_packets[packet_index].tfar[programIndex] = 1000000000;
-		ray_packets[packet_index].geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-		ray_packets[packet_index].primID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-		ray_packets[packet_index].mask[programIndex] = -1;
-		ray_packets[packet_index].time[programIndex] = 0;
+		ray_packets[packet_index].tnear[programIndex]= 0.0f;
+		ray_packets[packet_index].tfar[programIndex]= 1000000000;
+		ray_packets[packet_index].geomID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].mask[programIndex]= -1;
+		ray_packets[packet_index].time[programIndex]= 0;
 
 		ray_packet_extrass[packet_index].absorption_r[programIndex]= 1.0f;
 		ray_packet_extrass[packet_index].absorption_g[programIndex]= 1.0f;
@@ -296,13 +293,26 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 		int image_offset= index* 4;
 
 #if FILTERING
+#if ADAPTIVE_SAMPLING
 		image[image_offset+ 0]= max((int)(255* receptors_r[index]/ (normalization_term* sample_counts[index])), (int)0);
 		image[image_offset+ 1]= max((int)(255* receptors_g[index]/ (normalization_term* sample_counts[index])), (int)0);
 		image[image_offset+ 2]= max((int)(255* receptors_b[index]/ (normalization_term* sample_counts[index])), (int)0);
 #else
+		image[image_offset+ 0]= max((int)(255* receptors_r[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL)), (int)0);
+		image[image_offset+ 1]= max((int)(255* receptors_g[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL)), (int)0);
+		image[image_offset+ 2]= max((int)(255* receptors_b[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL)), (int)0);
+#endif
+#else
+#if ADAPTIVE_SAMPLING
 		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ (normalization_term* sample_counts[index]));
 		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ (normalization_term* sample_counts[index]));
 		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ (normalization_term* sample_counts[index]));
+#else
+		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
+		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
+		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
+#endif
+
 #endif
 
 #if 0
@@ -330,66 +340,117 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 	}
 }
 
-unmasked void WriteRayPacket(RayPacket_ ** uniform ray_packets, RayPacketExtras ** uniform ray_packet_extrass, int ** uniform next_packet_index, 
+#if PACKETED_SECONDARY_RAYS
+unmasked void WriteRayPacket(RayPacket * uniform ray_packets, RayPacketExtras * uniform ray_packet_extrass, int * uniform packet_count, 
 	                         varying int mask, 
 							 varying float<3> position, varying float<3> direction, 
 							 uniform float tnear, uniform float tfar, 
 							 uniform float x[], uniform float y[],
-							 uniform intptr_t camera_id, intptr_t * uniform ray_packet_buffer_id)
+							 uniform int bounce_count)
 {
-	if((*next_packet_index)[0]>= RAY_PACKET_BLOCK_SIZE)
-		TakeRayPacketBuffer(ray_packet_buffer_id, next_packet_index, camera_id, ray_packets, ray_packet_extrass);
-	uniform int packet_index= (*next_packet_index)[0]++;
+	uniform int packet_index= packet_count[0]++;
 
+	cif(mask)
+	{
+		ray_packets[packet_index].orgx[programIndex]= position[0];
+		ray_packets[packet_index].orgy[programIndex]= position[1];
+		ray_packets[packet_index].orgz[programIndex]= position[2];
 
-	//Test whether if'ing out most of these writes effects performance
+		ray_packets[packet_index].dirx[programIndex]= direction[0];
+		ray_packets[packet_index].diry[programIndex]= direction[1];
+		ray_packets[packet_index].dirz[programIndex]= direction[2];
 
-	(*ray_packets)[packet_index].orgx[programIndex]= position[0];
-	(*ray_packets)[packet_index].orgy[programIndex]= position[1];
-	(*ray_packets)[packet_index].orgz[programIndex]= position[2];
+		ray_packets[packet_index].tnear[programIndex]= tnear;
+		ray_packets[packet_index].tfar[programIndex]= tfar;
+		ray_packets[packet_index].geomID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].time[programIndex]= 0;
 
-	(*ray_packets)[packet_index].dirx[programIndex]= direction[0];
-	(*ray_packets)[packet_index].diry[programIndex]= direction[1];
-	(*ray_packets)[packet_index].dirz[programIndex]= direction[2];
+		ray_packet_extrass[packet_index].bounce_count[programIndex]= bounce_count;
+		ray_packet_extrass[packet_index].type[programIndex]= 1;
+		ray_packet_extrass[packet_index].x[programIndex]= x[programIndex];
+		ray_packet_extrass[packet_index].y[programIndex]= y[programIndex];
 
-	(*ray_packets)[packet_index].tnear[programIndex]= 0.0f;
-	(*ray_packets)[packet_index].tfar[programIndex]= 1000000000;
-	(*ray_packets)[packet_index].geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-	(*ray_packets)[packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
-	(*ray_packets)[packet_index].time[programIndex]= 0;
+		ray_packet_extrass[packet_index].absorption_r[programIndex]= 1.0f;
+		ray_packet_extrass[packet_index].absorption_g[programIndex]= 1.0f;
+		ray_packet_extrass[packet_index].absorption_b[programIndex]= 1.0f;
+	}
 
-	(*ray_packets)[packet_index].mask[programIndex] = mask ? -1 : 0;
-
-	(*ray_packet_extrass)[packet_index].bounce_count[programIndex]= 1;
-	(*ray_packet_extrass)[packet_index].type[programIndex]= 1;
-	(*ray_packet_extrass)[packet_index].x[programIndex]= x[programIndex];
-	(*ray_packet_extrass)[packet_index].y[programIndex]= y[programIndex];
-
-	(*ray_packet_extrass)[packet_index].absorption_r[programIndex]= 1.0f;
-	(*ray_packet_extrass)[packet_index].absorption_g[programIndex]= 1.0f;
-	(*ray_packet_extrass)[packet_index].absorption_b[programIndex]= 1.0f;
+	ray_packets[packet_index].mask[programIndex]= mask ? -1 : 0;
 }
+#else
 
-export void PacketedShadingKernel(uniform RayPacket_ ray_packets[], 
+unmasked void WriteRays(Ray * uniform rays, RayExtras * uniform ray_extrass, int * uniform ray_count, 
+	                    varying int mask, 
+						varying float<3> position, varying float<3> direction, 
+						uniform float tnear, uniform float tfar, 
+						uniform float x[], uniform float y[],
+						uniform int bounce_count)
+{
+	int ray_index= ray_count[0]+ exclusive_scan_add(mask);
+	ray_count[0]+= reduce_add(mask);
+
+	cif(mask)
+	{
+		rays[ray_index].org[0]= position[0];
+		rays[ray_index].org[1]= position[1];
+		rays[ray_index].org[2]= position[2];
+
+		rays[ray_index].dir[0]= direction[0];
+		rays[ray_index].dir[1]= direction[1];
+		rays[ray_index].dir[2]= direction[2];
+
+		rays[ray_index].tnear= 0.0f;
+		rays[ray_index].tfar= 1000000000;
+		rays[ray_index].geomID= RTC_INVALID_GEOMETRY_ID;
+		rays[ray_index].primID= RTC_INVALID_GEOMETRY_ID;
+		rays[ray_index].time= 0;
+
+		ray_extrass[ray_index].bounce_count= bounce_count;
+		ray_extrass[ray_index].type= 1;
+		ray_extrass[ray_index].x= x[programIndex];
+		ray_extrass[ray_index].y= y[programIndex];
+
+		ray_extrass[ray_index].absorption[0]= 1.0f;
+		ray_extrass[ray_index].absorption[1]= 1.0f;
+		ray_extrass[ray_index].absorption[2]= 1.0f;
+
+		rays[ray_index].mask= -1;
+	}
+
+}
+#endif
+
+export void PacketedShadingKernel(uniform RayPacket ray_packets[], 
 							      uniform RayPacketExtras ray_packet_extrass[], 
 								  uniform int packet_count,
+								  int * uniform packets_shaded_count, 
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
 								  uniform int film_width,
 								  Lighting * uniform lighting, uniform float occlusions[],
-								  uniform PhongMaterial_ materials[],
+								  uniform PhongMaterial materials[],
 								  uniform float filtering_kernels[],
 								  uniform int noisy_receptors[], uniform int noisy_receptor_count[], 
-								  uniform intptr_t camera_id)
+#if PACKETED_SECONDARY_RAYS
+								  uniform RayPacket secondary_ray_packets[], uniform RayPacketExtras secondary_ray_packet_extrass[],
+								  int * uniform secondary_packet_count
+#else
+								  uniform Ray secondary_rays[], uniform RayExtras secondary_ray_extrass[],
+								  int * uniform secondary_ray_count
+#endif
+								  )
 {
-	uniform intptr_t indirect_ray_packet_buffer_id= 0;
-	RayPacket_ * uniform indirect_ray_packets= NULL;
-	RayPacketExtras * uniform indirect_ray_packet_extrass= NULL;
-	int * uniform indirect_ray_packet_count= NULL;
-	TakeRayPacketBuffer(&indirect_ray_packet_buffer_id, &indirect_ray_packet_count, camera_id, &indirect_ray_packets, &indirect_ray_packet_extrass);
-
-
 	for(uniform int i= 0; i< packet_count; i++)
 	{
+#if PACKETED_SECONDARY_RAYS
+		if(secondary_packet_count[0]> (RAY_PACKET_BLOCK_SIZE- 1))
+#else
+		if(secondary_ray_count[0]> (RAY_BLOCK_SIZE- 1* PACKET_SIZE))
+#endif
+			break;
+		packets_shaded_count[0]++;
+
+
 		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID || ray_packets[i].mask[programIndex]!= -1)
 			continue;
 
@@ -403,28 +464,27 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 			              ray_packet_extrass[i].surface_normal_y[programIndex], 
 						  ray_packet_extrass[i].surface_normal_z[programIndex]};
 
+		uniform int bounce_count;
+		reduce_equal(ray_packet_extrass[i].bounce_count[programIndex], &bounce_count);
+		uniform bool bounce_limit_achieved= bounce_count>= 1;
+
 		int material_id= ray_packet_extrass[i].material_id[programIndex];
-
-		uniform int bounce_limit_achieved;
-		reduce_equal(ray_packet_extrass[i].bounce_count[programIndex]>= 1, &bounce_limit_achieved);
-
 		int is_chrome;
 		uniform int uniform_material_id;
-		if(reduce_equal(material_id, &uniform_material_id))
+		uniform bool material_is_uniform= reduce_equal(material_id, &uniform_material_id);
+		if(material_is_uniform)
 			is_chrome= materials[uniform_material_id].chrome;
 		else
-		{
 			foreach_unique(unique_material_id in material_id)
 				is_chrome= materials[unique_material_id].chrome;
-		}
 
 		if(any(is_chrome) && !bounce_limit_achieved)
 		{
 			cif(is_chrome)
 			{
-				float<3> reflection_position= {position[0]+ normal[0]* 0.01f, 
-											   position[1]+ normal[1]* 0.01f, 
-											   position[2]+ normal[2]* 0.01f};
+				float<3> reflection_position= {position[0]+ normal[0]* 0.015f, 
+											   position[1]+ normal[1]* 0.015f, 
+											   position[2]+ normal[2]* 0.015f};
 
 				float dot= (ray_packets[i].dirx[programIndex]* normal[0]+ 
 						   ray_packets[i].diry[programIndex]* normal[1]+ 
@@ -434,10 +494,17 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 											    ray_packets[i].diry[programIndex]- normal[1]* dot, 
 											    ray_packets[i].dirz[programIndex]- normal[2]* dot};
 
-				WriteRayPacket(&indirect_ray_packets, &indirect_ray_packet_extrass, &indirect_ray_packet_count, 
+#if PACKETED_SECONDARY_RAYS
+				WriteRayPacket(secondary_ray_packets, secondary_ray_packet_extrass, secondary_packet_count, 
 	                           is_chrome, reflection_position, reflection_direction, 0.0f, 1000000, 
 							   ray_packet_extrass[i].x, ray_packet_extrass[i].y, 
-							   camera_id, &indirect_ray_packet_buffer_id);
+							   bounce_count+ 1);
+#else
+				WriteRays(secondary_rays, secondary_ray_extrass, secondary_ray_count, 
+	                        is_chrome, reflection_position, reflection_direction, 0.0f, 1000000, 
+							ray_packet_extrass[i].x, ray_packet_extrass[i].y, 
+							bounce_count+ 1);
+#endif
 			}
 		}
 
@@ -477,28 +544,25 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 				}
 		
 #if 1
-				uniform int uniform_material_id;
-				if(reduce_equal(material_id, &uniform_material_id))//try just using foreach_unique
+				if(material_is_uniform)//try just using foreach_unique
 				{
-					uniform float diffuse[3]= materials[uniform_material_id].diffuse;
-					color[0]*= diffuse[0];
-					color[1]*= diffuse[1];
-					color[2]*= diffuse[2];
+					color[0]*= materials[uniform_material_id].diffuse[0];
+					color[1]*= materials[uniform_material_id].diffuse[1];
+					color[2]*= materials[uniform_material_id].diffuse[2];
 				}
 				else
 				{
 					foreach_unique(unique_material_id in material_id)
 					{
-						uniform float diffuse[3]= materials[unique_material_id].diffuse;
-						color[0]*= diffuse[0];
-						color[1]*= diffuse[1];
-						color[2]*= diffuse[2];
+						color[0]*= materials[unique_material_id].diffuse[0];
+						color[1]*= materials[unique_material_id].diffuse[1];
+						color[2]*= materials[unique_material_id].diffuse[2];
 					}
 				}
 #else
 				foreach_unique(unique_material_id in material_id)
 				{
-					uniform float diffuse[3]= materials[unique_material_id].diffuse;
+					uniform float<3> diffuse= materials[unique_material_id].diffuse;
 					color[0]*= diffuse[0];
 					color[1]*= diffuse[1];
 					color[2]*= diffuse[2];
@@ -596,11 +660,8 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 						sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
 
 				}
-
-#else
-				sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
-
 #endif
+
 			}
 
 		}
@@ -610,86 +671,9 @@ export void PacketedShadingKernel(uniform RayPacket_ ray_packets[],
 #endif
 
 #endif
-
 	}
-
-	ReturnRayPacketBuffer(indirect_ray_packet_buffer_id, camera_id);
 }
 
-export void PacketedShadingKernel_Single(RayPacket_ * uniform ray_packet, 
-							      RayPacketExtras * uniform ray_packet_extras, 
-								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], 
-								  uniform int film_width,
-								  Lighting * uniform lighting)
-{
-#if MIN_SAMPLES_PER_PIXEL== 1
-	cif(ray_packet->geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
-		return;
-
-	float<3> color= {0.0f, 0.0f, 0.0f};
-
-	float<3> position= {ray_packet->orgx[programIndex]+ (ray_packet->dirx[programIndex]* ray_packet->tfar[programIndex]), 
-			            ray_packet->orgy[programIndex]+ (ray_packet->diry[programIndex]* ray_packet->tfar[programIndex]), 
-						ray_packet->orgz[programIndex]+ (ray_packet->dirz[programIndex]* ray_packet->tfar[programIndex])};
-
-	float<3> normal= {-ray_packet->Ngx[programIndex], 
-			            -ray_packet->Ngy[programIndex], 
-						-ray_packet->Ngz[programIndex]};
-	float normal_magnitude= sqrt(normal[0]* normal[0]+ 
-		                            normal[1]* normal[1]+ 
-									normal[2]* normal[2]);
-
-	for(uniform int j= 0; j< lighting->point_light_count; j++)
-	{
-		float<3> direction;
-		direction[0]= lighting->point_lights[j].position[0]- position[0];
-		direction[1]= lighting->point_lights[j].position[1]- position[1];
-		direction[2]= lighting->point_lights[j].position[2]- position[2];
-		float direction_magnitude= sqrt(direction[0]* direction[0]+ 
-				                        direction[1]* direction[1]+ 
-										direction[2]* direction[2]);
-
-		float geometry_term= (direction[0]* normal[0]+ 
-				                direction[1]* normal[1]+ 
-								direction[2]* normal[2])/ (normal_magnitude* direction_magnitude);
-
-		if(geometry_term> 0)
-		{
-			color[0]+= lighting->point_lights[j].intensity[0]* geometry_term;
-			color[1]+= lighting->point_lights[j].intensity[1]* geometry_term;
-			color[2]+= lighting->point_lights[j].intensity[2]* geometry_term;
-		}
-	}
-	color[0]+= lighting->ambient[0];
-	color[1]+= lighting->ambient[1];
-	color[2]+= lighting->ambient[2];
-
-	color[0]*= ray_packet_extras->absorption_r[programIndex];
-	color[1]*= ray_packet_extras->absorption_g[programIndex];
-	color[2]*= ray_packet_extras->absorption_b[programIndex];
-
-	int x= ray_packet_extras->x[programIndex];
-	int y= ray_packet_extras->y[programIndex];
-
-
-	uniform int uniform_y;
-	uniform int packet_x;
-	if(reduce_equal(y, &uniform_y) && reduce_equal(x/ programCount, &packet_x))
-	{
-		int receptor_index= uniform_y* film_width+ packet_x* programCount+ programIndex;
-		receptors_r[receptor_index]= color[0];
-		receptors_g[receptor_index]= color[1];
-		receptors_b[receptor_index]= color[2];
-	}
-	else
-	{
-		int receptor_index= y* film_width+ x;
-		receptors_r[receptor_index]= color[0];
-		receptors_g[receptor_index]= color[1];
-		receptors_b[receptor_index]= color[2];
-	}
-#endif
-}
 
 #if ISPC_CLEAR
 export void Clear(uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int count)
@@ -705,8 +689,8 @@ export void Clear(uniform float receptors_r[], uniform float receptors_g[], unif
 
 //Assuming only one geometry for now
 #if ISPC_INTERPOLATION
-export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtras ray_packet_extrass[], uniform int packet_count,
-	                    uniform Mesh_ meshes[], uniform int material_ids[])
+export void Interpolate(uniform RayPacket ray_packets[], uniform RayPacketExtras ray_packet_extrass[], uniform int packet_count,
+	                    uniform Mesh meshes[], uniform int material_ids[])
 {
 #if PACKET_MODE
 	for(int i= 0; i< packet_count; i++)
@@ -824,34 +808,34 @@ export void Interpolate(uniform RayPacket_ ray_packets[], uniform RayPacketExtra
 
 #endif
 
-export void ComputeOcclusions(uniform RayPacket_ ray_packets[], 
+export void ComputeOcclusions(uniform RayPacket ray_packets[], 
 							    uniform RayPacketExtras ray_packet_extrass[], 
 								uniform int packet_count,
 								Lighting * uniform lighting, 
-								uniform RayPacket_ shadow_ray_packets[],
+								uniform RayPacket shadow_ray_packets[],
 								RTCScene * uniform embree_scene,
 								uniform float occlusions[])
 {
 #if 0
 	for(uniform int light_index= 0; light_index< lighting->point_light_count; light_index++)
 	{
-		uniform float light_position[3]= lighting->point_lights[light_index].position;
+		uniform float light_position<3>= lighting->point_lights[light_index].position;
 
 		for(uniform int i= 0; i< packet_count; i++)
 		{
 			cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
 				continue;
 
-			float surface_normal[3]= {ray_packet_extrass[i].surface_normal_x[programIndex], 
+			float surface_normal<3>= {ray_packet_extrass[i].surface_normal_x[programIndex], 
 			                          ray_packet_extrass[i].surface_normal_y[programIndex],
 			                          ray_packet_extrass[i].surface_normal_z[programIndex]};
 
-			float surface_position[3]= {ray_packet_extrass[i].surface_position_x[programIndex],
+			float surface_position<3>= {ray_packet_extrass[i].surface_position_x[programIndex],
 			                            ray_packet_extrass[i].surface_position_y[programIndex],
 										ray_packet_extrass[i].surface_position_z[programIndex]};
 
 			//Assuming we add surface position to ray extras via Interpolate
-			float direction[3]= {light_position[0]- surface_position[0], 
+			float direction<3>= {light_position[0]- surface_position[0], 
 				                 light_position[1]- surface_position[1], 
 								 light_position[2]- surface_position[2]};
 			float direction_magnitude= sqrt(direction[0]* direction[0]+ 
@@ -872,7 +856,7 @@ export void ComputeOcclusions(uniform RayPacket_ ray_packets[],
 			}
 
 
-			uniform RayPacket_ shadow_packet;
+			uniform RayPacket shadow_packet;
 
 			cif(geometry_term< 0)
 			{
@@ -880,10 +864,10 @@ export void ComputeOcclusions(uniform RayPacket_ ray_packets[],
 #if 0
 			}
 #else
-				shadow_packet.mask[programIndex] = 0;
+				shadow_packet.mask[programIndex]= 0;
 			}
 			else
-				shadow_packet.mask[programIndex] = -1;
+				shadow_packet.mask[programIndex]= -1;
 #endif
 
 #if 1
@@ -910,17 +894,17 @@ export void ComputeOcclusions(uniform RayPacket_ ray_packets[],
 			shadow_packet.diry[programIndex]= direction[1];
 			shadow_packet.dirz[programIndex]= direction[2];
 
-			shadow_packet.tnear[programIndex] = 0.0f;
-			shadow_packet.tfar[programIndex] = direction_magnitude;
-			shadow_packet.geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-			shadow_packet.primID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-			shadow_packet.time[programIndex] = 0;
+			shadow_packet.tnear[programIndex]= 0.0f;
+			shadow_packet.tfar[programIndex]= direction_magnitude;
+			shadow_packet.geomID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+			shadow_packet.primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+			shadow_packet.time[programIndex]= 0;
 
 
 			uniform RTCIntersectContext context;
 			context.flags= RTC_INTERSECT_COHERENT;
 			context.userRayExt= NULL;
-			rtcOccludedNM(*embree_scene, &context, (RTCRayN *)(&shadow_packet), PACKET_SIZE, 1, sizeof(RayPacket_)/ 8);
+			rtcOccludedNM(*embree_scene, &context, (RTCRayN *)(&shadow_packet), PACKET_SIZE, 1, sizeof(RayPacket)/ 8);
 
 
 			uniform int occlusion_offset= i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
@@ -929,30 +913,30 @@ export void ComputeOcclusions(uniform RayPacket_ ray_packets[],
 	}
 
 #else
-	uniform int ray_packet_indices[RAY_PACKET_BLOCK_SIZE];
-	uniform int shadow_ray_packet_count;
+	uniform int packet_indices[RAY_PACKET_BLOCK_SIZE];
+	uniform int shadow_packet_count;
 	uniform float geometry_terms[RAY_PACKET_BLOCK_SIZE* PACKET_SIZE];
 
 	for(uniform int light_index= 0; light_index< lighting->point_light_count; light_index++)
 	{
 		uniform float light_position[3]= lighting->point_lights[light_index].position;
 
-		shadow_ray_packet_count= 0;
+		shadow_packet_count= 0;
 		for(uniform int packet_index= 0; packet_index< packet_count; packet_index++)
 		{
 			cif(ray_packets[packet_index].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID  || ray_packets[packet_index].mask[programIndex]!= -1)
 				continue;
 
-			float surface_normal[3]= {ray_packet_extrass[packet_index].surface_normal_x[programIndex], 
+			float<3> surface_normal= {ray_packet_extrass[packet_index].surface_normal_x[programIndex], 
 			                          ray_packet_extrass[packet_index].surface_normal_y[programIndex],
 			                          ray_packet_extrass[packet_index].surface_normal_z[programIndex]};
 
-			float surface_position[3]= {ray_packet_extrass[packet_index].surface_position_x[programIndex],
+			float<3> surface_position= {ray_packet_extrass[packet_index].surface_position_x[programIndex],
 			                            ray_packet_extrass[packet_index].surface_position_y[programIndex],
 										ray_packet_extrass[packet_index].surface_position_z[programIndex]};
 
 			//Assuming we add surface position to ray extras via Interpolate
-			float direction[3]= {light_position[0]- surface_position[0], 
+			float<3> direction= {light_position[0]- surface_position[0], 
 				                 light_position[1]- surface_position[1], 
 								 light_position[2]- surface_position[2]};
 			float direction_magnitude= sqrt(direction[0]* direction[0]+ 
@@ -973,71 +957,61 @@ export void ComputeOcclusions(uniform RayPacket_ ray_packets[],
 			}
 
 
-			uniform int shadow_ray_packet_index= shadow_ray_packet_count++;
+			uniform int shadow_packet_index= shadow_packet_count++;
 
 			cif(geometry_term< 0)
 			{
 				geometry_term= 0.0f;
-#if 0
-			}
-#else
-				shadow_ray_packets[shadow_ray_packet_index].mask[programIndex] = 0;
+				shadow_ray_packets[shadow_packet_index].mask[programIndex]= 0;
 			}
 			else
-				shadow_ray_packets[shadow_ray_packet_index].mask[programIndex] = -1;
-#endif
+				shadow_ray_packets[shadow_packet_index].mask[programIndex]= -1;
 
-#if 1
 			cif(geometry_term< 0.1f)
 			{
-				shadow_ray_packets[shadow_ray_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
-				shadow_ray_packets[shadow_ray_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
-				shadow_ray_packets[shadow_ray_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
+				shadow_ray_packets[shadow_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
+				shadow_ray_packets[shadow_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
+				shadow_ray_packets[shadow_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
 			}
 			else
 			{
-				shadow_ray_packets[shadow_ray_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.001f;
-				shadow_ray_packets[shadow_ray_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.001f;
-				shadow_ray_packets[shadow_ray_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.001f;
+				shadow_ray_packets[shadow_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.001f;
+				shadow_ray_packets[shadow_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.001f;
+				shadow_ray_packets[shadow_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.001f;
 			}
-#else
-			shadow_ray_packets[shadow_ray_packet_index].orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
-			shadow_ray_packets[shadow_ray_packet_index].orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
-			shadow_ray_packets[shadow_ray_packet_index].orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
-#endif
 
 			geometry_terms[packet_index* PACKET_SIZE+ programIndex]= geometry_term;
 
-			shadow_ray_packets[shadow_ray_packet_index].dirx[programIndex]= direction[0];
-			shadow_ray_packets[shadow_ray_packet_index].diry[programIndex]= direction[1];
-			shadow_ray_packets[shadow_ray_packet_index].dirz[programIndex]= direction[2];
+			shadow_ray_packets[shadow_packet_index].dirx[programIndex]= direction[0];
+			shadow_ray_packets[shadow_packet_index].diry[programIndex]= direction[1];
+			shadow_ray_packets[shadow_packet_index].dirz[programIndex]= direction[2];
 
-			shadow_ray_packets[shadow_ray_packet_index].tnear[programIndex] = 0.0f;
-			shadow_ray_packets[shadow_ray_packet_index].tfar[programIndex] = direction_magnitude;
-			shadow_ray_packets[shadow_ray_packet_index].geomID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-			shadow_ray_packets[shadow_ray_packet_index].primID[programIndex] = RTC_INVALID_GEOMETRY_ID;
-			shadow_ray_packets[shadow_ray_packet_index].time[programIndex] = 0;
+			shadow_ray_packets[shadow_packet_index].tnear[programIndex]= 0.0f;
+			shadow_ray_packets[shadow_packet_index].tfar[programIndex]= direction_magnitude;
+			shadow_ray_packets[shadow_packet_index].geomID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+			shadow_ray_packets[shadow_packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+			shadow_ray_packets[shadow_packet_index].time[programIndex]= 0;
 
 
-			ray_packet_indices[shadow_ray_packet_index]= packet_index;
+			packet_indices[shadow_packet_index]= packet_index;
 		}
 
 		uniform RTCIntersectContext context;
 		context.flags= RTC_INTERSECT_COHERENT;
 		context.userRayExt= NULL;
-		rtcOccludedNM(*embree_scene, &context, (RTCRayN *)shadow_ray_packets, PACKET_SIZE, shadow_ray_packet_count, sizeof(RayPacket_)/ 8);
+		rtcOccludedNM(*embree_scene, &context, (RTCRayN *)shadow_ray_packets, PACKET_SIZE, shadow_packet_count, sizeof(RayPacket)/ 8);
 
-		for(uniform int shadow_ray_packet_index= 0; shadow_ray_packet_index< shadow_ray_packet_count; shadow_ray_packet_index++)
+		for(uniform int shadow_packet_index= 0; shadow_packet_index< shadow_packet_count; shadow_packet_index++)
 		{
-			uniform int packet_index= ray_packet_indices[shadow_ray_packet_index];
+			uniform int packet_index= packet_indices[shadow_packet_index];
 
 			float occlusion;
-			cif(shadow_ray_packets[shadow_ray_packet_index].geomID[programIndex]== 0)
+			cif(shadow_ray_packets[shadow_packet_index].geomID[programIndex]== 0)
 				occlusion= 0.0f;
 			else
 				occlusion= geometry_terms[packet_index* PACKET_SIZE+ programIndex];
 
-			//occlusion= geometry_terms[ray_packet_indices[packet_index]* PACKET_SIZE+ programIndex];
+			//occlusion= geometry_terms[packet_indices[packet_index]* PACKET_SIZE+ programIndex];
 
 			uniform int occlusion_offset= packet_index* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
 			occlusions[occlusion_offset+ programIndex]= occlusion;

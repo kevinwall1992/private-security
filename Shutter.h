@@ -23,12 +23,11 @@ class Shutter
 	Camera *camera;
 
 	queue<RayBlock *> empty_primary_ray_blocks; 
-	queue<RayBlock *> empty_coherent_ray_blocks; 
-	queue<RayBlock *> empty_incoherent_ray_blocks; 
+	queue<RayBlock *> empty_secondary_ray_blocks; 
 	queue<RayBlock *> full_ray_blocks;
 
 	queue<RayPacketBlock *> empty_primary_ray_packet_blocks;
-	queue<RayPacketBlock *> empty_indirect_ray_packet_blocks; 
+	queue<RayPacketBlock *> empty_secondary_ray_packet_blocks; 
 	queue<RayPacketBlock *> full_ray_packet_blocks;
 
 	int *noisy_receptors= nullptr;
@@ -60,13 +59,14 @@ class Shutter
 	void ReportNoisyReceptors(int *indices, int count);
 
 	RayBlock * TakeEmptyPrimaryRayBlock();
-	RayBlock * TakeEmptyCoherentRayBlock();
-	RayBlock * TakeEmptyIncoherentRayBlock();
+	RayBlock * TakeEmptySecondaryRayBlock();
+	RayBlock * TakePartialSecondaryRayBlock();
 	RayBlock * TakeFullRayBlock();
 	void ReturnRayBlock(RayBlock *ray_block);
 
 	RayPacketBlock * TakeEmptyPrimaryRayPacketBlock();
-	RayPacketBlock * TakeEmptyIndirectRayPacketBlock();
+	RayPacketBlock * TakeEmptySecondaryRayPacketBlock();
+	RayPacketBlock * TakePartialSecondaryRayPacketBlock();
 	RayPacketBlock * TakeFullRayPacketBlock();
 	void ReturnRayPacketBlock(RayPacketBlock *ray_packet_block);
 
@@ -87,10 +87,6 @@ public:
 	~Shutter();
 
 	void Open(Scene &scene);
-
-	//ISPC Interop
-	friend void TakeRayPacketBuffer(intptr_t *ray_packet_buffer_id, int **packet_count, intptr_t camera_id, void **ray_packets, void **ray_packet_extras);
-	friend void ReturnRayPacketBuffer(intptr_t ray_packet_buffer_id, intptr_t camera_id);
 };
 
 

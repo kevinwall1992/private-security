@@ -8,8 +8,8 @@
 #include "ISPCKernels.h"
 
 struct ISPCLighting : public ispc::Lighting { ISPCLighting(); ~ISPCLighting(); };
-typedef ispc::Mesh_ ISPCMesh;
-typedef ispc::PhongMaterial_ ISPCMaterial;
+typedef ispc::Mesh ISPCMesh;
+typedef ispc::PhongMaterial ISPCMaterial;
 
 class Scene
 {
@@ -38,12 +38,12 @@ public:
 
 	void AddProp(Prop prop);
 	void AddProps(vector<Prop> props);
-	void AddLight(Light *light);
+	Prop * GetProp(int geometry_id);
 
+	void AddLight(Light *light);
 	vector<Light *> * GetLights();
 	vector<AmbientLight *> * GetAmbientLights();
 
-	//Might consider some way of not regenerating these two every time
 	ISPCLighting * GetISPCLighting();
 	ISPCMesh * GetISPCMeshes();
 	ISPCMaterial * GetISPCMaterials();
@@ -57,11 +57,10 @@ public:
 	void Intersect(RayPacket &ray_packet);
 	void Intersect(RayPacket *ray_packets, int count, bool is_coherent);
 
-	void Occluded(RayPacket &ray_packet);
+	void Intersect_Occlusion(Ray *rays, int count, bool is_coherent);
+	void Intersect_Occlusion(RayPacket &ray_packet);
 
 	void Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extras);
-
-	Prop * GetProp(int geometry_id);
 };
 
 struct Vertex

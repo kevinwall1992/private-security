@@ -153,7 +153,7 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, i
 							reinterpret_cast<float *>(&position), reinterpret_cast<float *>(&forward), 
 							reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
 							film->width, film->height, 
-							reinterpret_cast<ispc::RayPacket_ *>(first_ray_packet.ray_packet), 
+							reinterpret_cast<ispc::RayPacket *>(first_ray_packet.ray_packet), 
 							reinterpret_cast<ispc::RayPacketExtras *>(first_ray_packet.extras), 
 							samples_x, samples_y, 
 							RAY_PACKET_BLOCK_SIZE,
@@ -172,7 +172,7 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, i
 								reinterpret_cast<float *>(&position), reinterpret_cast<float *>(&forward), 
 								reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
 								film->width, film->height, 
-								reinterpret_cast<ispc::RayPacket_ *>(first_ray_packet.ray_packet+ i* index_count), 
+								reinterpret_cast<ispc::RayPacket *>(first_ray_packet.ray_packet+ i* index_count), 
 								reinterpret_cast<ispc::RayPacketExtras *>(first_ray_packet.extras+ i* index_count), 
 								samples_x+ sample_offset, samples_y+ sample_offset,
 								index_count,
@@ -209,12 +209,12 @@ bool Camera::GetRayPackets(CompleteRayPacket first_ray_packet, int tile_index, i
 				next_ray_packet.ray_packet->diry[k]= forward[1]+ view_plane_u[1]* -normalized_x+ view_plane_v[1]* normalized_y;
 				next_ray_packet.ray_packet->dirz[k]= forward[2]+ view_plane_u[2]* -normalized_x+ view_plane_v[2]* normalized_y;
 
-				next_ray_packet.ray_packet->tnear[k] = 0.0f;
-				next_ray_packet.ray_packet->tfar[k] = FLT_MAX;
-				next_ray_packet.ray_packet->geomID[k] = RTC_INVALID_GEOMETRY_ID;
-				next_ray_packet.ray_packet->primID[k] = RTC_INVALID_GEOMETRY_ID;
-				next_ray_packet.ray_packet->mask[k] = -1;
-				next_ray_packet.ray_packet->time[k] = 0;
+				next_ray_packet.ray_packet->tnear[k]= 0.0f;
+				next_ray_packet.ray_packet->tfar[k]= FLT_MAX;
+				next_ray_packet.ray_packet->geomID[k]= RTC_INVALID_GEOMETRY_ID;
+				next_ray_packet.ray_packet->primID[k]= RTC_INVALID_GEOMETRY_ID;
+				next_ray_packet.ray_packet->mask[k]= -1;
+				next_ray_packet.ray_packet->time[k]= 0;
 
 				next_ray_packet.extras->absorption_r[k]= 1.0f;
 				next_ray_packet.extras->absorption_g[k]= 1.0f;

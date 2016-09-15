@@ -17,7 +17,7 @@ ISPCLighting::~ISPCLighting()
 void Scene::BuildISPCLighting()
 {
 	ispc_lighting= ISPCLighting();
-	ispc_lighting.point_lights= new ispc::PointLight_[lights.size()];
+	ispc_lighting.point_lights= new ispc::PointLight[lights.size()];
 	for(unsigned int i= 0; i< lights.size(); i++)
 	{
 		Vec3f position= lights[i]->GetPosition();
@@ -104,7 +104,7 @@ void Scene::BuildISPCData()
 }
 
 #if STREAM_MODE
-#define RTC_INTERSECT_MODE RTC_INTERSECT_STREAM
+#define RTC_INTERSECT_MODE 0
 #elif defined PACKET_MODE
 #define RTC_INTERSECT_MODE JOIN(RTC_INTERSECT, PACKET_SIZE)
 #else
@@ -161,6 +161,18 @@ void Scene::AddProps(vector<Prop> props)
 {
 	for(unsigned int i= 0; i< props.size(); i++)
 		AddProp(props[i]);
+}
+
+Prop * Scene::GetProp(int geometry_id)
+{
+	for(unsigned int i= 0; i< geometry_ids.size(); i++)
+	{
+		if(geometry_id== geometry_ids[i])
+			return &(props[i]);
+	}
+
+	assert(false && "Called Scene::GetProp with invalid geometry_id.");
+	return nullptr;
 }
 
 void Scene::AddLight(Light *light)
@@ -262,8 +274,21 @@ void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
 #endif
 }
 
+void Scene::Intersect_Occlusion(Ray *rays, int count, bool is_coherent)
+{
+#if STREAM_MODE || !PACKETED_SECONDARY_RAYS
+	RTCIntersectContext context;
+	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
+	context.userRayExt= nullptr;
+
+	rtcOccluded1M(embree_scene, &context, rays, count, sizeof(Ray));
+#else
+	assert(false && "Attempted to intersect packet stream in single mode.");
+#endif
+}
+
 #define rtcOccludedPacket JOIN(rtcOccluded, PACKET_SIZE)
-void Scene::Occluded(RayPacket &ray_packet)
+void Scene::Intersect_Occlusion(RayPacket &ray_packet)
 {
 #if STREAM_MODE
 	assert(false && "Attempted to occlude single packet in stream mode.");
@@ -302,15 +327,4 @@ void Scene::Interpolate(RayPacket &ray_packet, RayPacketExtras &ray_packet_extra
 						 nullptr, nullptr, nullptr, nullptr, nullptr, 
 						 3);
 	}
-}
-
-//This is questionable
-Prop * Scene::GetProp(int geometry_id)
-{
-	for(unsigned int i= 0; i< geometry_ids.size(); i++)
-		if(geometry_id== geometry_ids[i])
-			return &(props[i]);
-
-	assert(false && "Called Scene::GetMesh with invalid geometry_id.");
-	return nullptr;
 }

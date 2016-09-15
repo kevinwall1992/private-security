@@ -4,6 +4,7 @@
 #include "Common.h"
 #include "EmbreeSystem.h"
 #include "Color.h"
+#include "Surface.h"
 
 
 #define Ray RTCRay
@@ -16,7 +17,7 @@
 #endif
 
 
-struct RayType{enum Enum {Primary, Reflection, Refraction, Indirect};};
+struct RayType{enum Enum {Primary, Reflection, Refraction, Diffuse};};
 
 struct RayExtras
 {
@@ -24,6 +25,8 @@ struct RayExtras
 	Color absorption;
 	int bounce_count;
 	RayType::Enum type;
+
+	Surface surface;
 
 	RayExtras(float x, float y, Color absorption, int bounce_count, RayType::Enum type);
 	RayExtras();

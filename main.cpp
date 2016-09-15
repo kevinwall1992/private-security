@@ -54,13 +54,15 @@ int main(int argument_count, char **arguments)
 				float pre_shading_ms= 1000* Timer::pre_shading_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
 				float shadow_ms= 1000* Timer::shadow_timer.GetElapsedSeconds()/ ((float)print_frame_count* frame_set_count);
 
+				float other_ms= (seconds_to_render* 1000)- (get_rays_ms+ embree_ms+ shading_ms+ develop_ms+ pre_shading_ms+ shadow_ms);
+
 #if PRINT_AVERAGES
 				frame_set_count++;
 #endif
 
-				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << pre_shading_ms << "ms/" << shadow_ms << "ms,";
-				cout << "Render:" << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms";
-				cout << ",Display:" << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
+				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << shading_ms << "ms/" << pre_shading_ms << "ms/" << shadow_ms << "ms," << "o:" << other_ms << "ms,";
+				cout << "Render:" << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms\n";
+				//cout << ",Display:" << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
 			}
 
 			bool exit_requested= false;
