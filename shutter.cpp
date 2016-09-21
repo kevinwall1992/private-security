@@ -8,9 +8,9 @@
 
 
 template<class T>
-T * PopFront(queue<T *> &ray_blocks, std::mutex &mutex)
+T * PopFront(queue<T *> &ray_blocks)
 {
-	mutex.lock();
+	Turn turn= Team::WaitForTurn("ray_block_exchange_queue");
 
 	T *ray_block= nullptr;
 
@@ -20,15 +20,15 @@ T * PopFront(queue<T *> &ray_blocks, std::mutex &mutex)
 		ray_blocks.pop();
 	}
 
-	mutex.unlock();
+	turn.AllDone();
 
 	return ray_block;
 }
 
 template<class T>
-T * PopFrontOrInstanciate(queue<T *> &ray_blocks, std::mutex &mutex, bool is_primary, bool is_coherent)
+T * PopFrontOrInstanciate(queue<T *> &ray_blocks, bool is_primary, bool is_coherent)
 {
-	T *ray_block= PopFront(ray_blocks, mutex);
+	T *ray_block= PopFront(ray_blocks);
 
 	if(ray_block== nullptr)
 		return new T(is_primary, is_coherent);
@@ -37,39 +37,14 @@ T * PopFrontOrInstanciate(queue<T *> &ray_blocks, std::mutex &mutex, bool is_pri
 }
 
 
-int Shutter::GetThreadIndex()
-{
-#if SERIAL_MODE
-	return 0;
-#else
-	std::thread::id thread_id= std::this_thread::get_id();
-
-	for(int i= 0; i< THREAD_COUNT; i++)
-		if(threads[i].get_id()== thread_id)
-			return i;
-
-	return -1;
-#endif
-}
-
-ShadowRayPacket * Shutter::GetShadowRayBuffer()
-{
-	return shadow_ray_buffers[GetThreadIndex()];
-}
-
-float * Shutter::GetOcclusionBuffer()
-{
-	return occlusion_buffers[GetThreadIndex()];
-}
-
 RayBlock * Shutter::TakeEmptyPrimaryRayBlock()
 {
-	return PopFront(empty_primary_ray_blocks, resource_mutex);
+	return PopFront(empty_primary_ray_blocks);
 }
 
 RayBlock * Shutter::TakeEmptySecondaryRayBlock()
 {
-	return PopFrontOrInstanciate(empty_secondary_ray_blocks, resource_mutex, false, true);
+	return PopFrontOrInstanciate(empty_secondary_ray_blocks, false, true);
 }
 
 RayBlock * Shutter::TakePartialSecondaryRayBlock()
@@ -78,7 +53,7 @@ RayBlock * Shutter::TakePartialSecondaryRayBlock()
 
 	while(ray_block== nullptr && empty_secondary_ray_blocks.size()> 0)
 	{
-		ray_block= PopFront(empty_secondary_ray_blocks, resource_mutex);
+		ray_block= PopFront(empty_secondary_ray_blocks);
 		if(ray_block->state== BlockState::Empty)
 		{
 			delete ray_block;
@@ -91,12 +66,12 @@ RayBlock * Shutter::TakePartialSecondaryRayBlock()
 
 RayBlock * Shutter::TakeFullRayBlock()
 {
-	return PopFront(full_ray_blocks, resource_mutex);
+	return PopFront(full_ray_blocks);
 }
 
 void Shutter::ReturnRayBlock(RayBlock *ray_block)
 {
-	resource_mutex.lock();
+	Turn turn= Team::WaitForTurn("ray_block_exchange_queue");
 
 	if(ray_block->state== BlockState::Full)
 		full_ray_blocks.push(ray_block);
@@ -108,28 +83,27 @@ void Shutter::ReturnRayBlock(RayBlock *ray_block)
 			empty_secondary_ray_blocks.push(ray_block);
 	}
 
-	resource_mutex.unlock();
+	turn.AllDone();
 }
 
 RayPacketBlock * Shutter::TakeEmptyPrimaryRayPacketBlock()
 {
-	return PopFront(empty_primary_ray_packet_blocks, resource_mutex);
+	return PopFront(empty_primary_ray_packet_blocks);
 }
 
 RayPacketBlock * Shutter::TakeEmptySecondaryRayPacketBlock()
 {
-	return PopFrontOrInstanciate(empty_secondary_ray_packet_blocks, resource_mutex, false, false);
+	return PopFrontOrInstanciate(empty_secondary_ray_packet_blocks, false, false);
 }
 
-//Not sure whether this is thread safe
 RayPacketBlock * Shutter::TakePartialSecondaryRayPacketBlock()
 {
 	RayPacketBlock *ray_packet_block= nullptr;
 
 	while(ray_packet_block== nullptr && empty_secondary_ray_packet_blocks.size()> 0)
 	{
-		ray_packet_block= PopFront(empty_secondary_ray_packet_blocks, resource_mutex);
-		if(ray_packet_block->state== BlockState::Empty)
+		ray_packet_block= PopFront(empty_secondary_ray_packet_blocks);
+		if(ray_packet_block!= nullptr && ray_packet_block->state== BlockState::Empty)
 		{
 			delete ray_packet_block;
 			ray_packet_block= nullptr;
@@ -141,12 +115,12 @@ RayPacketBlock * Shutter::TakePartialSecondaryRayPacketBlock()
 
 RayPacketBlock * Shutter::TakeFullRayPacketBlock()
 {
-	return PopFront(full_ray_packet_blocks, resource_mutex);
+	return PopFront(full_ray_packet_blocks);
 }
 
 void Shutter::ReturnRayPacketBlock(RayPacketBlock *ray_packet_block)
 {
-	resource_mutex.lock();
+	Turn turn= Team::WaitForTurn("ray_block_exchange_queue");
 
 	if(ray_packet_block->state== BlockState::Full)
 		full_ray_packet_blocks.push(ray_packet_block);
@@ -155,10 +129,13 @@ void Shutter::ReturnRayPacketBlock(RayPacketBlock *ray_packet_block)
 	else
 		empty_secondary_ray_packet_blocks.push(ray_packet_block);
 
-	resource_mutex.unlock();
+	turn.AllDone();
 }
 
 Shutter::Shutter(Camera *camera_)
+#if SERIAL_MODE == 0
+	: team(THREAD_COUNT)
+#endif
 {
 	camera= camera_;
 
@@ -168,12 +145,7 @@ Shutter::Shutter(Camera *camera_)
 	int shadow_ray_buffer_size= (int)(RAY_PACKET_BLOCK_SIZE* ratio)+ 1;
 
 	for(int i= 0; i< THREAD_COUNT; i++)
-	{
 		empty_primary_ray_packet_blocks.push(new RayPacketBlock(true, true));
-
-		shadow_ray_buffers.push_back(new ShadowRayPacket[shadow_ray_buffer_size]);
-		occlusion_buffers.push_back(new float[RAY_PACKET_BLOCK_SIZE* PACKET_SIZE]);
-	}
 
 #else
 	for(int i= 0; i< THREAD_COUNT; i++)
@@ -189,12 +161,6 @@ Shutter::~Shutter()
 	{
 		delete empty_primary_ray_packet_blocks.front();
 		empty_primary_ray_packet_blocks.pop();
-	}
-
-	for(int i= 0; i< THREAD_COUNT; i++)
-	{
-		delete shadow_ray_buffers[i];
-		delete occlusion_buffers[i];
 	}
 
 #else
@@ -221,10 +187,10 @@ void Shutter::ReportNoisyReceptors(int *indices, int count)
 
 void Shutter::Refill(RayBlock *primary_ray_block)
 {
-	int camera_tile_index= next_camera_tile_index++;
+	int camera_tile_index= Team::TakeANumber("next_camera_tile_index");
 	bool successful= camera->GetRays(primary_ray_block->rays+ primary_ray_block->front_index, camera_tile_index);
 	if(successful)
-		primary_ray_block->front_index+= RAY_BLOCK_SIZE;//assumes blocks fit perfectly
+		primary_ray_block->front_index+= RAY_BLOCK_SIZE;
 
 	primary_ray_block->is_coherent= true;
 	if(primary_ray_block->front_index== 0)
@@ -240,7 +206,7 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 	ReturnRayBlock(primary_ray_block);
 }
 
-void ShadingKernel(Ray &ray, float *occlusions, Film *film, Scene *scene)
+void ShadingKernel(Ray &ray, float *occlusions, vector<Light *> &lights, vector<AmbientLight *> &ambient_lights, Film *film, Scene *scene)
 {
 	if(ray.geomID== RTC_INVALID_GEOMETRY_ID)
 		return;
@@ -249,27 +215,23 @@ void ShadingKernel(Ray &ray, float *occlusions, Film *film, Scene *scene)
 
 	Color color= Color(0, 0, 0);
 
-	vector<Light *> *lights= scene->GetLights();
-	for(unsigned int i= 0; i< lights->size(); i++)
+	for(unsigned int i= 0; i< lights.size(); i++)
 	{
 		float occlusion= occlusions[i];
 		if(occlusion<= 0)
 			continue;
 		
-		color+= (*lights)[i]->GetLuminosity(ray.surface.position)* occlusion* material->diffuse;
+		color+= lights[i]->GetLuminosity(ray.surface.position)* occlusion* material->diffuse;
 	}
 
-	vector<AmbientLight *> *ambient_lights= scene->GetAmbientLights();
-	for(unsigned int i= 0; i< ambient_lights->size(); i++)
-		color+= (*ambient_lights)[i]->GetLuminosity(ray.surface.position);
+	for(unsigned int i= 0; i< ambient_lights.size(); i++)
+		color+= ambient_lights[i]->GetLuminosity(ray.surface.position);
 
 	film->Stimulate(ray.x, ray.y, color* ray.absorption);
 }
 
-//We are currently computing occlusions for failed hits...
 void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 {
-
 	//Intersection
 
 	Timer::embree_timer.Start();
@@ -319,13 +281,14 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 	//Shadows
 
+	vector<Light *> lights= scene->GetLights();
+	vector<AmbientLight *> ambient_lights= scene->GetAmbientLights();
+	float *occlusions= Team::GetBuffer<float>("occlusion_buffer", RAY_BLOCK_SIZE* lights.size());
+	ShadowRay *shadow_rays= Team::GetBuffer<ShadowRay>("shadow_ray_buffer", RAY_BLOCK_SIZE);
+
 	Timer::shadow_timer.Start();
 
-	vector<Light *> *lights= scene->GetLights();
-	float *occlusions= GetOcclusionBuffer();
-	ShadowRay *shadow_rays= reinterpret_cast<ShadowRay *>(this->GetShadowRayBuffer());
-
-	for(int light_index= 0; light_index< lights->size(); light_index++)
+	for(int light_index= 0; light_index< lights.size(); light_index++)
 	{
 		float geometry_terms[RAY_BLOCK_SIZE];
 		int ray_indices[RAY_BLOCK_SIZE];
@@ -338,12 +301,12 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 			if(ray->geomID== RTC_INVALID_GEOMETRY_ID)
 				continue;
 
-			Vec3f direction= -(*lights)[light_index]->SampleDirectionAtPoint(ray->surface.position);
+			Vec3f direction= -lights[light_index]->SampleDirectionAtPoint(ray->surface.position);
 			float geometry_term= dot(normalize(direction), ray->surface.normal);
 
 			if(geometry_term< 0)
 			{
-				occlusions[i* lights->size()+ light_index]= 0.0f;
+				occlusions[i* lights.size()+ light_index]= 0.0f;
 				continue;
 			}
 
@@ -368,7 +331,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		for(int i= 0; i< shadow_ray_count; i++)
 		{
 			int ray_index= ray_indices[i];
-			int occlusion_index= ray_index* lights->size()+ light_index;
+			int occlusion_index= ray_index* lights.size()+ light_index;
 
 			if(shadow_rays[i].geomID== 0)
 				occlusions[occlusion_index]= 0.0f;
@@ -390,7 +353,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		if(ray_block->rays[i].geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
-		ShadingKernel(ray_block->rays[i], occlusions+ i* lights->size(), film, scene);
+		ShadingKernel(ray_block->rays[i], occlusions+ i* lights.size(), lights, ambient_lights, film, scene);
 		rays_processed_count++;
 	}
 
@@ -404,14 +367,14 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 void Shutter::Develop(Film *film)
 {
-	int film_interval_index= next_film_interval_index++;
+	int film_interval_index= Team::TakeANumber("next_film_interval_index");
 	develop_finished= !film->Develop_Parallel(film_interval_index);
 	film->Clear_Parallel(film_interval_index);
 }
 
 void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 {
-	int camera_tile_index= next_camera_tile_index++;
+	int camera_tile_index= Team::TakeANumber("next_camera_tile_index");
 	bool successful= camera->GetRayPackets(primary_ray_packet_block->GetFront(), camera_tile_index);
 	if(successful)
 	{
@@ -427,7 +390,7 @@ void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 
 		int sample_set_count= ADDITIONAL_SAMPLES_PER_PIXEL/ MIN_SAMPLES_PER_PIXEL;
 		int interval_size= RAY_PACKET_BLOCK_SIZE/ sample_set_count;
-		int offset= std::atomic_fetch_add(&next_noisy_receptors_interval_index, 1)* interval_size;
+		int offset= Team::TakeANumber("next_noisy_receptors_interval_index")* interval_size;
 		int index_count= std::min((noisy_receptors_front- offset), interval_size);
 		if(offset< noisy_receptors_front)
 		{
@@ -447,6 +410,7 @@ void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 	ReturnRayPacketBlock(primary_ray_packet_block);
 }
 
+#if ISPC_SHADING == 0
 void PacketedShadingKernel(RayPacket &ray_packet, Film *film, Scene *scene)
 {
 	for(int i= 0; i< PACKET_SIZE; i++)
@@ -468,9 +432,9 @@ void PacketedShadingKernel(RayPacket &ray_packet, Film *film, Scene *scene)
 		vector<Light *> *lights= scene->GetLights();
 		for(unsigned int j= 0; j< lights->size(); j++)
 		{
-			float geometry_term= dot(surface.normal, normalize(-(*lights)[j]->SampleDirectionAtPoint(surface.position, 0)));
+			float geometry_term= dot(surface.normal, normalize(-(*lights[j])->SampleDirectionAtPoint(surface.position, 0)));
 
-			color+= (*lights)[j]->GetLuminosity(surface.position)* geometry_term;
+			color+= (*lights[j])->GetLuminosity(surface.position)* geometry_term;
 		}
 
 		vector<AmbientLight *> *ambient_lights= scene->GetAmbientLights();
@@ -484,6 +448,7 @@ void PacketedShadingKernel(RayPacket &ray_packet, Film *film, Scene *scene)
 		film->Stimulate(ray_packet.x[i], ray_packet.y[i], color);
 	}
 }
+#endif
 
 void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film *film)
 {
@@ -498,8 +463,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 		scene->Intersect(ray_packet_block->ray_packets[i]);
 
 		//Preshading - Interpolation
-		//Cannot time because too deep in loop
-		//Really slow anyways, keeping for testing derivative solutions in the future
 #if ISPC_INTERPOLATION == 0
 		scene->Interpolate(ray_packet_block->ray_packets[i], ray_packet_block->ray_packet_extrass[i]);
 #endif
@@ -510,6 +473,11 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	//Shadows
 
 	//Preshading - Interpolation
+
+	ISPCLighting *lighting= scene->GetISPCLighting();
+	float *occlusion_buffer= Team::GetBuffer<float>("occlusion_buffer", RAY_PACKET_BLOCK_SIZE* PACKET_SIZE* lighting->point_light_count);
+	ispc::ShadowRayPacket *shadow_ray_packet_buffer= reinterpret_cast<ispc::ShadowRayPacket *>(Team::GetBuffer<ispc::ShadowRayPacket>("shadow_ray_buffer", RAY_PACKET_BLOCK_SIZE));
+
 	Timer::pre_shading_timer.Start();
 #if ISPC_INTERPOLATION
 	ISPCMesh *meshes= scene->GetISPCMeshes();
@@ -522,14 +490,13 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	Timer::pre_shading_timer.Pause();
 
 	//Shadows
-	ISPCLighting *lighting= scene->GetISPCLighting();
-	float *occlusion_buffer= GetOcclusionBuffer();
+	
 
 	Timer::shadow_timer.Start();
 	ispc::ComputeOcclusions(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
 							ray_packet_block->front_index,
 							lighting, 
-							reinterpret_cast<ispc::ShadowRayPacket *>(GetShadowRayBuffer()), 
+							shadow_ray_packet_buffer, 
 							reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()),
 							occlusion_buffer);
 	Timer::shadow_timer.Pause();
@@ -538,8 +505,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	Timer::shading_timer.Start();
 #if ISPC_SHADING
 	ISPCMaterial *materials= scene->GetISPCMaterials();
-
-	//RayPacketBlock *secondary_ray_packet_block= TakeEmptySecondaryRayPacketBlock();
 
 	if(!ray_packet_block->is_additional)
 	{
@@ -630,12 +595,6 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #endif
 	}
 
-	/*if(secondary_ray_packet_block->front_index>= (int)(RAY_PACKET_BLOCK_SIZE* 0.9f))
-		secondary_ray_packet_block->state= BlockState::Full;
-	else if(secondary_ray_packet_block->front_index> 0)
-		secondary_ray_packet_block->state= BlockState::Partial;
-	ReturnRayPacketBlock(secondary_ray_packet_block);*/
-
 #else
 	int ray_packets_processed_count= 0;
 	for(unsigned int i= 0; i< ray_packet_block->front_index; i++)
@@ -657,7 +616,7 @@ Task Shutter::GetTask()
 {
 	Task task;
 
-	task_mutex.lock();//Test out removing this mutex after redesign finished
+	Turn turn= Team::WaitForTurn("task_queue");
 
 #if PACKET_MODE
 
@@ -698,7 +657,7 @@ Task Shutter::GetTask()
 	}
 #endif
 
-	task_mutex.unlock();
+	turn.AllDone();
 
 	return task;
 }
@@ -709,15 +668,9 @@ void Shutter::Reset()
 	additional_samples_exhausted= false;
 	develop_finished= false;
 
-	next_camera_tile_index= 0;
-	next_film_interval_index= 0;
-
-	barrier.Reset();
-
 	if(noisy_receptors== nullptr)
 		noisy_receptors= new int[camera->film->width* camera->film->height];
 	noisy_receptors_front= 0;
-	next_noisy_receptors_interval_index= 0;
 }
 
 void Shutter::TaskLoop(Scene *scene)
@@ -730,7 +683,6 @@ void Shutter::TaskLoop(Scene *scene)
 		switch(task.type)
 		{
 		case TaskType::Refill:
-			//This is getting ridiculous...
 			if(task.is_packeted)
 				PacketedRefill(task.refill.primary_ray_packet_block);
 			else
@@ -748,7 +700,7 @@ void Shutter::TaskLoop(Scene *scene)
 		}
 	}
 
-	barrier.Wait();
+	Team::WaitForOthers();
 
 	while(true)
 	{
@@ -773,14 +725,9 @@ void Shutter::Open(Scene &scene)
 	Reset();
 
 #if SERIAL_MODE
-	TaskLoop(&scene);
-
+	Team::GetMyTeam()->Assign(&Shutter::TaskLoop, this, &scene);
 #else
-	for(int i= 0; i< THREAD_COUNT; i++)
-		threads[i]= std::thread(&Shutter::TaskLoop, this, &scene);
-	for(int i= 0; i< THREAD_COUNT; i++)
-		threads[i].join();
-
+	team.Assign(&Shutter::TaskLoop, this, &scene);
 #endif
 }
 

@@ -41,8 +41,8 @@ public:
 	Prop * GetProp(int geometry_id);
 
 	void AddLight(Light *light);
-	vector<Light *> * GetLights();
-	vector<AmbientLight *> * GetAmbientLights();
+	vector<Light *> GetLights();
+	vector<AmbientLight *> GetAmbientLights();
 
 	ISPCLighting * GetISPCLighting();
 	ISPCMesh * GetISPCMeshes();

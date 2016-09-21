@@ -183,14 +183,14 @@ void Scene::AddLight(Light *light)
 		lights.push_back(light);
 }
 
-vector<Light *> * Scene::GetLights()
+vector<Light *> Scene::GetLights()
 {
-	return &lights;
+	return lights;
 }
 
-vector<AmbientLight *> * Scene::GetAmbientLights()
+vector<AmbientLight *> Scene::GetAmbientLights()
 {
-	return &ambient_lights;
+	return ambient_lights;
 }
 
 ISPCLighting * Scene::GetISPCLighting()

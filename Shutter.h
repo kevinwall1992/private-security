@@ -22,7 +22,11 @@ class Shutter
 {
 	Camera *camera;
 
-	queue<RayBlock *> empty_primary_ray_blocks; 
+#if SERIAL_MODE == 0
+	Team team;
+#endif
+
+	queue<RayBlock *> empty_primary_ray_blocks;
 	queue<RayBlock *> empty_secondary_ray_blocks; 
 	queue<RayBlock *> full_ray_blocks;
 
@@ -32,29 +36,11 @@ class Shutter
 
 	int *noisy_receptors= nullptr;
 	std::atomic_int noisy_receptors_front;
-	std::atomic_int next_noisy_receptors_interval_index;
-
-	std::thread threads[THREAD_COUNT];
-	
-	std::atomic_int next_camera_tile_index;
-	std::atomic_int next_film_interval_index;
 
 	bool initial_samples_exhausted;
 	bool additional_samples_exhausted;
 	bool develop_finished;
 
-	std::mutex task_mutex;
-	std::mutex resource_mutex;
-
-	Barrier barrier;
-
-	vector<ShadowRayPacket *> shadow_ray_buffers;
-	vector<float *> occlusion_buffers;
-
-
-	int GetThreadIndex();
-	ShadowRayPacket * GetShadowRayBuffer();
-	float * GetOcclusionBuffer();
 
 	void ReportNoisyReceptors(int *indices, int count);
 
@@ -70,12 +56,15 @@ class Shutter
 	RayPacketBlock * TakeFullRayPacketBlock();
 	void ReturnRayPacketBlock(RayPacketBlock *ray_packet_block);
 
+
 	void Refill(RayBlock *primary_ray_block);
 	void Shade(RayBlock *ray_block, Scene *scene, Film *film);
-	void Develop(Film *film);
 
 	void PacketedRefill(RayPacketBlock *primary_ray_packet_block);
 	void PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film *film);
+
+	void Develop(Film *film);
+
 
 	Task GetTask();
 	void TaskLoop(Scene *scene);
@@ -92,7 +81,6 @@ public:
 
 struct BlockState{enum Enum {Empty, Partial, Full};};
 
-//Add GetFront()?
 struct RayBlock
 {
 	Ray rays[RAY_BLOCK_SIZE];
@@ -128,15 +116,6 @@ struct RayPacketBlock
 
 	RayPacket * GetFront();
 };
-
-/*#define SHADOW_BLOCKS_PER_RAY_BLOCK 1
-#define SHADOW_BLOCK_SIZE (RAY_BLOCK_SIZE/ SHADOW_BLOCKS_PER_RAY_BLOCK)
-struct ShadowBlock
-{
-	Ray *hits;
-	RayBlock *ray_block;
-};*/
-
 
 struct TaskType{enum Enum {None, Refill, Shade, Develop};};
 

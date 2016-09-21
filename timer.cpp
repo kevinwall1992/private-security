@@ -45,10 +45,12 @@ float Timer::Stop()
 		elapsed_milliseconds+= SDL_GetTicks()- last_ticks;
 
 	is_stopped= true;
+	is_paused= false;
 
 	return GetElapsedSeconds();
 }
 
+//this should probably add time if you aren't paused or stopped
 float Timer::GetElapsedSeconds()
 {
 	return elapsed_milliseconds / 1000.0f;
