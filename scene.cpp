@@ -274,21 +274,21 @@ void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
 #endif
 }
 
-void Scene::Intersect_Occlusion(ShadowRay *rays, int count, bool is_coherent)
+void Scene::Intersect_Visibility(VisibilityRay *rays, int count, bool is_coherent)
 {
 #if STREAM_MODE || !PACKETED_SECONDARY_RAYS
 	RTCIntersectContext context;
 	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
 	context.userRayExt= nullptr;
 
-	rtcOccluded1M(embree_scene, &context, rays, count, sizeof(Ray));
+	rtcOccluded1M(embree_scene, &context, rays, count, sizeof(VisibilityRay));
 #else
 	assert(false && "Attempted to intersect packet stream in single mode.");
 #endif
 }
 
 #define rtcOccludedPacket JOIN(rtcOccluded, PACKET_SIZE)
-void Scene::Intersect_Occlusion(ShadowRayPacket &ray_packet)
+void Scene::Intersect_Visibility(VisibilityRayPacket &ray_packet)
 {
 #if STREAM_MODE
 	assert(false && "Attempted to occlude single packet in stream mode.");

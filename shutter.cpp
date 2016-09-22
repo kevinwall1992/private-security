@@ -140,7 +140,7 @@ Shutter::Shutter(Camera *camera_)
 	camera= camera_;
 
 #if PACKET_MODE
-	float ratio= sizeof(ShadowRayPacket)/ (float)(sizeof(ShadowRay)* PACKET_SIZE);
+	float ratio= sizeof(VisibilityRayPacket)/ (float)(sizeof(VisibilityRay)* PACKET_SIZE);
 	ratio= std::max(ratio, 1/ ratio);
 	int shadow_ray_buffer_size= (int)(RAY_PACKET_BLOCK_SIZE* ratio)+ 1;
 
@@ -206,7 +206,7 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 	ReturnRayBlock(primary_ray_block);
 }
 
-void ShadingKernel(Ray &ray, float *occlusions, vector<Light *> &lights, vector<AmbientLight *> &ambient_lights, Film *film, Scene *scene)
+void ShadingKernel(Ray &ray, vector<Light *> &lights, vector<AmbientLight *> &ambient_lights, Film *film, Scene *scene)
 {
 	if(ray.geomID== RTC_INVALID_GEOMETRY_ID)
 		return;
@@ -217,11 +217,11 @@ void ShadingKernel(Ray &ray, float *occlusions, vector<Light *> &lights, vector<
 
 	for(unsigned int i= 0; i< lights.size(); i++)
 	{
-		float occlusion= occlusions[i];
-		if(occlusion<= 0)
+		float light_coefficient= ray.light_coefficients[i];
+		if(light_coefficient<= 0)
 			continue;
 		
-		color+= lights[i]->GetLuminosity(ray.surface.position)* occlusion* material->diffuse;
+		color+= lights[i]->GetLuminosity(ray.surface.position)* light_coefficient* material->diffuse;
 	}
 
 	for(unsigned int i= 0; i< ambient_lights.size(); i++)
@@ -283,8 +283,10 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 	vector<Light *> lights= scene->GetLights();
 	vector<AmbientLight *> ambient_lights= scene->GetAmbientLights();
-	float *occlusions= Team::GetBuffer<float>("occlusion_buffer", RAY_BLOCK_SIZE* lights.size());
-	ShadowRay *shadow_rays= Team::GetBuffer<ShadowRay>("shadow_ray_buffer", RAY_BLOCK_SIZE);
+	float *light_coefficients= Team::GetBuffer<float>("light_coefficient_buffer", RAY_BLOCK_SIZE* lights.size());
+	VisibilityRay *shadow_rays= Team::GetBuffer<VisibilityRay>("shadow_ray_buffer", RAY_BLOCK_SIZE);
+	for(int i= 0; i< ray_block->front_index; i++)
+		ray_block->rays[i].light_coefficients= light_coefficients+ i* lights.size();
 
 	Timer::shadow_timer.Start();
 
@@ -306,7 +308,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 			if(geometry_term< 0)
 			{
-				occlusions[i* lights.size()+ light_index]= 0.0f;
+				ray_block->rays[i].light_coefficients[light_index]= 0.0f;
 				continue;
 			}
 
@@ -326,17 +328,16 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 			shadow_rays[shadow_ray_index].time= 0;
 		}
 
-		scene->Intersect_Occlusion(shadow_rays, shadow_ray_count, ray_block->is_coherent);
+		scene->Intersect_Visibility(shadow_rays, shadow_ray_count, ray_block->is_coherent);
 
 		for(int i= 0; i< shadow_ray_count; i++)
 		{
 			int ray_index= ray_indices[i];
-			int occlusion_index= ray_index* lights.size()+ light_index;
 
 			if(shadow_rays[i].geomID== 0)
-				occlusions[occlusion_index]= 0.0f;
+				ray_block->rays[ray_index].light_coefficients[light_index]= 0.0f;
 			else
-				occlusions[occlusion_index]= geometry_terms[i];
+				ray_block->rays[ray_index].light_coefficients[light_index]= geometry_terms[i];
 		}
 	}
 
@@ -353,7 +354,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		if(ray_block->rays[i].geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
-		ShadingKernel(ray_block->rays[i], occlusions+ i* lights.size(), lights, ambient_lights, film, scene);
+		ShadingKernel(ray_block->rays[i], lights, ambient_lights, film, scene);
 		rays_processed_count++;
 	}
 
@@ -475,8 +476,10 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	//Preshading - Interpolation
 
 	ISPCLighting *lighting= scene->GetISPCLighting();
-	float *occlusion_buffer= Team::GetBuffer<float>("occlusion_buffer", RAY_PACKET_BLOCK_SIZE* PACKET_SIZE* lighting->point_light_count);
-	ispc::ShadowRayPacket *shadow_ray_packet_buffer= reinterpret_cast<ispc::ShadowRayPacket *>(Team::GetBuffer<ispc::ShadowRayPacket>("shadow_ray_buffer", RAY_PACKET_BLOCK_SIZE));
+	float *light_coefficient_buffer= Team::GetBuffer<float>("light_coefficient_buffer", RAY_PACKET_BLOCK_SIZE* PACKET_SIZE* lighting->point_light_count);
+	ispc::VisibilityRayPacket *shadow_ray_packet_buffer= reinterpret_cast<ispc::VisibilityRayPacket *>(Team::GetBuffer<ispc::VisibilityRayPacket>("shadow_ray_buffer", RAY_PACKET_BLOCK_SIZE));
+	for(int i= 0; i< ray_packet_block->front_index; i++)
+		ray_packet_block->ray_packets[i].light_coefficients= light_coefficient_buffer+ i* PACKET_SIZE* lighting->point_light_count;
 
 	Timer::pre_shading_timer.Start();
 #if ISPC_INTERPOLATION
@@ -493,12 +496,11 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	
 
 	Timer::shadow_timer.Start();
-	ispc::ComputeOcclusions(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
+	ispc::ComputeLightCoefficients(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
 							ray_packet_block->front_index,
 							lighting, 
 							shadow_ray_packet_buffer, 
-							reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()),
-							occlusion_buffer);
+							reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()));
 	Timer::shadow_timer.Pause();
 
 	//Shading
@@ -526,10 +528,9 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 			ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets+ total_rays_shaded_count), 
 										ray_packet_block->front_index- total_rays_shaded_count, 
 										&rays_shaded_count,
-										film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts, 
-										film->width, 
-										lighting, occlusion_buffer+ total_rays_shaded_count* PACKET_SIZE* lighting->point_light_count, 
-										materials, 
+										film->receptors_r, film->receptors_g, film->receptors_b, 
+										film->sample_counts, film->width, 
+										lighting, materials, 
 										camera->GetFilteringKernels(), 
 										noisy_receptors, &noisy_receptors_count, 
 										reinterpret_cast<ispc::RayPacket *>(secondary_ray_packet_block->ray_packets), 
@@ -546,10 +547,9 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 			ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets+ total_rays_shaded_count), 
 										ray_packet_block->front_index- total_rays_shaded_count, 
 										&rays_shaded_count,
-										film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts, 
-										film->width, 
-										lighting, occlusion_buffer+ total_rays_shaded_count* PACKET_SIZE* lighting->point_light_count, 
-										materials, 
+										film->receptors_r, film->receptors_g, film->receptors_b, 
+										film->sample_counts, film->width, 
+										lighting, materials, 
 										camera->GetFilteringKernels(), 
 										noisy_receptors, &noisy_receptors_count, 
 										reinterpret_cast<ispc::Ray *>(secondary_ray_block->rays), 
@@ -570,7 +570,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									ray_packet_block->front_index, 
 									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts, 
 									film->width, 
-									lighting, occlusion_buffer, 
+									lighting, light_coefficient_buffer, 
 									materials, 
 									camera->GetFilteringKernels(), 
 									noisy_receptors, &noisy_receptors_count, 
@@ -587,7 +587,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 									ray_packet_block->front_index,
 									film->receptors_r, film->receptors_g, film->receptors_b, film->sample_counts,
 									film->width,
-									lighting, occlusion_buffer,
+									lighting, light_coefficient_buffer,
 									materials, 
 									nullptr,
 									nullptr, nullptr, 

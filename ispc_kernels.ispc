@@ -15,15 +15,8 @@ struct Vec3f
 #include <embree2\rtcore.isph>
 #include <embree2\rtcore_ray.isph>
 
-//#define RTC_INVALID_GEOMETRY_ID ((unsigned int)-1)
 
-//Want some way to 1) make my classes standard across ISPC and C++, and
-//2) Not have to update my RTC structures when embree changes
-//Can accomplish 2 by figuring out how to include embree's ISPC interface
-//Can accomplish 1 by having mangled name base class in C format and then derive
-//In C++ with correct name, typedef it here.
-
-struct ShadowRay
+struct VisibilityRay
 {
 	float org[3];
 	float align0;
@@ -52,19 +45,7 @@ struct ShadowRay
 	int8 padding[96- 84];
 };
 
-struct RayExtras
-{
-	float x, y;
-	float absorption[3];
-	int bounce_count;
-	int type;
-
-	float surface_position[3];
-	float surface_normal[3];
-	intptr_t material;
-};
-
-struct ShadowRayPacket
+struct VisibilityRayPacket
 {
 	float orgx[PACKET_SIZE];
 	float orgy[PACKET_SIZE];
@@ -93,23 +74,47 @@ struct ShadowRayPacket
 	unsigned int instID[PACKET_SIZE]; 
 };
 
-//what would be the benefit of aligning this?
-struct RayPacketExtras
+struct Ray
 {
-	float x[PACKET_SIZE], y[PACKET_SIZE];
-	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
-	int bounce_count[PACKET_SIZE];
-	int type[PACKET_SIZE];
+	float org[3];
+	float align0;
+  
+	float dir[3];
+	float align1;
+  
+	float tnear;
+	float tfar;
 
-	float surface_position_x[PACKET_SIZE];
-	float surface_position_y[PACKET_SIZE];
-	float surface_position_z[PACKET_SIZE];
+	float time;
+	unsigned int mask;
+  
 
-	float surface_normal_x[PACKET_SIZE];
-	float surface_normal_y[PACKET_SIZE];
-	float surface_normal_z[PACKET_SIZE];
+	float Ng[3];
+	float align2;
+  
+	float u;
+	float v;
 
-	int material_id[PACKET_SIZE];
+	unsigned int geomID;
+	unsigned int primID;
+	unsigned int instID;
+
+
+	float x, y;
+	float absorption[3];
+	int bounce_count;
+	int type;
+
+	float surface_position[3];
+	float surface_normal[3];
+	intptr_t material;
+
+	//This probably screws up alignment, but I'm not testing 
+	//this until it becomes relevant.
+	float *light_coefficients;
+
+	int8 padding[8];
+
 };
 
 struct RayPacket
@@ -155,42 +160,9 @@ struct RayPacket
 	float surface_normal_z[PACKET_SIZE];
 
 	int material_id[PACKET_SIZE];
-};
 
-struct Ray
-{
-	float org[3];
-	float align0;
-  
-	float dir[3];
-	float align1;
-  
-	float tnear;
-	float tfar;
-
-	float time;
-	unsigned int mask;
-  
-
-	float Ng[3];
-	float align2;
-  
-	float u;
-	float v;
-
-	unsigned int geomID;
-	unsigned int primID;
-	unsigned int instID;
-
-
-	float x, y;
-	float absorption[3];
-	int bounce_count;
-	int type;
-
-	float surface_position[3];
-	float surface_normal[3];
-	intptr_t material;
+	float *light_coefficients;
+	int8 padding[24];
 };
 
 //check that short vectors are as good as arrays
@@ -482,7 +454,7 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 								  int * uniform packets_shaded_count, 
 								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
 								  uniform int film_width,
-								  Lighting * uniform lighting, uniform float occlusions[],
+								  Lighting * uniform lighting,
 								  uniform PhongMaterial materials[],
 								  uniform float filtering_kernels[],
 								  uniform int noisy_receptors[], uniform int noisy_receptor_count[], 
@@ -542,8 +514,8 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 											   position[2]+ normal[2]* 0.015f};
 
 				float dot= (ray_packets[i].dirx[programIndex]* normal[0]+ 
-						   ray_packets[i].diry[programIndex]* normal[1]+ 
-						   ray_packets[i].dirz[programIndex]* normal[2])* 2;
+						    ray_packets[i].diry[programIndex]* normal[1]+ 
+						    ray_packets[i].dirz[programIndex]* normal[2])* 2;
 
 				float<3> reflection_direction= {ray_packets[i].dirx[programIndex]- normal[0]* dot, 
 											    ray_packets[i].diry[programIndex]- normal[1]* dot, 
@@ -590,10 +562,12 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 					}
 
 #else
-					float occlusion= occlusions[i* PACKET_SIZE* lighting->point_light_count+ j* PACKET_SIZE+ programIndex];
-					color[0]+= lighting->point_lights[j].intensity[0]* occlusion;
-					color[1]+= lighting->point_lights[j].intensity[1]* occlusion;
-					color[2]+= lighting->point_lights[j].intensity[2]* occlusion;
+					//Have to do it this way or ISPC compiler gets confused an orders a gather.
+					float light_coefficient= (ray_packets[i].light_coefficients+ j* PACKET_SIZE)[programIndex];
+
+					color[0]+= lighting->point_lights[j].intensity[0]* light_coefficient;
+					color[1]+= lighting->point_lights[j].intensity[1]* light_coefficient;
+					color[2]+= lighting->point_lights[j].intensity[2]* light_coefficient;
 
 #endif
 				}
@@ -742,7 +716,6 @@ export void Clear(uniform float receptors_r[], uniform float receptors_g[], unif
 }
 #endif
 
-//Assuming only one geometry for now
 #if ISPC_INTERPOLATION
 export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_count,
 	                    uniform Mesh meshes[], uniform int material_ids[])
@@ -760,8 +733,6 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 		float u= ray_packets[i].u[programIndex];
 		float v= ray_packets[i].v[programIndex];
 		float w= 1- u- v;
-
-		//print("u: %,\nv: %,\nw: %\n\n", u, v, w);
 
 		//ugh, have to repeat code 4 times...
 		int geometry_id= ray_packets[i].geomID[programIndex];
@@ -793,7 +764,6 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 			{
 				foreach_unique(unique_primitive_id in primitive_id)
 				{
-					//Not sure if this is right... is it uniform since all active programs share primitive id?
 					uniform int normal0_index= normal_indices[unique_primitive_id* 3+ 0];
 					uniform int normal1_index= normal_indices[unique_primitive_id* 3+ 1];
 					uniform int normal2_index= normal_indices[unique_primitive_id* 3+ 2];
@@ -863,12 +833,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 
 #endif
 
-export void ComputeOcclusions(uniform RayPacket ray_packets[], 
+export void ComputeLightCoefficients(uniform RayPacket ray_packets[], 
 								uniform int packet_count,
 								Lighting * uniform lighting, 
-								uniform ShadowRayPacket shadow_ray_packets[],
-								RTCScene * uniform embree_scene,
-								uniform float occlusions[])
+								uniform VisibilityRayPacket shadow_ray_packets[],
+								RTCScene * uniform embree_scene)
 {
 #if 0
 	for(uniform int light_index= 0; light_index< lighting->point_light_count; light_index++)
@@ -905,12 +874,12 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 
 			if(all(geometry_term< 0))
 			{
-				occlusions[i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE+ programIndex]= 0.0f;
+				light_coefficients[i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE+ programIndex]= 0.0f;
 				continue;
 			}
 
 
-			uniform ShadowRayPacket shadow_packet;
+			uniform VisibilityRayPacket shadow_packet;
 
 			cif(geometry_term< 0)
 			{
@@ -961,8 +930,8 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 			rtcOccludedNM(*embree_scene, &context, (RTCRayN *)(&shadow_packet), PACKET_SIZE, 1, sizeof(RayPacket)/ 8);
 
 
-			uniform int occlusion_offset= i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
-			occlusions[occlusion_offset+ programIndex]= shadow_packet.geomID[programIndex]== 0 ? 0.0f : geometry_term;
+			uniform int light_coefficient_offset= i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
+			light_coefficients[light_coefficient_offset+ programIndex]= shadow_packet.geomID[programIndex]== 0 ? 0.0f : geometry_term;
 		}
 	}
 
@@ -980,6 +949,8 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 		{
 			cif(ray_packets[packet_index].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID  || ray_packets[packet_index].mask[programIndex]!= -1)
 				continue;
+
+			//uniform float * uniform light_coefficients= ray_packets[packet_index].light_coefficients+ light_index* PACKET_SIZE;
 
 			float<3> surface_normal= {ray_packets[packet_index].surface_normal_x[programIndex], 
 			                          ray_packets[packet_index].surface_normal_y[programIndex],
@@ -1006,7 +977,7 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 
 			if(all(geometry_term< 0))
 			{
-				occlusions[packet_index* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE+ programIndex]= 0.0f;
+				(ray_packets[packet_index].light_coefficients+ light_index* PACKET_SIZE)[programIndex]= 0.0f;
 				continue;
 			}
 
@@ -1053,22 +1024,24 @@ export void ComputeOcclusions(uniform RayPacket ray_packets[],
 		uniform RTCIntersectContext context;
 		context.flags= RTC_INTERSECT_COHERENT;
 		context.userRayExt= NULL;
-		rtcOccludedNM(*embree_scene, &context, (RTCRayN *)shadow_ray_packets, PACKET_SIZE, shadow_packet_count, sizeof(ShadowRayPacket)/ 8);
+		rtcOccludedNM(*embree_scene, &context, (RTCRayN *)shadow_ray_packets, PACKET_SIZE, shadow_packet_count, sizeof(VisibilityRayPacket)/ 8);
 
 		for(uniform int shadow_packet_index= 0; shadow_packet_index< shadow_packet_count; shadow_packet_index++)
 		{
 			uniform int packet_index= packet_indices[shadow_packet_index];
 
-			float occlusion;
+			//uniform float * uniform light_coefficients= ray_packets[packet_index].light_coefficients+ light_index* PACKET_SIZE;
+
+			float light_coefficient;
 			cif(shadow_ray_packets[shadow_packet_index].geomID[programIndex]== 0)
-				occlusion= 0.0f;
+				light_coefficient= 0.0f;
 			else
-				occlusion= geometry_terms[packet_index* PACKET_SIZE+ programIndex];
+				light_coefficient= geometry_terms[packet_index* PACKET_SIZE+ programIndex];
 
-			//occlusion= geometry_terms[packet_indices[packet_index]* PACKET_SIZE+ programIndex];
+			//light_coefficient= geometry_terms[packet_indices[packet_index]* PACKET_SIZE+ programIndex];
 
-			uniform int occlusion_offset= packet_index* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
-			occlusions[occlusion_offset+ programIndex]= occlusion;
+			//uniform int light_coefficient_offset= light_index* PACKET_SIZE;
+			(ray_packets[packet_index].light_coefficients+ light_index* PACKET_SIZE)[programIndex]= light_coefficient;
 		}
 	}
 #endif

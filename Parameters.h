@@ -2,7 +2,7 @@
 #define PACKET_SIZE 8
 
 //Might consider renaming min as sample set size or something
-//OR maybe pixels per packet maybe
+//Or maybe pixels per packet maybe
 #define MIN_SAMPLES_PER_PIXEL 8
 #define ADDITIONAL_SAMPLES_PER_PIXEL 16
 #define MAX_SAMPLES_PER_PIXEL (MIN_SAMPLES_PER_PIXEL+ ADDITIONAL_SAMPLES_PER_PIXEL)
@@ -20,8 +20,8 @@
 #define RAY_PACKET_BLOCK_SIZE (RAY_BLOCK_SIZE/ PACKET_SIZE)
 
 
-#define THREAD_COUNT 4
-#define SERIAL_MODE 0
+#define THREAD_COUNT 1
+#define SERIAL_MODE (THREAD_COUNT == 1)
 
 #define ISPC_GET_RAYS 1
 #define ISPC_DEVELOP 1

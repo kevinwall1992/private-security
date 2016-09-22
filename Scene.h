@@ -57,8 +57,8 @@ public:
 	void Intersect(RayPacket &ray_packety);
 	void Intersect(RayPacket *ray_packets, int count, bool is_coherent);
 
-	void Intersect_Occlusion(ShadowRay *rays, int count, bool is_coherent);
-	void Intersect_Occlusion(ShadowRayPacket &ray_packet);
+	void Intersect_Visibility(VisibilityRay *rays, int count, bool is_coherent);
+	void Intersect_Visibility(VisibilityRayPacket &ray_packet);
 
 	void Interpolate(RayPacket &ray_packet);
 };
