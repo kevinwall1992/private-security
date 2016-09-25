@@ -12,7 +12,7 @@ vector<Material *> Material::GetMaterials()
 Material * Material::GetDefaultMaterial()
 {
 	if(default_material== nullptr)
-		default_material= new PhongMaterial("material.default", Color(0.7f, 0.7f, 0.7f), Color(1.0f, 1.0f, 1.0f), 100.0f, 0);
+		default_material= new PhongMaterial("material.default", Color(0.7f, 0.7f, 0.7f), Color(1.0f, 1.0f, 1.0f), 100.0f, 0.0f, 1.0f, 0.0f);
 
 	return default_material;
 }
@@ -37,15 +37,18 @@ Material * Material::GetMaterial(string name)
 
 
 PhongMaterial::PhongMaterial(string name_, 
-							 Color diffuse_, 
+							 Color diffuse_,
 							 Color specular_, float glossiness_, 
-							 float index_of_refraction_)
+							 float reflectivity_,
+							 float refractive_index_, float transparency_)
 	: Material(name_)
 {
 	diffuse= diffuse_;
 	specular= specular_;
 	glossiness= glossiness_;
-	index_of_refraction= index_of_refraction_;
+	reflectivity= reflectivity_;
+	refractive_index= refractive_index_;
+	transparency= transparency_;
 }
 
 PhongMaterial::PhongMaterial(string name_)

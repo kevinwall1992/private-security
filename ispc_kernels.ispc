@@ -74,6 +74,19 @@ struct VisibilityRayPacket
 	unsigned int instID[PACKET_SIZE]; 
 };
 
+struct Surface
+{
+	float position[3];
+	float normal[3];
+	intptr_t material;
+};
+
+struct Medium
+{
+	float refractive_index;
+	int is_air;
+};
+
 struct Ray
 {
 	float org[3];
@@ -105,9 +118,8 @@ struct Ray
 	int bounce_count;
 	int type;
 
-	float surface_position[3];
-	float surface_normal[3];
-	intptr_t material;
+	Surface surface_;
+	Medium medium;
 
 	//This probably screws up alignment, but I'm not testing 
 	//this until it becomes relevant.
@@ -115,6 +127,25 @@ struct Ray
 
 	int8 padding[8];
 
+};
+
+struct SurfacePacket
+{
+	float position_x[PACKET_SIZE];
+	float position_y[PACKET_SIZE];
+	float position_z[PACKET_SIZE];
+
+	float normal_x[PACKET_SIZE];
+	float normal_y[PACKET_SIZE];
+	float normal_z[PACKET_SIZE];
+
+	int material_id[PACKET_SIZE];
+};
+
+struct MediumPacket
+{
+	float refractive_index[PACKET_SIZE];
+	int is_air[PACKET_SIZE];
 };
 
 struct RayPacket
@@ -151,15 +182,9 @@ struct RayPacket
 	int bounce_count[PACKET_SIZE];
 	int type[PACKET_SIZE];
 
-	float surface_position_x[PACKET_SIZE];
-	float surface_position_y[PACKET_SIZE];
-	float surface_position_z[PACKET_SIZE];
-
-	float surface_normal_x[PACKET_SIZE];
-	float surface_normal_y[PACKET_SIZE];
-	float surface_normal_z[PACKET_SIZE];
-
-	int material_id[PACKET_SIZE];
+	//Can't use "surface" for some reason
+	SurfacePacket surface_;
+	MediumPacket medium;
 
 	float *light_coefficients;
 	int8 padding[24];
@@ -204,8 +229,10 @@ struct PhongMaterial
 	float diffuse[3];
 	float specular[3];
 	float glossiness;
-	float index_of_refraction;
-	int chrome;
+
+	float reflectivity;
+	float refractive_index;
+	float transparency;
 };
 
 #define ISPC_CODE
@@ -309,6 +336,8 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 		ray_packets[packet_index].y[programIndex]= y;
 #endif
 
+		ray_packets[packet_index].medium.refractive_index[programIndex]= 1.0f;
+		ray_packets[packet_index].medium.is_air[programIndex]= true;
 	}
 }
 
@@ -369,12 +398,15 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 }
 
 #if PACKETED_SECONDARY_RAYS
+//use varyings
 unmasked void WriteRayPacket(RayPacket * uniform ray_packets, int * uniform packet_count, 
 	                         varying int mask, 
 							 varying float<3> position, varying float<3> direction, 
 							 uniform float tnear, uniform float tfar, 
 							 uniform float x[], uniform float y[],
-							 uniform int bounce_count)
+							 uniform int bounce_count, uniform int type, 
+							 varying float refractive_index, varying bool in_air,
+							 varying float absorption_r, varying float absorption_g, varying float absorption_b)
 {
 	uniform int packet_index= packet_count[0]++;
 
@@ -395,13 +427,16 @@ unmasked void WriteRayPacket(RayPacket * uniform ray_packets, int * uniform pack
 		ray_packets[packet_index].time[programIndex]= 0;
 
 		ray_packets[packet_index].bounce_count[programIndex]= bounce_count;
-		ray_packets[packet_index].type[programIndex]= 1;
+		ray_packets[packet_index].type[programIndex]= type;
 		ray_packets[packet_index].x[programIndex]= x[programIndex];
 		ray_packets[packet_index].y[programIndex]= y[programIndex];
 
-		ray_packets[packet_index].absorption_r[programIndex]= 1.0f;
-		ray_packets[packet_index].absorption_g[programIndex]= 1.0f;
-		ray_packets[packet_index].absorption_b[programIndex]= 1.0f;
+		ray_packets[packet_index].absorption_r[programIndex]= absorption_r;
+		ray_packets[packet_index].absorption_g[programIndex]= absorption_g;
+		ray_packets[packet_index].absorption_b[programIndex]= absorption_b;
+
+		ray_packets[packet_index].medium.refractive_index[programIndex]= refractive_index;
+		ray_packets[packet_index].medium.is_air[programIndex]= in_air;
 	}
 
 	ray_packets[packet_index].mask[programIndex]= mask ? -1 : 0;
@@ -470,9 +505,9 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 	for(uniform int i= 0; i< packet_count; i++)
 	{
 #if PACKETED_SECONDARY_RAYS
-		if(secondary_packet_count[0]> (RAY_PACKET_BLOCK_SIZE- 1))
+		if(secondary_packet_count[0]> (RAY_PACKET_BLOCK_SIZE- 2))
 #else
-		if(secondary_ray_count[0]> (RAY_BLOCK_SIZE- 1* PACKET_SIZE))
+		if(secondary_ray_count[0]> (RAY_BLOCK_SIZE- 2* PACKET_SIZE))
 #endif
 			break;
 		packets_shaded_count[0]++;
@@ -483,129 +518,237 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 
 		float<3> color= {0.0f, 0.0f, 0.0f};
 
-		float<3> position= {ray_packets[i].surface_position_x[programIndex], 
-			                ray_packets[i].surface_position_y[programIndex], 
-						    ray_packets[i].surface_position_z[programIndex]};
+		float<3> position= {ray_packets[i].surface_.position_x[programIndex], 
+			                ray_packets[i].surface_.position_y[programIndex], 
+						    ray_packets[i].surface_.position_z[programIndex]};
 
-		float<3> normal= {ray_packets[i].surface_normal_x[programIndex], 
-			              ray_packets[i].surface_normal_y[programIndex], 
-						  ray_packets[i].surface_normal_z[programIndex]};
+		bool in_air= ray_packets[i].medium.is_air[programIndex];
+		float normal_direction= in_air ? 1.0f : -1.0f;
+		float<3> normal= {ray_packets[i].surface_.normal_x[programIndex]* normal_direction, 
+			              ray_packets[i].surface_.normal_y[programIndex]* normal_direction, 
+						  ray_packets[i].surface_.normal_z[programIndex]* normal_direction};
+
+		float<3> direction= {ray_packets[i].dirx[programIndex], 
+							 ray_packets[i].diry[programIndex], 
+							 ray_packets[i].dirz[programIndex]};
+		float direction_magnitude= sqrt(direction.x* direction.x+ direction.y* direction.y+ direction.z* direction.z);
+		direction.x/= direction_magnitude;
+		direction.y/= direction_magnitude;
+		direction.z/= direction_magnitude;
 
 		uniform int bounce_count;
 		reduce_equal(ray_packets[i].bounce_count[programIndex], &bounce_count);
-		uniform bool bounce_limit_achieved= bounce_count>= 1;
+		uniform bool bounce_limit_achieved= bounce_count>= MAX_BOUNCE_COUNT;
 
-		int material_id= ray_packets[i].material_id[programIndex];
-		int is_chrome;
+		float absoption_intensity= (ray_packets[i].absorption_r[programIndex]+ 
+									 ray_packets[i].absorption_g[programIndex]+ 
+									 ray_packets[i].absorption_b[programIndex])/ 3;
+		bool is_faint= absoption_intensity< FAINTNESS_THRESHOLD;
+
+		float<3> surface_diffuse_color;
+		float<3> surface_specular_color;
+		float reflectivity;
+		float transmittance;
+		float transmitted_refractive_index;//name change
+
+		int material_id= ray_packets[i].surface_.material_id[programIndex];
 		uniform int uniform_material_id;
 		uniform bool material_is_uniform= reduce_equal(material_id, &uniform_material_id);
 		if(material_is_uniform)
-			is_chrome= materials[uniform_material_id].chrome;
-		else
-			foreach_unique(unique_material_id in material_id)
-				is_chrome= materials[unique_material_id].chrome;
-
-		if(any(is_chrome) && !bounce_limit_achieved)
 		{
-			cif(is_chrome)
+			surface_diffuse_color.r= materials[uniform_material_id].diffuse[0];
+			surface_diffuse_color.g= materials[uniform_material_id].diffuse[1];
+			surface_diffuse_color.b= materials[uniform_material_id].diffuse[2];
+
+			surface_specular_color.r= materials[uniform_material_id].specular[0];
+			surface_specular_color.g= materials[uniform_material_id].specular[1];
+			surface_specular_color.b= materials[uniform_material_id].specular[2];
+
+			reflectivity= materials[uniform_material_id].reflectivity;
+			transmittance= materials[uniform_material_id].transparency;
+
+			transmitted_refractive_index= materials[uniform_material_id].refractive_index;
+		}
+		else
+		{
+			foreach_unique(unique_material_id in material_id)
 			{
-				float<3> reflection_position= {position[0]+ normal[0]* 0.015f, 
-											   position[1]+ normal[1]* 0.015f, 
-											   position[2]+ normal[2]* 0.015f};
+				surface_diffuse_color.r= materials[unique_material_id].diffuse[0];
+				surface_diffuse_color.g= materials[unique_material_id].diffuse[1];
+				surface_diffuse_color.b= materials[unique_material_id].diffuse[2];
 
-				float dot= (ray_packets[i].dirx[programIndex]* normal[0]+ 
-						    ray_packets[i].diry[programIndex]* normal[1]+ 
-						    ray_packets[i].dirz[programIndex]* normal[2])* 2;
+				surface_specular_color.r= materials[unique_material_id].specular[0];
+				surface_specular_color.g= materials[unique_material_id].specular[1];
+				surface_specular_color.b= materials[unique_material_id].specular[2];
 
-				float<3> reflection_direction= {ray_packets[i].dirx[programIndex]- normal[0]* dot, 
-											    ray_packets[i].diry[programIndex]- normal[1]* dot, 
-											    ray_packets[i].dirz[programIndex]- normal[2]* dot};
+				reflectivity= materials[unique_material_id].reflectivity;
+				transmittance= materials[unique_material_id].transparency;
+
+				transmitted_refractive_index= materials[unique_material_id].refractive_index;
+			}
+		}
+		bool is_reflective= reflectivity> 0.000001f;
+		float reflectivity_complement= 1- reflectivity;
+		bool is_transparent= transmittance> 0.000001f;
+		float transmittance_complement= 1- transmittance;
+
+		if(!bounce_limit_achieved)
+		{
+			cif(!is_faint)
+			{
+				if(!in_air)
+					transmitted_refractive_index= 1.0f;
+
+				float incoming_refractive_index= ray_packets[i].medium.refractive_index[programIndex];//name change
+
+				float cos_incoming= -(direction.x* normal.x+ 
+									   direction.y* normal.y+ 
+									   direction.z* normal.z);
+
+				cif(is_transparent)
+				{
+					float index_ratio= incoming_refractive_index/ transmitted_refractive_index;
+					float sin_transmitted_squared= (index_ratio* index_ratio)* (1- cos_incoming* cos_incoming);
+
+					cif(sin_transmitted_squared> 1)
+					{
+						reflectivity+= transmittance;
+						is_reflective= true;
+					}
+					else
+					{
+						float cos_transmitted= sqrt(1- sin_transmitted_squared);
+
+						float r0= (incoming_refractive_index- transmitted_refractive_index)/
+								  (incoming_refractive_index+ transmitted_refractive_index);
+						r0= r0* r0;
+						float cos_term= incoming_refractive_index<= transmitted_refractive_index ? cos_incoming : cos_transmitted;
+						float reflection_coefficient= r0+ (1- r0)* pow(1- cos_term, 5);
+
+						reflectivity+= reflection_coefficient* transmittance;
+						is_reflective= true;
+						transmittance*= 1- reflection_coefficient;
+
+						float push= -0.015f;
+						float<3> refraction_position= {position[0]+ normal[0]* push, 
+													   position[1]+ normal[1]* push, 
+													   position[2]+ normal[2]* push};
+
+						float normal_coefficient= index_ratio* cos_incoming- cos_transmitted;
+						float<3> refraction_direction= {direction.x* index_ratio+ normal.x* normal_coefficient, 
+														direction.y* index_ratio+ normal.y* normal_coefficient, 
+														direction.z* index_ratio+ normal.z* normal_coefficient};
+
+						float absorption_r= ray_packets[i].absorption_r[programIndex]* surface_diffuse_color.r* transmittance;
+						float absorption_g= ray_packets[i].absorption_g[programIndex]* surface_diffuse_color.g* transmittance;
+						float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_diffuse_color.b* transmittance;
 
 #if PACKETED_SECONDARY_RAYS
-				WriteRayPacket(secondary_ray_packets, secondary_packet_count, 
-	                           is_chrome, reflection_position, reflection_direction, 0.0f, 1000000, 
-							   ray_packets[i].x, ray_packets[i].y, 
-							   bounce_count+ 1);
+						WriteRayPacket(secondary_ray_packets, secondary_packet_count, 
+									   is_transparent && !is_faint, 
+									   refraction_position, refraction_direction, 0.0f, 1000000, 
+									   ray_packets[i].x, ray_packets[i].y, 
+									   bounce_count+ 1, 2, 
+									   transmitted_refractive_index, !in_air,
+									   absorption_r, absorption_g, absorption_b);
 #else
-				WriteRays(secondary_rays, secondary_ray_count, 
-	                        is_chrome, reflection_position, reflection_direction, 0.0f, 1000000, 
-							ray_packets[i].x, ray_packets[i].y, 
-							bounce_count+ 1);
+						WriteRays(secondary_rays, secondary_ray_count, 
+									is_transparent && !is_faint, 
+									reflection_position, reflection_direction, 0.0f, 1000000, 
+									ray_packets[i].x, ray_packets[i].y, 
+									bounce_count+ 1, 2, 
+									transmitted_refractive_index, !in_air,
+									absorption_r, absorption_g, absorption_b);
 #endif
+					}
+				}
+
+				//see if better to combine conditions so they don't need to be recomputed
+				bool faint_internal_reflection= in_air ? false : (reflectivity* absoption_intensity)< FAINTNESS_THRESHOLD;
+
+				cif(is_reflective && !faint_internal_reflection)
+				{
+					float push= 0.015f;
+					float<3> reflection_position= {position[0]+ normal[0]* push, 
+												   position[1]+ normal[1]* push, 
+												   position[2]+ normal[2]* push};
+
+					float normal_coefficient= cos_incoming* 2;
+
+					float<3> reflection_direction= {direction.x+ normal.x* normal_coefficient, 
+													direction.y+ normal.y* normal_coefficient, 
+													direction.z+ normal.z* normal_coefficient};
+
+					float absorption_r= ray_packets[i].absorption_r[programIndex]* surface_specular_color.r* reflectivity;
+					float absorption_g= ray_packets[i].absorption_g[programIndex]* surface_specular_color.g* reflectivity;
+					float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_specular_color.b* reflectivity;
+
+#if PACKETED_SECONDARY_RAYS
+					WriteRayPacket(secondary_ray_packets, secondary_packet_count, 
+								   is_reflective && !is_faint && !faint_internal_reflection, 
+								   reflection_position, reflection_direction, 0.0f, 1000000, 
+								   ray_packets[i].x, ray_packets[i].y, 
+								   bounce_count+ 1, 1, 
+								   incoming_refractive_index, in_air,
+								   absorption_r, absorption_g, absorption_b);
+#else
+					WriteRays(secondary_rays, secondary_ray_count, 
+								is_reflective && !is_faint && !faint_internal_reflection, 
+								reflection_position, reflection_direction, 0.0f, 1000000, 
+								ray_packets[i].x, ray_packets[i].y, 
+								bounce_count+ 1, 1, 
+								incoming_refractive_index, in_air,
+								absorption_r, absorption_g, absorption_b);
+#endif
+				}
 			}
 		}
 
-		if(bounce_limit_achieved || any(!is_chrome))
+		cif(in_air)
 		{
-			cif(bounce_limit_achieved || !is_chrome)//this is weird... seems like you ask this followup question every time. Maybe they already optimize for this?
+			for(uniform int j= 0; j< lighting->point_light_count; j++)
 			{
-				for(uniform int j= 0; j< lighting->point_light_count; j++)
-				{
 #if 0
-					float<3> direction;
-					direction[0]= lighting->point_lights[j].position[0]- position[0];
-					direction[1]= lighting->point_lights[j].position[1]- position[1];
-					direction[2]= lighting->point_lights[j].position[2]- position[2];
-					float direction_magnitude= sqrt(direction[0]* direction[0]+ 
-													direction[1]* direction[1]+ 
-													direction[2]* direction[2]);
+				float<3> direction;
+				direction[0]= lighting->point_lights[j].position[0]- position[0];
+				direction[1]= lighting->point_lights[j].position[1]- position[1];
+				direction[2]= lighting->point_lights[j].position[2]- position[2];
+				float direction_magnitude= sqrt(direction[0]* direction[0]+ 
+												direction[1]* direction[1]+ 
+												direction[2]* direction[2]);
 
-					float geometry_term= (direction[0]* normal[0]+ 
-											direction[1]* normal[1]+ 
-											direction[2]* normal[2])/ direction_magnitude;
+				float geometry_term= (direction[0]* normal[0]+ 
+										direction[1]* normal[1]+ 
+										direction[2]* normal[2])/ direction_magnitude;
 
-					if(geometry_term> 0)
-					{
-						color[0]+= (lighting->point_lights[j].intensity[0]* geometry_term);
-						color[1]+= (lighting->point_lights[j].intensity[1]* geometry_term);
-						color[2]+= (lighting->point_lights[j].intensity[2]* geometry_term);
-					}
+				if(geometry_term> 0)
+				{
+					color[0]+= (lighting->point_lights[j].intensity[0]* geometry_term);
+					color[1]+= (lighting->point_lights[j].intensity[1]* geometry_term);
+					color[2]+= (lighting->point_lights[j].intensity[2]* geometry_term);
+				}
 
 #else
-					//Have to do it this way or ISPC compiler gets confused an orders a gather.
-					float light_coefficient= (ray_packets[i].light_coefficients+ j* PACKET_SIZE)[programIndex];
+				//Have to do it this way or ISPC compiler gets confused an orders a gather.
+				float light_coefficient= (ray_packets[i].light_coefficients+ j* PACKET_SIZE)[programIndex];
 
-					color[0]+= lighting->point_lights[j].intensity[0]* light_coefficient;
-					color[1]+= lighting->point_lights[j].intensity[1]* light_coefficient;
-					color[2]+= lighting->point_lights[j].intensity[2]* light_coefficient;
-
+				color[0]+= lighting->point_lights[j].intensity[0]* light_coefficient;
+				color[1]+= lighting->point_lights[j].intensity[1]* light_coefficient;
+				color[2]+= lighting->point_lights[j].intensity[2]* light_coefficient;
 #endif
-				}
-		
-#if 1
-				if(material_is_uniform)//try just using foreach_unique
-				{
-					color[0]*= materials[uniform_material_id].diffuse[0];
-					color[1]*= materials[uniform_material_id].diffuse[1];
-					color[2]*= materials[uniform_material_id].diffuse[2];
-				}
-				else
-				{
-					foreach_unique(unique_material_id in material_id)
-					{
-						color[0]*= materials[unique_material_id].diffuse[0];
-						color[1]*= materials[unique_material_id].diffuse[1];
-						color[2]*= materials[unique_material_id].diffuse[2];
-					}
-				}
-#else
-				foreach_unique(unique_material_id in material_id)
-				{
-					uniform float<3> diffuse= materials[unique_material_id].diffuse;
-					color[0]*= diffuse[0];
-					color[1]*= diffuse[1];
-					color[2]*= diffuse[2];
-				}
-#endif
-
-				color[0]+= lighting->ambient[0];
-				color[1]+= lighting->ambient[1];
-				color[2]+= lighting->ambient[2];
 			}
+		
+			color[0]*= surface_diffuse_color.r;
+			color[1]*= surface_diffuse_color.g;
+			color[2]*= surface_diffuse_color.b;
 
-			color[0]*= ray_packets[i].absorption_r[programIndex];
-			color[1]*= ray_packets[i].absorption_g[programIndex];
-			color[2]*= ray_packets[i].absorption_b[programIndex];
+			color[0]+= lighting->ambient[0];
+			color[1]+= lighting->ambient[1];
+			color[2]+= lighting->ambient[2];
+
+			color[0]*= ray_packets[i].absorption_r[programIndex]* reflectivity_complement* transmittance_complement;
+			color[1]*= ray_packets[i].absorption_g[programIndex]* reflectivity_complement* transmittance_complement;
+			color[2]*= ray_packets[i].absorption_b[programIndex]* reflectivity_complement* transmittance_complement;
 
 			int x= ray_packets[i].x[programIndex];
 			int y= ray_packets[i].y[programIndex];
@@ -692,14 +835,9 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 #endif
 
 			}
-
+#endif
+#endif
 		}
-
-		//Could try foreach_unique for non-coherent (x,y) problem
-
-#endif
-
-#endif
 	}
 }
 
@@ -726,9 +864,9 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID || ray_packets[i].mask[programIndex]!= -1)
 			continue;
 
-		ray_packets[i].surface_position_x[programIndex]= ray_packets[i].orgx[programIndex]+ (ray_packets[i].dirx[programIndex]* ray_packets[i].tfar[programIndex]); 
-		ray_packets[i].surface_position_y[programIndex]= ray_packets[i].orgy[programIndex]+ (ray_packets[i].diry[programIndex]* ray_packets[i].tfar[programIndex]);
-		ray_packets[i].surface_position_z[programIndex]= ray_packets[i].orgz[programIndex]+ (ray_packets[i].dirz[programIndex]* ray_packets[i].tfar[programIndex]);
+		ray_packets[i].surface_.position_x[programIndex]= ray_packets[i].orgx[programIndex]+ (ray_packets[i].dirx[programIndex]* ray_packets[i].tfar[programIndex]); 
+		ray_packets[i].surface_.position_y[programIndex]= ray_packets[i].orgy[programIndex]+ (ray_packets[i].diry[programIndex]* ray_packets[i].tfar[programIndex]);
+		ray_packets[i].surface_.position_z[programIndex]= ray_packets[i].orgz[programIndex]+ (ray_packets[i].dirz[programIndex]* ray_packets[i].tfar[programIndex]);
 
 		float u= ray_packets[i].u[programIndex];
 		float v= ray_packets[i].v[programIndex];
@@ -754,11 +892,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 				uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 				uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-				ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-				ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-				ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+				ray_packets[i].surface_.normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+				ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+				ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-				ray_packets[i].material_id[programIndex]= material_ids[uniform_geometry_id];
+				ray_packets[i].surface_.material_id[programIndex]= material_ids[uniform_geometry_id];
 			}
 			else
 			{
@@ -772,11 +910,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 					float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 					float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-					ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-					ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-					ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+					ray_packets[i].surface_.normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+					ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+					ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-					ray_packets[i].material_id[programIndex]= material_ids[uniform_geometry_id];
+					ray_packets[i].surface_.material_id[programIndex]= material_ids[uniform_geometry_id];
 				}
 			}
 		}
@@ -799,11 +937,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 					uniform float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 					uniform float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-					ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-					ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-					ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+					ray_packets[i].surface_.normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+					ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+					ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-					ray_packets[i].material_id[programIndex]= material_ids[unique_geometry_id];
+					ray_packets[i].surface_.material_id[programIndex]= material_ids[unique_geometry_id];
 				}
 				else
 				{
@@ -817,11 +955,11 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 						float<3> normal1= {normals[normal1_index* 3+ 0], normals[normal1_index* 3+ 1], normals[normal1_index* 3+ 2]};
 						float<3> normal2= {normals[normal2_index* 3+ 0], normals[normal2_index* 3+ 1], normals[normal2_index* 3+ 2]};
 
-						ray_packets[i].surface_normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
-						ray_packets[i].surface_normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
-						ray_packets[i].surface_normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+						ray_packets[i].surface_.normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
+						ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
+						ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
-						ray_packets[i].material_id[programIndex]= material_ids[unique_geometry_id];
+						ray_packets[i].surface_.material_id[programIndex]= material_ids[unique_geometry_id];
 					}
 				}
 			}
@@ -849,13 +987,13 @@ export void ComputeLightCoefficients(uniform RayPacket ray_packets[],
 			cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
 				continue;
 
-			float surface_normal<3>= {ray_packets[i].surface_normal_x[programIndex], 
-			                          ray_packets[i].surface_normal_y[programIndex],
-			                          ray_packets[i].surface_normal_z[programIndex]};
+			float surface_normal<3>= {ray_packets[i].surface_.normal_x[programIndex], 
+			                          ray_packets[i].surface_.normal_y[programIndex],
+			                          ray_packets[i].surface_.normal_z[programIndex]};
 
-			float surface_position<3>= {ray_packets[i].surface_position_x[programIndex],
-			                            ray_packets[i].surface_position_y[programIndex],
-										ray_packets[i].surface_position_z[programIndex]};
+			float surface_position<3>= {ray_packets[i].surface_.position_x[programIndex],
+			                            ray_packets[i].surface_.position_y[programIndex],
+										ray_packets[i].surface_.position_z[programIndex]};
 
 			//Assuming we add surface position to ray extras via Interpolate
 			float direction<3>= {light_position[0]- surface_position[0], 
@@ -952,13 +1090,16 @@ export void ComputeLightCoefficients(uniform RayPacket ray_packets[],
 
 			//uniform float * uniform light_coefficients= ray_packets[packet_index].light_coefficients+ light_index* PACKET_SIZE;
 
-			float<3> surface_normal= {ray_packets[packet_index].surface_normal_x[programIndex], 
-			                          ray_packets[packet_index].surface_normal_y[programIndex],
-			                          ray_packets[packet_index].surface_normal_z[programIndex]};
+			cif(!ray_packets[packet_index].medium.is_air[programIndex])
+				continue;
 
-			float<3> surface_position= {ray_packets[packet_index].surface_position_x[programIndex],
-			                            ray_packets[packet_index].surface_position_y[programIndex],
-										ray_packets[packet_index].surface_position_z[programIndex]};
+			float<3> surface_normal= {ray_packets[packet_index].surface_.normal_x[programIndex], 
+			                          ray_packets[packet_index].surface_.normal_y[programIndex],
+			                          ray_packets[packet_index].surface_.normal_z[programIndex]};
+
+			float<3> surface_position= {ray_packets[packet_index].surface_.position_x[programIndex],
+			                            ray_packets[packet_index].surface_.position_y[programIndex],
+										ray_packets[packet_index].surface_.position_z[programIndex]};
 
 			//Assuming we add surface position to ray extras via Interpolate
 			float<3> direction= {light_position[0]- surface_position[0], 

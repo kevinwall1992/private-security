@@ -13,6 +13,8 @@ int frame_set_count= 1;
 
 int main(int argument_count, char **arguments)
 {
+	cout << sizeof(ispc::RayPacket) << ", " << sizeof(RayPacket) << endl;
+
 	cout << std::fixed << std::setprecision(1);
 
 	System::InitializeSystems();
@@ -22,10 +24,12 @@ int main(int argument_count, char **arguments)
 		scene.AddProps(Prop::ParseOBJ("test_scene_1.obj"));
 		scene.AddLight(new AmbientLight(Color(0.2f, 0.2f, 0.2f)));
 		scene.AddLight(new PointLight(Vec3f(26.5f, 45.0f, -30.0f), Color(0.8f, 0.8f, 0.8f)));
+		//scene.AddLight(new PointLight(Vec3f(33.5f, 1.0f, -25.0f), Color(0.4f, 0.4f, 0.4f)));
 		scene.Commit();
 
 		Camera camera(60, Vec3f(13.70f, 26.70, -66.64f));
 		camera.LookAt(Vec3f(27.67f, 5.39f, 0.18f));
+		//camera.LookAt(Vec3f(50.67f, -15.39f, 0.18f));
 		Film film(System::graphics.screen_width, System::graphics.screen_height);
 		camera.LoadFilm(&film);
 

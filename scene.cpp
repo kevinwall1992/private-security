@@ -72,8 +72,9 @@ void Scene::BuildISPCMaterials()
 		SetFloat3(ispc_material.diffuse, material->diffuse);
 		SetFloat3(ispc_material.specular, material->specular);
 		ispc_material.glossiness= material->glossiness;
-		ispc_material.index_of_refraction= material->index_of_refraction;
-		ispc_material.chrome= i== 2 ? 1 : material->chrome;
+		ispc_material.reflectivity= material->reflectivity;
+		ispc_material.refractive_index= material->refractive_index;
+		ispc_material.transparency= material->transparency;
 
 		ispc_materials.push_back(ispc_material);
 	}
@@ -323,7 +324,7 @@ void Scene::Interpolate(RayPacket &ray_packet)
 						 ray_packet.v, 
 						 PACKET_SIZE, 
 						 RTC_USER_VERTEX_BUFFER0, 
-						 ray_packet.surface_normal_x, 
+						 ray_packet.surface.normal_x, 
 						 nullptr, nullptr, nullptr, nullptr, nullptr, 
 						 3);
 	}

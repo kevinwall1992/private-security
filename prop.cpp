@@ -39,6 +39,9 @@ vector<Material *> ParseMaterialLibrary(string filename)
 				materials.push_back(material);
 
 			material= new PhongMaterial(tokens[1]);
+			
+			material->reflectivity= 0.0f;
+			material->transparency= 0.0f;
 		}
 		else if (tokens[0] == "Kd")
 			material->diffuse= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
@@ -47,7 +50,11 @@ vector<Material *> ParseMaterialLibrary(string filename)
 		else if (tokens[0] == "Ns")
 			material->glossiness= (float)atof(tokens[1].c_str())/ 1000;
 		else if (tokens[0] == "Ni")
-			material->index_of_refraction= (float)atof(tokens[1].c_str());
+			material->refractive_index= (float)atof(tokens[1].c_str());
+		else if (tokens[0] == "Tr")
+			material->transparency= (float)atof(tokens[1].c_str());
+		else if (tokens[0] == "Rf")
+			material->reflectivity= (float)atof(tokens[1].c_str());
 	}
 	input_stream.close();
 	if(material!= nullptr)

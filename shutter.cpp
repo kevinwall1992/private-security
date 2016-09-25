@@ -537,7 +537,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 										&(secondary_ray_packet_block->front_index));
 
 			if(secondary_ray_packet_block->front_index> 0)
-				secondary_ray_packet_block->state= secondary_ray_packet_block->front_index>= (RAY_PACKET_BLOCK_SIZE- 1)? BlockState::Full : BlockState::Partial;
+				secondary_ray_packet_block->state= secondary_ray_packet_block->front_index>= (RAY_PACKET_BLOCK_SIZE- 2)? BlockState::Full : BlockState::Partial;
 			ReturnRayPacketBlock(secondary_ray_packet_block);
 
 #else

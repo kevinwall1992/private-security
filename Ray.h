@@ -5,6 +5,7 @@
 #include "EmbreeSystem.h"
 #include "Color.h"
 #include "Surface.h"
+#include "Medium.h"
 
 
 #define VisibilityRay RTCRay
@@ -19,7 +20,6 @@
 
 struct RayType{enum Enum {Primary, Reflection, Refraction, Diffuse};};
 
-__declspec(align(16)) 
 struct Ray : public VisibilityRay
 {
 	float x, y;
@@ -28,11 +28,11 @@ struct Ray : public VisibilityRay
 	RayType::Enum type;
 
 	Surface surface;
+	Medium medium;
 
 	float *light_coefficients;
 };
 
-__declspec(align(16)) 
 struct RayPacket : public VisibilityRayPacket
 {
 	float x[PACKET_SIZE], y[PACKET_SIZE];
@@ -40,15 +40,8 @@ struct RayPacket : public VisibilityRayPacket
 	int bounce_count[PACKET_SIZE];
 	RayType::Enum type[PACKET_SIZE];
 
-	float surface_position_x[PACKET_SIZE];
-	float surface_position_y[PACKET_SIZE];
-	float surface_position_z[PACKET_SIZE];
-
-	float surface_normal_x[PACKET_SIZE];
-	float surface_normal_y[PACKET_SIZE];
-	float surface_normal_z[PACKET_SIZE];
-
-	int material_id[PACKET_SIZE];
+	SurfacePacket surface;
+	MediumPacket medium;
 
 	float *light_coefficients;
 };
