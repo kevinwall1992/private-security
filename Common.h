@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <assert.h>
+#include <algorithm>
 
 using std::string;
 using std::vector;

@@ -18,7 +18,8 @@ public:
 
 	static Timer get_rays_timer;
 	static Timer embree_timer;
-	static Timer shading_timer;
+	static Timer primary_shading_timer;
+	static Timer secondary_shading_timer;
 	static Timer develop_timer;
 	static Timer pre_shading_timer;
 	static Timer shadow_timer;

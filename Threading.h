@@ -105,9 +105,10 @@ class Team
 	std::mutex rollcall_mutex;
 
 	Threading::ItemCatalog<std::mutex> queues;
-	Threading::ItemCatalog<std::atomic_int> counters;
+	Threading::ItemCatalog<std::atomic_int> counters, persistent_counters;
 	std::deque<Threading::ItemCatalog<Threading::SizedBuffer>> buffers;
 	std::deque<Threading::ItemCatalog<void *>> objects;
+	std::deque<Threading::ItemCatalog<bool>> markers;
 
 	Barrier barrier;
 
@@ -205,11 +206,22 @@ public:
 		return (T *)(team->objects[team->GetMyIndex()].GetElement(object_name)->object);
 	}
 
+	template<class T>
+	static T * GetObject_Instanciate(Threading::ItemName object_name)
+	{
+		T *object= GetObject<T>(object_name);
+		if(object== nullptr)
+			object= SetObject<T>(object_name, new T());
+
+		return object;
+	}
 
 
 	static void WaitForOthers();
 	static int TakeANumber(Threading::ItemName counter_name);
+	static int TakeANumber_Persistent(Threading::ItemName counter_name);
 	static Turn WaitForTurn(Threading::ItemName queue_name);
+	static bool FirstTime(Threading::ItemName marker_name);
 };
 
 #endif

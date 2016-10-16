@@ -4,7 +4,8 @@
 
 Timer Timer::get_rays_timer;
 Timer Timer::embree_timer;
-Timer Timer::shading_timer;
+Timer Timer::primary_shading_timer;
+Timer Timer::secondary_shading_timer;
 Timer Timer::develop_timer;
 Timer Timer::pre_shading_timer;
 Timer Timer::shadow_timer;

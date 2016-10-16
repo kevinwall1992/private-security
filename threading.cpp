@@ -67,6 +67,7 @@ void Team::SetTeamSize(int team_size)
 	members.resize(team_size);
 	buffers.resize(team_size);
 	objects.resize(team_size);
+	markers.resize(team_size);
 }
 
 int Team::GetMyIndex()
@@ -161,7 +162,24 @@ int Team::TakeANumber(Threading::ItemName counter_name)
 	return GetMyTeam()->counters.GetElement(counter_name)->object++;
 }
 
+int Team::TakeANumber_Persistent(Threading::ItemName counter_name)
+{
+	return GetMyTeam()->persistent_counters.GetElement(counter_name)->object++;
+}
+
 Turn Team::WaitForTurn(Threading::ItemName queue_name)
 {
 	return &(GetMyTeam()->queues.GetElement(queue_name)->object);
+}
+
+bool Team::FirstTime(Threading::ItemName marker_name)
+{
+	Team *team= GetMyTeam();
+
+	Threading::Item<bool> *item= team->markers[team->GetMyIndex()].GetElement(marker_name);
+
+	bool first_time= item->object;
+	item->object= false;
+
+	return first_time;
 }

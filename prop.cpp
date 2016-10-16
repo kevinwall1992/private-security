@@ -45,8 +45,10 @@ vector<Material *> ParseMaterialLibrary(string filename)
 		}
 		else if (tokens[0] == "Kd")
 			material->diffuse= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
+			//material->diffuse= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
 		else if (tokens[0] == "Ks")
 			material->specular= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
+			//material->specular= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
 		else if (tokens[0] == "Ns")
 			material->glossiness= (float)atof(tokens[1].c_str())/ 1000;
 		else if (tokens[0] == "Ni")

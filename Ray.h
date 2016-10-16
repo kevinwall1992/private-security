@@ -18,7 +18,7 @@
 #endif
 
 
-struct RayType{enum Enum {Primary, Reflection, Refraction, Diffuse};};
+struct RayType{enum Enum {Primary, PrimaryReflection, PrimaryRefraction, Reflection, Refraction, Diffuse};};
 
 struct Ray : public VisibilityRay
 {

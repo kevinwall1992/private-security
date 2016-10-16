@@ -260,19 +260,13 @@ void Scene::Intersect(RayPacket &ray_packet)
 #endif
 }
 
-void Scene::Intersect(RayPacket *ray_packet, int count, bool is_coherent)
+void Scene::Intersect(RayPacket *ray_packets, int count, bool is_coherent)
 {
-#if STREAM_MODE
 	RTCIntersectContext context;
 	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
 	context.userRayExt= nullptr;
 
-	rtcIntersectNM(embree_scene, &context, ray_packet, PACKET_SIZE, count, sizeof(RayPacket));
-
-#else
-	assert(false && "Attempted to intersect packet stream in single mode.");
-
-#endif
+	rtcIntersectNM(embree_scene, &context, reinterpret_cast<RTCRayN *>(ray_packets), PACKET_SIZE, count, sizeof(RayPacket));
 }
 
 void Scene::Intersect_Visibility(VisibilityRay *rays, int count, bool is_coherent)

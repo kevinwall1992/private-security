@@ -135,6 +135,9 @@ Image * Camera::TakePicture(Scene &scene)
 
 bool Camera::GetRayPackets(RayPacket *ray_packets, int tile_index, int *indices, int index_count)
 {
+	//if(tile_index> 4)
+	//	return false;
+
 	if((indices== nullptr) && (tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT))))
 		return false;
 

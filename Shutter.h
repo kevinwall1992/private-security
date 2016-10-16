@@ -37,12 +37,18 @@ class Shutter
 	int *noisy_receptors= nullptr;
 	std::atomic_int noisy_receptors_front;
 
+	float *primary_disc_samples;
+	int disc_sample_index= 0;
+	int *disc_sample_indices;
+
 	bool initial_samples_exhausted;
 	bool additional_samples_exhausted;
 	bool develop_finished;
 
 
 	void ReportNoisyReceptors(int *indices, int count);
+
+	int * GetDiscSampleIndices(int x, int y, int bounce_count);
 
 	RayBlock * TakeEmptyPrimaryRayBlock();
 	RayBlock * TakeEmptySecondaryRayBlock();
@@ -72,6 +78,10 @@ class Shutter
 	void Reset();
 
 public:
+
+	int rays_processed= 0;
+	int packets_processed= 0;
+
 	Shutter(Camera *camera= nullptr);
 	~Shutter();
 

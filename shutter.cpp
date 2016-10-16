@@ -3,6 +3,9 @@
 #include "Camera.h"
 #include "Surface.h"
 #include "Timer.h"
+#include "Data.h"
+#include "Random.h"
+#include "Sampling.h"
 
 #include "ISPCKernels.h"
 
@@ -152,6 +155,27 @@ Shutter::Shutter(Camera *camera_)
 		empty_primary_ray_blocks.push(new RayBlock(true, true));
 
 #endif
+
+#if BAKE_DISC_SAMPLES
+	int disc_sample_count= RAY_PACKET_BLOCK_SIZE* PACKET_SIZE;
+	primary_disc_samples= new float[disc_sample_count* 2];
+
+	int pixel_count= SCREEN_WIDTH* SCREEN_HEIGHT;
+	disc_sample_indices= new int[pixel_count];
+	RandomIterator random_iterator= RandomIterator(5003, 2, RAY_PACKET_BLOCK_SIZE);
+	for(int i= 0; i< pixel_count/ RAY_PACKET_BLOCK_SIZE; i++)
+	{
+		random_iterator.Reset(i+ 1);
+		for(int j= 0; j< RAY_PACKET_BLOCK_SIZE; j++)
+			disc_sample_indices[i* RAY_PACKET_BLOCK_SIZE+ j]= random_iterator.GetNext();
+	}
+
+#else
+	primary_disc_samples= nullptr;
+	secondary_disc_samples= nullptr;
+	disc_sample_indices= nullptr;
+	secondary_disc_sample_order= nullptr;
+#endif
 }
 
 Shutter::~Shutter()
@@ -174,6 +198,12 @@ Shutter::~Shutter()
 
 	if(noisy_receptors!= nullptr)
 		 delete noisy_receptors;
+
+#if BAKE_DISC_SAMPLES
+	delete primary_disc_samples;
+	delete disc_sample_indices;
+#endif
+
 }
 
 void Shutter::ReportNoisyReceptors(int *indices, int count)
@@ -183,6 +213,16 @@ void Shutter::ReportNoisyReceptors(int *indices, int count)
 
 	int first= std::atomic_fetch_add(&noisy_receptors_front, count);
 	memcpy(noisy_receptors+ first, indices, sizeof(int)* count);//Could try this with ispc
+}
+
+int * Shutter::GetDiscSampleIndices(int x, int y, int bounce_count)
+{
+	int tile_x= x/ CAMERA_TILE_WIDTH;
+	int tile_y= y/ CAMERA_TILE_HEIGHT;
+	int tile_index= tile_x+ tile_y* camera->film->width/ CAMERA_TILE_WIDTH;
+	tile_index= (tile_index+ bounce_count* (System::graphics.GetFrameCount()+ 1)* 3+ bounce_count)% (camera->film->width* camera->film->height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
+
+	return disc_sample_indices+ tile_index* RAY_PACKET_BLOCK_SIZE;
 }
 
 void Shutter::Refill(RayBlock *primary_ray_block)
@@ -346,7 +386,10 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 	//Shading
 
-	Timer::shading_timer.Start();
+	if(ray_block->is_primary)
+		Timer::primary_shading_timer.Start();
+	else
+		Timer::secondary_shading_timer.Start();
 
 	int rays_processed_count= 0;
 	for(unsigned int i= 0; i< ray_block->front_index; i++)
@@ -358,7 +401,10 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		rays_processed_count++;
 	}
 
-	Timer::shading_timer.Pause();
+	if(ray_block->is_primary)
+		Timer::primary_shading_timer.Pause();
+	else
+		Timer::secondary_shading_timer.Pause();
 
 	ray_block->Empty();
 	ReturnRayBlock(ray_block);
@@ -370,7 +416,10 @@ void Shutter::Develop(Film *film)
 {
 	int film_interval_index= Team::TakeANumber("next_film_interval_index");
 	develop_finished= !film->Develop_Parallel(film_interval_index);
+
+#if PROGRESSIVE_RENDER == 0
 	film->Clear_Parallel(film_interval_index);
+#endif
 }
 
 void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
@@ -458,15 +507,31 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #if STREAM_MODE
 	scene->Intersect(ray_packet_block->ray_packets, RAY_PACKET_BLOCK_SIZE, ray_packet_block->is_coherent);
 #else
-
+	if(ray_packet_block->is_primary)
 	for(int i= 0; i< ray_packet_block->front_index; i++)
 	{
 		scene->Intersect(ray_packet_block->ray_packets[i]);
+
+		packets_processed++;
+		/*for(int j= 0; j< PACKET_SIZE; j++)
+		{
+			RayPacket *ray_packet= &(ray_packet_block->ray_packets[i]);
+			unsigned int foo= -1;
+			if(ray_packet->mask[j]== -1)
+			{
+				rays_processed++;
+			}
+		}*/
 
 		//Preshading - Interpolation
 #if ISPC_INTERPOLATION == 0
 		scene->Interpolate(ray_packet_block->ray_packets[i], ray_packet_block->ray_packet_extrass[i]);
 #endif
+	}
+	else
+	{
+		scene->Intersect(ray_packet_block->ray_packets, ray_packet_block->front_index, false);
+		packets_processed+= ray_packet_block->front_index;
 	}
 #endif
 	Timer::embree_timer.Pause();
@@ -486,9 +551,11 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	ISPCMesh *meshes= scene->GetISPCMeshes();
 	int *material_ids= scene->GetMaterialIDs();
 
-	ispc::Interpolate(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
-					 ray_packet_block->front_index,
-					 meshes, material_ids);
+	ispc::Interpolate_Coherent(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
+									ray_packet_block->front_index,
+									meshes, material_ids);
+
+
 #endif
 	Timer::pre_shading_timer.Pause();
 
@@ -496,15 +563,76 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	
 
 	Timer::shadow_timer.Start();
-	ispc::ComputeLightCoefficients(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
-							ray_packet_block->front_index,
-							lighting, 
-							shadow_ray_packet_buffer, 
-							reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()));
+	ispc::ComputeLightCoefficients_Coherent(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets), 
+											ray_packet_block->front_index,
+											lighting, 
+											shadow_ray_packet_buffer, 
+											reinterpret_cast<ispc::__RTCScene **>(scene->GetEmbreeScene()));
+
 	Timer::shadow_timer.Pause();
 
 	//Shading
-	Timer::shading_timer.Start();
+
+	int *gi_sample_index= Team::GetObject<int>("gi_sample_index");
+
+#if DATA_COLLECTION
+	ISPCData *ispc_data= Team::GetObject_Instanciate<ISPCData>("ispc_data");
+#else
+	ISPCData *ispc_data= nullptr;
+#endif
+
+#if RANDOM_PACKET_ORDER
+	Team *team= Team::GetMyTeam();
+	int *order= Team::GetBuffer<int>("order_buffer", RAY_PACKET_BLOCK_SIZE);
+#if 1
+	if(Team::FirstTime("order_buffer"))
+	{
+		//VS crashes during link if this is not a pointer...
+		RandomIterator *iterator= new RandomIterator(9973, 11, RAY_PACKET_BLOCK_SIZE, Team::TakeANumber("order_seed_state")+ 1);
+
+		for(unsigned i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+			order[i]= iterator->GetNext();
+
+		delete iterator;
+	}
+#else
+	RandomIterator *iterator= Team::GetObject<RandomIterator>("order_iterator");
+	if(iterator== nullptr)
+		iterator= Team::SetObject<RandomIterator>("order_iterator", new RandomIterator(9973, 11, RAY_PACKET_BLOCK_SIZE));
+
+	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+		order[i]= iterator->GetNext();
+#endif
+
+#else
+	int *order= nullptr;
+#endif
+
+	int *disc_sample_indices= nullptr;
+	for(int i= 0; i< PACKET_SIZE; i++)
+	{
+		RayPacket *ray_packet= &(ray_packet_block->ray_packets[0]);
+		if(ray_packet->mask[i]== -1)
+		{
+			disc_sample_indices= GetDiscSampleIndices((int)(ray_packet->x[i]), (int)(ray_packet->y[i]), ray_packet->bounce_count[i]);
+			break;
+		}
+	}
+	assert(disc_sample_indices!= nullptr && "all rays in packet were inactive, unable to get disc sample indices!");
+	//if(!ray_packet_block->is_primary)
+	//	disc_sample_indices++;
+
+	/*for(int i= 0; i< 256; i++)
+	{
+		for(int j= 0; j< 256; j++)
+			if(disc_sample_indices[i]== disc_sample_indices[j] && i!= j)
+				cout << "WHAT!!!?\n";
+	}*/
+
+	if(ray_packet_block->is_primary)
+		Timer::primary_shading_timer.Start();
+	else
+		Timer::secondary_shading_timer.Start();
 #if ISPC_SHADING
 	ISPCMaterial *materials= scene->GetISPCMaterials();
 
@@ -525,8 +653,14 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 			RayPacketBlock *secondary_ray_packet_block= TakeEmptySecondaryRayPacketBlock();
 
 			int rays_shaded_count= 0;
-			ispc::PacketedShadingKernel(reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets+ total_rays_shaded_count), 
+			ispc::PacketedShadingKernel_Coherent(
+#if RANDOM_PACKET_ORDER
+				reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets),
+#else
+				reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets+ total_rays_shaded_count),
+#endif
 										ray_packet_block->front_index- total_rays_shaded_count, 
+										&order, ray_packet_block->front_index- 1,
 										&rays_shaded_count,
 										film->receptors_r, film->receptors_g, film->receptors_b, 
 										film->sample_counts, film->width, 
@@ -534,10 +668,17 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 										camera->GetFilteringKernels(), 
 										noisy_receptors, &noisy_receptors_count, 
 										reinterpret_cast<ispc::RayPacket *>(secondary_ray_packet_block->ray_packets), 
-										&(secondary_ray_packet_block->front_index));
+										&(secondary_ray_packet_block->front_index),
+										gi_sample_index, 
+										ispc_data,
+										primary_disc_samples,
+										disc_sample_indices+ total_rays_shaded_count);
 
 			if(secondary_ray_packet_block->front_index> 0)
-				secondary_ray_packet_block->state= secondary_ray_packet_block->front_index>= (RAY_PACKET_BLOCK_SIZE- 2)? BlockState::Full : BlockState::Partial;
+				secondary_ray_packet_block->state= secondary_ray_packet_block->front_index>= (RAY_PACKET_BLOCK_SIZE- MAX_SECONDARY_RAY_COUNT)? BlockState::Full : BlockState::Partial;
+
+			//secondary_ray_packet_block->Empty();
+
 			ReturnRayPacketBlock(secondary_ray_packet_block);
 
 #else
@@ -556,7 +697,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 										&(secondary_ray_block->front_index));
 
 			if(secondary_ray_block->front_index> 0)
-				secondary_ray_block->state= secondary_ray_block->front_index>= (RAY_BLOCK_SIZE- 1* PACKET_SIZE)? BlockState::Full : BlockState::Partial;
+				secondary_ray_block->state= secondary_ray_block->front_index>= (RAY_BLOCK_SIZE- MAX_SECONDARY_RAY_COUNT* PACKET_SIZE)? BlockState::Full : BlockState::Partial;
 
 			ReturnRayBlock(secondary_ray_block);
 #endif
@@ -604,7 +745,15 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	}
 
 #endif
-	Timer::shading_timer.Pause();
+	if(ray_packet_block->is_primary)
+		Timer::primary_shading_timer.Pause();
+	else
+		Timer::secondary_shading_timer.Pause();
+
+#if DATA_COLLECTION
+	if(ispc_data->shading.count>= ispc_data->shading.max_count)
+		ispc_data->Write();
+#endif
 
 	ray_packet_block->Empty();
 	ReturnRayPacketBlock(ray_packet_block);
@@ -671,10 +820,41 @@ void Shutter::Reset()
 	if(noisy_receptors== nullptr)
 		noisy_receptors= new int[camera->film->width* camera->film->height];
 	noisy_receptors_front= 0;
+
+#if BAKE_DISC_SAMPLES
+	int disc_sample_index= this->disc_sample_index++;
+	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+	{
+		int foo= i* 64+ disc_sample_index* PACKET_SIZE+ 10;
+		for(int j= 0; j< PACKET_SIZE; j++)
+		{
+			Vec2f disc_sample= SampleUnitDisc(foo);
+
+			primary_disc_samples[(i* 2+ 0)* 8+ j]= disc_sample.x;
+			primary_disc_samples[(i* 2+ 1)* 8+ j]= disc_sample.y;
+		}
+	}
+
+#endif
+
+	rays_processed= 0;
+	packets_processed= 0;
+
+	//memset(rays_processed, 0, sizeof(int)* (MAX_BOUNCE_COUNT+ 1));
 }
 
 void Shutter::TaskLoop(Scene *scene)
 {
+#if PROGRESSIVE_RENDER && BAKE_DISC_SAMPLES == 0
+	Team::GetObject_Instanciate<int>("gi_sample_index")[0]= Team::TakeANumber_Persistent("gi_sample_offset")* PACKET_SIZE;
+#else 
+#if BAKE_DISC_SAMPLES
+	if(Team::FirstTime("gi_sample_index"))
+#endif
+	Team::GetObject_Instanciate<int>("gi_sample_index")[0]= Team::TakeANumber("gi_sample_offset")* PACKET_SIZE* RAY_PACKET_BLOCK_SIZE/ THREAD_COUNT;
+#endif
+
+
 	Task task;
 	while(task.type!= TaskType::Develop)//Hack, but will be replaced in the future anyways. 
 	{

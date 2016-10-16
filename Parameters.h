@@ -19,8 +19,11 @@
 #define RAY_BLOCK_SIZE (CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT* MIN_SAMPLES_PER_PIXEL)
 #define RAY_PACKET_BLOCK_SIZE (RAY_BLOCK_SIZE/ PACKET_SIZE)
 
-#define MAX_BOUNCE_COUNT 7
-#define FAINTNESS_THRESHOLD 0.2f
+#define MAX_SECONDARY_RAY_COUNT 3//should be ray _packet_ count
+#define MAX_BOUNCE_COUNT 4//need special setting for refraction bounces
+#define FAINTNESS_THRESHOLD 0.01f//Faint rays should still be traced if other packet members still active
+#define DIFFUSE_PACKETS_PER_PRIMARY_RAY 0
+#define PATHTRACING (DIFFUSE_PACKETS_PER_PRIMARY_RAY< 1)
 
 
 #define THREAD_COUNT 1
@@ -48,6 +51,13 @@
 
 #define PACKETED_SECONDARY_RAYS 1
 
+//Need to make primary samples with each frame
+#define PROGRESSIVE_RENDER 1
+
+#define RANDOM_PACKET_ORDER 0
+#define BAKE_DISC_SAMPLES 1
+
 
 #define PRINT_AVERAGES 1
+#define DATA_COLLECTION 0
 

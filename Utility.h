@@ -6,8 +6,6 @@
 
 vector<string> TokenizeOverSpaces(string string_);
 
-int IntegerPow(int base, int exp);
-
 template<class Type, class RequiredType> 
 struct Where
 {

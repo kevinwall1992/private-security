@@ -235,37 +235,78 @@ struct PhongMaterial
 	float transparency;
 };
 
+struct Data
+{
+	struct
+	{
+		float *normals;
+		float *directions;
+		float *image_xys;
+		int *bounce_counts;
+		int *incoming_ray_types;
+		int *outgoing_ray_types;
+
+		int *indicies;
+
+		int count;
+		int max_count;
+		int collect_data;
+	} shading;
+};
+
+void LogData_Shading_Reflection(uniform Data * uniform data, 
+								varying float normal_x, varying float normal_y, varying float normal_z, 
+								varying float direction_x, varying float direction_y, varying float direction_z, 
+								varying float image_x, varying float image_y, 
+								varying int bounce_count, 
+								varying int incoming_ray_type,
+								varying int outgoing_ray_type)
+{
+#if DATA_COLLECTION
+	if(!data->shading.collect_data)
+		return;
+
+	uniform int lane_mask= lanemask();
+	int index;
+	uniform int active_count;
+	unmasked
+	{
+		index= data->shading.count+ exclusive_scan_add(lane_mask& (1 << programIndex) ? 1 : 0);
+	}
+	if(index>= data->shading.max_count)
+		return;
+	lane_mask= lanemask();
+	unmasked
+	{
+		data->shading.count+= reduce_add(lane_mask& (1 << programIndex) ? 1 : 0);
+	}
+	
+	data->shading.normals[index* 3+ 0]= normal_x;
+	data->shading.normals[index* 3+ 1]= normal_y;
+	data->shading.normals[index* 3+ 2]= normal_z;
+
+	data->shading.directions[index* 3+ 0]= direction_x;
+	data->shading.directions[index* 3+ 1]= direction_y;
+	data->shading.directions[index* 3+ 2]= direction_z;
+
+	data->shading.image_xys[index* 2+ 0]= image_x;
+	data->shading.image_xys[index* 2+ 1]= image_y;
+
+	data->shading.bounce_counts[index]= bounce_count;
+	data->shading.incoming_ray_types[index]= incoming_ray_type;
+	data->shading.outgoing_ray_types[index]= outgoing_ray_type;
+
+	data->shading.indicies[index]= index;
+
+	data->shading.count+= active_count;
+#endif
+}
+
 #define ISPC_CODE
 #include "ISPCInterop.h"
+#include "Sampling.h"
 #undef ISPC_CODE
 
-
-//Try making point a pointer (heh)
-//need to make sure lighting is a uniform, not sure how yet
-//Think this should take surface normal as well
-/*float<3> GetLuminosityAtPoint(float<3> point, Lighting *lighting, uniform int light_index)
-{
-	uniform int index= light_index;
-	if(index< lighting->point_light_count)
-	{
-		return lighting->point_lights[index].intensity;
-	}
-
-	index= index- lighting->point_light_count;
-	if(index< lighting->ambient_light_count)
-	{
-		return lighting->ambient_lights[index].intensity;
-	}
-
-	float<3> luminosity= {0.0f, 0.0f, 0.0f};
-	return luminosity;
-}*/
-
-/*void soa_to_aos(soa<8> Vec3f pts_soa[], uniform int count,  uniform Vec3f pts_aos[]) 
-{
-     foreach (i = 0 ... count)
-         pts_aos[i]= pts_soa[i];
-}*/
 
 export void GetRayPackets(uniform int x_offset, uniform int y_offset, 
 							uniform float camera_position[], uniform float camera_forward[], 
@@ -397,124 +438,184 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 	}
 }
 
-#if PACKETED_SECONDARY_RAYS
-//use varyings
-unmasked void WriteRayPacket(RayPacket * uniform ray_packets, int * uniform packet_count, 
-	                         varying int mask, 
-							 varying float<3> position, varying float<3> direction, 
-							 uniform float tnear, uniform float tfar, 
-							 uniform float x[], uniform float y[],
-							 uniform int bounce_count, uniform int type, 
-							 varying float refractive_index, varying bool in_air,
-							 varying float absorption_r, varying float absorption_g, varying float absorption_b)
+void WriteRayPacket_Coalesced(uniform RayPacket * uniform ray_packet, 
+							uniform int ray_offset,
+							varying float<3> position, varying float<3> direction, 
+							uniform float tnear, uniform float tfar, 
+							varying float x, varying float y,
+							varying int bounce_count, varying int type, 
+							varying float refractive_index, varying bool in_air,
+							varying float absorption_r, varying float absorption_g, varying float absorption_b)
 {
-	uniform int packet_index= packet_count[0]++;
+	int ray_index= ray_offset+ programIndex;
 
-	cif(mask)
+	(ray_packet->orgx+ ray_offset)[programIndex]= position[0];
+	(ray_packet->orgy+ ray_offset)[programIndex]= position[1];
+	(ray_packet->orgz+ ray_offset)[programIndex]= position[2];
+
+	(ray_packet->dirx+ ray_offset)[programIndex]= direction[0];
+	(ray_packet->diry+ ray_offset)[programIndex]= direction[1];
+	(ray_packet->dirz+ ray_offset)[programIndex]= direction[2];
+
+	(ray_packet->tnear+ ray_offset)[programIndex]= tnear;
+	(ray_packet->tfar+ ray_offset)[programIndex]= tfar;
+	(ray_packet->geomID+ ray_offset)[programIndex]= RTC_INVALID_GEOMETRY_ID;
+	(ray_packet->primID+ ray_offset)[programIndex]= RTC_INVALID_GEOMETRY_ID;
+	(ray_packet->time+ ray_offset)[programIndex]= 0;
+
+	(ray_packet->bounce_count+ ray_offset)[programIndex]= bounce_count;
+	(ray_packet->type+ ray_offset)[programIndex]= type;
+	(ray_packet->x+ ray_offset)[programIndex]= x;
+	(ray_packet->y+ ray_offset)[programIndex]= y;
+
+	(ray_packet->absorption_r+ ray_offset)[programIndex]= absorption_r;
+	(ray_packet->absorption_g+ ray_offset)[programIndex]= absorption_g;
+	(ray_packet->absorption_b+ ray_offset)[programIndex]= absorption_b;
+
+	(ray_packet->medium.refractive_index+ ray_offset)[programIndex]= refractive_index;
+	(ray_packet->medium.is_air+ ray_offset)[programIndex]= in_air;
+
+	(ray_packet->mask+ ray_offset)[programIndex]= -1;
+}
+
+unmasked void WriteRayPacket_Coherent(RayPacket * uniform ray_packets, 
+									uniform int * uniform packet_count, uniform int * uniform front_packet_ray_count,
+									varying int mask, 
+									varying float<3> position, varying float<3> direction, 
+									uniform float tnear, uniform float tfar, 
+									varying float x, varying float y,
+									varying int bounce_count, varying int type, 
+									varying float refractive_index, varying bool in_air,
+									varying float absorption_r, varying float absorption_g, varying float absorption_b)
+{
+	int series_id= exclusive_scan_add(mask ? 0 : 1);
+	if(!mask)
+		return;
+
+	uniform int ray_count= reduce_add(1);
+	
+	foreach_unique(series in series_id)
 	{
-		ray_packets[packet_index].orgx[programIndex]= position[0];
-		ray_packets[packet_index].orgy[programIndex]= position[1];
-		ray_packets[packet_index].orgz[programIndex]= position[2];
+		uniform int series_ray_count= reduce_add(1);
 
-		ray_packets[packet_index].dirx[programIndex]= direction[0];
-		ray_packets[packet_index].diry[programIndex]= direction[1];
-		ray_packets[packet_index].dirz[programIndex]= direction[2];
+		uniform int min_program_index= (series_ray_count== PACKET_SIZE) ? 0 : reduce_min(programIndex);
+		
+#if 1
+		if((series_ray_count+ front_packet_ray_count[0])> PACKET_SIZE)
+		{
+			if((programIndex- min_program_index+ front_packet_ray_count[0])< PACKET_SIZE)
+			{
+				//print("b%\n", series_id);
 
-		ray_packets[packet_index].tnear[programIndex]= tnear;
-		ray_packets[packet_index].tfar[programIndex]= tfar;
-		ray_packets[packet_index].geomID[programIndex]= RTC_INVALID_GEOMETRY_ID;
-		ray_packets[packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
-		ray_packets[packet_index].time[programIndex]= 0;
+				WriteRayPacket_Coalesced(ray_packets+ packet_count[0], front_packet_ray_count[0]- min_program_index,
+										position, direction,
+										tnear, tfar, 
+										x, y,
+										bounce_count, type, 
+										refractive_index, in_air,
+										absorption_r, absorption_g, absorption_b);
+			}
+			else
+			{
+				WriteRayPacket_Coalesced(ray_packets+ (packet_count[0]+ 1), -reduce_min(programIndex),
+										position, direction, 
+										tnear, tfar, 
+										x, y,
+										bounce_count, type, 
+										refractive_index, in_air,
+										absorption_r, absorption_g, absorption_b);
+			}
 
-		ray_packets[packet_index].bounce_count[programIndex]= bounce_count;
-		ray_packets[packet_index].type[programIndex]= type;
-		ray_packets[packet_index].x[programIndex]= x[programIndex];
-		ray_packets[packet_index].y[programIndex]= y[programIndex];
+			packet_count[0]++;
+			front_packet_ray_count[0]= series_ray_count- (PACKET_SIZE- front_packet_ray_count[0]);
+		}
+		else
+		{
+			WriteRayPacket_Coalesced(ray_packets+ packet_count[0], front_packet_ray_count[0]- min_program_index,
+									position, direction, 
+									tnear, tfar, 
+									x, y,
+									bounce_count, type, 
+									refractive_index, in_air,
+									absorption_r, absorption_g, absorption_b);
 
-		ray_packets[packet_index].absorption_r[programIndex]= absorption_r;
-		ray_packets[packet_index].absorption_g[programIndex]= absorption_g;
-		ray_packets[packet_index].absorption_b[programIndex]= absorption_b;
+			front_packet_ray_count[0]+= series_ray_count;
+		}
 
-		ray_packets[packet_index].medium.refractive_index[programIndex]= refractive_index;
-		ray_packets[packet_index].medium.is_air[programIndex]= in_air;
+#else
+		if((series_ray_count+ front_packet_ray_count[0])> PACKET_SIZE)
+		{
+			unmasked { ray_packets[packet_count[0]++].mask[programIndex]= (programIndex< front_packet_ray_count[0]) ? -1 : 0; }
+			front_packet_ray_count[0]= 0;
+		}
+
+		WriteRayPacket_Coalesced(ray_packets+ packet_count[0], front_packet_ray_count[0]- reduce_min(programIndex),
+								position, direction, 
+								tnear, tfar, 
+								x, y,
+								bounce_count, type, 
+								refractive_index, in_air,
+								absorption_r, absorption_g, absorption_b);
+
+		front_packet_ray_count[0]+= series_ray_count;
+
+#endif
 	}
 
-	ray_packets[packet_index].mask[programIndex]= mask ? -1 : 0;
 }
-#else
 
-unmasked void WriteRays(Ray * uniform rays, int * uniform ray_count, 
-	                    varying int mask, 
-						varying float<3> position, varying float<3> direction, 
-						uniform float tnear, uniform float tfar, 
-						uniform float x[], uniform float y[],
-						uniform int bounce_count)
-{
-	int ray_index= ray_count[0]+ exclusive_scan_add(mask);
-	ray_count[0]+= reduce_add(mask);
-
-	cif(mask)
-	{
-		rays[ray_index].org[0]= position[0];
-		rays[ray_index].org[1]= position[1];
-		rays[ray_index].org[2]= position[2];
-
-		rays[ray_index].dir[0]= direction[0];
-		rays[ray_index].dir[1]= direction[1];
-		rays[ray_index].dir[2]= direction[2];
-
-		rays[ray_index].tnear= 0.0f;
-		rays[ray_index].tfar= 1000000000;
-		rays[ray_index].geomID= RTC_INVALID_GEOMETRY_ID;
-		rays[ray_index].primID= RTC_INVALID_GEOMETRY_ID;
-		rays[ray_index].time= 0;
-
-		rays[ray_index].bounce_count= bounce_count;
-		rays[ray_index].type= 1;
-		rays[ray_index].x= x[programIndex];
-		rays[ray_index].y= y[programIndex];
-
-		rays[ray_index].absorption[0]= 1.0f;
-		rays[ray_index].absorption[1]= 1.0f;
-		rays[ray_index].absorption[2]= 1.0f;
-
-		rays[ray_index].mask= -1;
-	}
-
-}
-#endif
-
-export void PacketedShadingKernel(uniform RayPacket ray_packets[], 
-								  uniform int packet_count,
-								  int * uniform packets_shaded_count, 
-								  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
-								  uniform int film_width,
-								  Lighting * uniform lighting,
-								  uniform PhongMaterial materials[],
-								  uniform float filtering_kernels[],
-								  uniform int noisy_receptors[], uniform int noisy_receptor_count[], 
+export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[], 
+										  uniform int packet_count, 
+										  uniform int ** uniform order, uniform int max_packet_index,
+										  uniform int * uniform packets_shaded_count, 
+										  uniform float receptors_r[], uniform float receptors_g[], uniform float receptors_b[], uniform int sample_counts[],
+										  uniform int film_width,
+										  Lighting * uniform lighting,
+										  uniform PhongMaterial materials[],
+										  uniform float filtering_kernels[],
+										  uniform int noisy_receptors[], uniform int noisy_receptor_count[], 
 #if PACKETED_SECONDARY_RAYS
-								  uniform RayPacket secondary_ray_packets[],
-								  int * uniform secondary_packet_count
+										  uniform RayPacket secondary_ray_packets[],
+										  uniform int * uniform secondary_packet_count,
 #else
-								  uniform Ray secondary_rays[], 
-								  int * uniform secondary_ray_count
+										  uniform Ray secondary_rays[], 
+										  uniform int * uniform secondary_ray_count,
 #endif
-								  )
+										  uniform int * uniform sample_index,
+										  uniform Data * uniform data,
+										  uniform float primary_disc_samples[],
+										  uniform int disc_sample_indices[])
 {
+	uniform int secondary_ray_count= 0;
+
+#if RANDOM_PACKET_ORDER
+	for(;packets_shaded_count[0]< packet_count; order[0]++)
+#else
 	for(uniform int i= 0; i< packet_count; i++)
+#endif
 	{
+#if RANDOM_PACKET_ORDER
+		uniform int i= order[0][0];
+		if(i> max_packet_index)
+			continue;
+#endif
+
 #if PACKETED_SECONDARY_RAYS
-		if(secondary_packet_count[0]> (RAY_PACKET_BLOCK_SIZE- 2))
+		if(secondary_packet_count[0]> (RAY_PACKET_BLOCK_SIZE- MAX_SECONDARY_RAY_COUNT))
 #else
-		if(secondary_ray_count[0]> (RAY_BLOCK_SIZE- 2* PACKET_SIZE))
+		if(secondary_ray_count[0]> (RAY_BLOCK_SIZE- MAX_SECONDARY_RAY_COUNT* PACKET_SIZE))
 #endif
 			break;
 		packets_shaded_count[0]++;
 
-
-		cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID || ray_packets[i].mask[programIndex]!= -1)
+		bool ray_is_active= !(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID || ray_packets[i].mask[programIndex]!= -1);
+		cif(!ray_is_active)
 			continue;
+
+		bool is_primary= ray_packets[i].type[programIndex]< 2;
+
+		float packet_x= ray_packets[i].x[programIndex];
+		float packet_y= ray_packets[i].y[programIndex];
 
 		float<3> color= {0.0f, 0.0f, 0.0f};
 
@@ -532,13 +633,12 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 							 ray_packets[i].diry[programIndex], 
 							 ray_packets[i].dirz[programIndex]};
 		float direction_magnitude= sqrt(direction.x* direction.x+ direction.y* direction.y+ direction.z* direction.z);
-		direction.x/= direction_magnitude;
+		direction.x/= direction_magnitude;//need to determine if normalization is necessary
 		direction.y/= direction_magnitude;
 		direction.z/= direction_magnitude;
 
-		uniform int bounce_count;
-		reduce_equal(ray_packets[i].bounce_count[programIndex], &bounce_count);
-		uniform bool bounce_limit_achieved= bounce_count>= MAX_BOUNCE_COUNT;
+		int bounce_count= ray_packets[i].bounce_count[programIndex];
+		bool bounce_limit_achieved= bounce_count>= MAX_BOUNCE_COUNT;
 
 		float absoption_intensity= (ray_packets[i].absorption_r[programIndex]+ 
 									 ray_packets[i].absorption_g[programIndex]+ 
@@ -592,7 +692,11 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 		bool is_transparent= transmittance> 0.000001f;
 		float transmittance_complement= 1- transmittance;
 
-		if(!bounce_limit_achieved)
+		float glass_complement= 1- transmittance- reflectivity;
+		bool glass_interaction= (glass_complement)< 0.001f;
+		//print("%\n", glass_complement);
+
+		cif(!bounce_limit_achieved)//try cif
 		{
 			cif(!is_faint)
 			{
@@ -643,36 +747,31 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 						float absorption_g= ray_packets[i].absorption_g[programIndex]* surface_diffuse_color.g* transmittance;
 						float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_diffuse_color.b* transmittance;
 
+						//Need way to get rid of these blocks
 #if PACKETED_SECONDARY_RAYS
-						WriteRayPacket(secondary_ray_packets, secondary_packet_count, 
-									   is_transparent && !is_faint, 
+						WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count,
+									   !bounce_limit_achieved && is_transparent && !is_faint && ray_is_active, //should just use activity_mask (in function)
 									   refraction_position, refraction_direction, 0.0f, 1000000, 
-									   ray_packets[i].x, ray_packets[i].y, 
-									   bounce_count+ 1, 2, 
+									   packet_x, packet_y, 
+									   bounce_count+ 1, is_primary ? 2 : 4, 
 									   transmitted_refractive_index, !in_air,
 									   absorption_r, absorption_g, absorption_b);
 #else
-						WriteRays(secondary_rays, secondary_ray_count, 
-									is_transparent && !is_faint, 
-									reflection_position, reflection_direction, 0.0f, 1000000, 
-									ray_packets[i].x, ray_packets[i].y, 
-									bounce_count+ 1, 2, 
-									transmitted_refractive_index, !in_air,
-									absorption_r, absorption_g, absorption_b);
+						not implemented
 #endif
 					}
 				}
+
+				float push= 0.015f;
+				float<3> reflection_position= {position[0]+ normal[0]* push, 
+												position[1]+ normal[1]* push, 
+												position[2]+ normal[2]* push};
 
 				//see if better to combine conditions so they don't need to be recomputed
 				bool faint_internal_reflection= in_air ? false : (reflectivity* absoption_intensity)< FAINTNESS_THRESHOLD;
 
 				cif(is_reflective && !faint_internal_reflection)
 				{
-					float push= 0.015f;
-					float<3> reflection_position= {position[0]+ normal[0]* push, 
-												   position[1]+ normal[1]* push, 
-												   position[2]+ normal[2]* push};
-
 					float normal_coefficient= cos_incoming* 2;
 
 					float<3> reflection_direction= {direction.x+ normal.x* normal_coefficient, 
@@ -684,27 +783,70 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 					float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_specular_color.b* reflectivity;
 
 #if PACKETED_SECONDARY_RAYS
-					WriteRayPacket(secondary_ray_packets, secondary_packet_count, 
-								   is_reflective && !is_faint && !faint_internal_reflection, 
+					WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count, 
+								   !bounce_limit_achieved && is_reflective && !is_faint && !faint_internal_reflection && ray_is_active,
 								   reflection_position, reflection_direction, 0.0f, 1000000, 
-								   ray_packets[i].x, ray_packets[i].y, 
-								   bounce_count+ 1, 1, 
+								   packet_x, packet_y, 
+								   bounce_count+ 1, is_primary ? 1 : 3, 
 								   incoming_refractive_index, in_air,
 								   absorption_r, absorption_g, absorption_b);
 #else
-					WriteRays(secondary_rays, secondary_ray_count, 
-								is_reflective && !is_faint && !faint_internal_reflection, 
-								reflection_position, reflection_direction, 0.0f, 1000000, 
-								ray_packets[i].x, ray_packets[i].y, 
-								bounce_count+ 1, 1, 
-								incoming_refractive_index, in_air,
-								absorption_r, absorption_g, absorption_b);
+					not implemented
 #endif
+				}
+
+				cif(!glass_interaction)
+				{
+					float absorption_r= ray_packets[i].absorption_r[programIndex]* surface_diffuse_color.r* glass_complement;
+					float absorption_g= ray_packets[i].absorption_g[programIndex]* surface_diffuse_color.g* glass_complement;
+					float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_diffuse_color.b* glass_complement;
+
+					//Consider not calculating internal GI bounces at all
+					bool faint_internal_reflection= in_air ? false : ((absorption_r+ absorption_g+ absorption_b)/ 3)< FAINTNESS_THRESHOLD;
+
+					cif(!faint_internal_reflection)
+					{
+						int activity;
+						unmasked {activity= !bounce_limit_achieved && !is_faint && !faint_internal_reflection && !glass_interaction && ray_is_active;}
+#if PATHTRACING == 0
+							not implemented
+						else
+#endif
+						{
+							float<3> reflection_direction;
+							SampleHemisphere_GeometryImportance(disc_sample_indices[i],
+																normal.x, normal.y, normal.z,
+																&(reflection_direction.x), &(reflection_direction.y), &(reflection_direction.z),
+																primary_disc_samples);
+
+#if DATA_COLLECTION
+							LogData_Shading_Reflection(data,
+														normal.x, normal.y, normal.z, 
+														reflection_direction.x, reflection_direction.y, reflection_direction.z, 
+														ray_packets[i].x[programIndex], ray_packets[i].y[programIndex],
+														bounce_count, 
+														ray_packets[i].type[programIndex],
+														5);
+#endif
+
+#if PACKETED_SECONDARY_RAYS
+							WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count, 
+											activity, 
+											reflection_position, reflection_direction, 0.0f, 1000000, 
+											packet_x, packet_y, 
+											bounce_count+ 1, 5,
+											incoming_refractive_index, in_air,
+											absorption_r, absorption_g, absorption_b);
+#else
+							not implemented
+#endif
+						}
+					}
 				}
 			}
 		}
 
-		cif(in_air)
+		cif(in_air && !glass_interaction)//need to test this
 		{
 			for(uniform int j= 0; j< lighting->point_light_count; j++)
 			{
@@ -730,7 +872,7 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 
 #else
 				//Have to do it this way or ISPC compiler gets confused an orders a gather.
-				float light_coefficient= (ray_packets[i].light_coefficients+ j* PACKET_SIZE)[programIndex];
+				float light_coefficient= (ray_packets[i].light_coefficients+ lighting->point_light_count* j)[programIndex];
 
 				color[0]+= lighting->point_lights[j].intensity[0]* light_coefficient;
 				color[1]+= lighting->point_lights[j].intensity[1]* light_coefficient;
@@ -746,12 +888,9 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 			color[1]+= lighting->ambient[1];
 			color[2]+= lighting->ambient[2];
 
-			color[0]*= ray_packets[i].absorption_r[programIndex]* reflectivity_complement* transmittance_complement;
-			color[1]*= ray_packets[i].absorption_g[programIndex]* reflectivity_complement* transmittance_complement;
-			color[2]*= ray_packets[i].absorption_b[programIndex]* reflectivity_complement* transmittance_complement;
-
-			int x= ray_packets[i].x[programIndex];
-			int y= ray_packets[i].y[programIndex];
+			color[0]*= ray_packets[i].absorption_r[programIndex]* glass_complement;
+			color[1]*= ray_packets[i].absorption_g[programIndex]* glass_complement;
+			color[2]*= ray_packets[i].absorption_b[programIndex]* glass_complement;
 
 #if FILTERING
 			uniform int uniform_y;
@@ -802,43 +941,45 @@ export void PacketedShadingKernel(uniform RayPacket ray_packets[],
 			}
 
 #else
-			uniform int uniform_y;
-			uniform int uniform_x;
-			if(reduce_equal(x, &uniform_x) && reduce_equal(y, &uniform_y))
+			int receptor_index= packet_y* film_width+ packet_x;
+
+			foreach_unique(unique_receptor_index in receptor_index)
 			{
 				uniform float<3> color_sum= {reduce_add(color[0]), reduce_add(color[1]), reduce_add(color[2])};
 
-				uniform int receptor_index= uniform_y* film_width+ uniform_x;
-				receptors_r[receptor_index]+= color_sum[0];
-				receptors_g[receptor_index]+= color_sum[1];
-				receptors_b[receptor_index]+= color_sum[2];
+				receptors_r[unique_receptor_index]+= color_sum[0];
+				receptors_g[unique_receptor_index]+= color_sum[1];
+				receptors_b[unique_receptor_index]+= color_sum[2];
+			}
 
 #if ADAPTIVE_SAMPLING
-				if(noisy_receptors!= NULL)
+			if(noisy_receptors!= NULL)
+			{
+				uniform float<3> color_mean= color_sum/ programCount;
+				float<3> displacement= (color- color_mean);//try using intrisic to square resulting vector
+				float squared_distance= displacement[0]* displacement[0]+ displacement[1]* displacement[1]+ displacement[2]* displacement[2];
+
+				uniform float variance= reduce_add(squared_distance);
+				if(variance> COLOR_VARIANCE_THRESHOLD)
 				{
-					uniform float<3> color_mean= color_sum/ programCount;
-					float<3> displacement= (color- color_mean);//try using intrisic to square resulting vector
-					float squared_distance= displacement[0]* displacement[0]+ displacement[1]* displacement[1]+ displacement[2]* displacement[2];
+					//This is technically not tested in its current state
+					//May not need global?
+					noisy_receptors[atomic_add_global(noisy_receptor_count, 1)]= receptor_index;
 
-					uniform float variance= reduce_add(squared_distance);
-					if(variance> COLOR_VARIANCE_THRESHOLD)
-					{
-						//This is technically not tested in its current state
-						noisy_receptors[atomic_add_global(noisy_receptor_count, 1)]= receptor_index;
-
-						sample_counts[receptor_index]= MAX_SAMPLES_PER_PIXEL;
-					}
-					else
-						sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
-
+					sample_counts[receptor_index]= MAX_SAMPLES_PER_PIXEL;
 				}
-#endif
+				else
+					sample_counts[receptor_index]= MIN_SAMPLES_PER_PIXEL;
 
 			}
 #endif
 #endif
+#endif
 		}
 	}
+
+	if(secondary_ray_count> 0)
+		secondary_ray_packets[secondary_packet_count[0]++].mask[programIndex]= (programIndex< secondary_ray_count) ? -1 : 0;
 }
 
 
@@ -855,8 +996,8 @@ export void Clear(uniform float receptors_r[], uniform float receptors_g[], unif
 #endif
 
 #if ISPC_INTERPOLATION
-export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_count,
-	                    uniform Mesh meshes[], uniform int material_ids[])
+export void Interpolate_Coherent(uniform RayPacket ray_packets[], uniform int packet_count,
+								uniform Mesh meshes[], uniform int material_ids[])
 {
 #if PACKET_MODE
 	for(int i= 0; i< packet_count; i++)
@@ -971,109 +1112,12 @@ export void Interpolate(uniform RayPacket ray_packets[], uniform int packet_coun
 
 #endif
 
-export void ComputeLightCoefficients(uniform RayPacket ray_packets[], 
-								uniform int packet_count,
-								Lighting * uniform lighting, 
-								uniform VisibilityRayPacket shadow_ray_packets[],
-								RTCScene * uniform embree_scene)
+export void ComputeLightCoefficients_Coherent(uniform RayPacket ray_packets[], 
+											uniform int packet_count,
+											Lighting * uniform lighting, 
+											uniform VisibilityRayPacket shadow_ray_packets[],
+											RTCScene * uniform embree_scene)
 {
-#if 0
-	for(uniform int light_index= 0; light_index< lighting->point_light_count; light_index++)
-	{
-		uniform float light_position<3>= lighting->point_lights[light_index].position;
-
-		for(uniform int i= 0; i< packet_count; i++)
-		{
-			cif(ray_packets[i].geomID[programIndex]== RTC_INVALID_GEOMETRY_ID)
-				continue;
-
-			float surface_normal<3>= {ray_packets[i].surface_.normal_x[programIndex], 
-			                          ray_packets[i].surface_.normal_y[programIndex],
-			                          ray_packets[i].surface_.normal_z[programIndex]};
-
-			float surface_position<3>= {ray_packets[i].surface_.position_x[programIndex],
-			                            ray_packets[i].surface_.position_y[programIndex],
-										ray_packets[i].surface_.position_z[programIndex]};
-
-			//Assuming we add surface position to ray extras via Interpolate
-			float direction<3>= {light_position[0]- surface_position[0], 
-				                 light_position[1]- surface_position[1], 
-								 light_position[2]- surface_position[2]};
-			float direction_magnitude= sqrt(direction[0]* direction[0]+ 
-											 direction[1]* direction[1]+ 
-											 direction[2]* direction[2]);
-			direction[0]/= direction_magnitude;
-			direction[1]/= direction_magnitude;
-			direction[2]/= direction_magnitude;
-
-			float geometry_term= (direction[0]* surface_normal[0]+ 
-				                 direction[1]* surface_normal[1]+ 
-								 direction[2]* surface_normal[2]);
-
-			if(all(geometry_term< 0))
-			{
-				light_coefficients[i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE+ programIndex]= 0.0f;
-				continue;
-			}
-
-
-			uniform VisibilityRayPacket shadow_packet;
-
-			cif(geometry_term< 0)
-			{
-				geometry_term= 0.0f;
-#if 0
-			}
-#else
-				shadow_packet.mask[programIndex]= 0;
-			}
-			else
-				shadow_packet.mask[programIndex]= -1;
-#endif
-
-#if 1
-			cif(geometry_term< 0.1f)
-			{
-				shadow_packet.orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
-				shadow_packet.orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
-				shadow_packet.orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
-			}
-			else
-			{
-				shadow_packet.orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.001f;
-				shadow_packet.orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.001f;
-				shadow_packet.orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.001f;
-			}
-#else
-			shadow_packet.orgx[programIndex]= surface_position[0]+ surface_normal[0]* 0.005f;
-			shadow_packet.orgy[programIndex]= surface_position[1]+ surface_normal[1]* 0.005f;
-			shadow_packet.orgz[programIndex]= surface_position[2]+ surface_normal[2]* 0.005f;
-
-#endif
-
-			shadow_packet.dirx[programIndex]= direction[0];
-			shadow_packet.diry[programIndex]= direction[1];
-			shadow_packet.dirz[programIndex]= direction[2];
-
-			shadow_packet.tnear[programIndex]= 0.0f;
-			shadow_packet.tfar[programIndex]= direction_magnitude;
-			shadow_packet.geomID[programIndex]= RTC_INVALID_GEOMETRY_ID;
-			shadow_packet.primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
-			shadow_packet.time[programIndex]= 0;
-
-
-			uniform RTCIntersectContext context;
-			context.flags= RTC_INTERSECT_COHERENT;
-			context.userRayExt= NULL;
-			rtcOccludedNM(*embree_scene, &context, (RTCRayN *)(&shadow_packet), PACKET_SIZE, 1, sizeof(RayPacket)/ 8);
-
-
-			uniform int light_coefficient_offset= i* PACKET_SIZE* lighting->point_light_count+ light_index* PACKET_SIZE;
-			light_coefficients[light_coefficient_offset+ programIndex]= shadow_packet.geomID[programIndex]== 0 ? 0.0f : geometry_term;
-		}
-	}
-
-#else
 	uniform int packet_indices[RAY_PACKET_BLOCK_SIZE];
 	uniform int shadow_packet_count;
 	uniform float geometry_terms[RAY_PACKET_BLOCK_SIZE* PACKET_SIZE];
@@ -1162,6 +1206,7 @@ export void ComputeLightCoefficients(uniform RayPacket ray_packets[],
 			packet_indices[shadow_packet_index]= packet_index;
 		}
 
+		//Should try with single packets
 		uniform RTCIntersectContext context;
 		context.flags= RTC_INTERSECT_COHERENT;
 		context.userRayExt= NULL;
@@ -1171,19 +1216,13 @@ export void ComputeLightCoefficients(uniform RayPacket ray_packets[],
 		{
 			uniform int packet_index= packet_indices[shadow_packet_index];
 
-			//uniform float * uniform light_coefficients= ray_packets[packet_index].light_coefficients+ light_index* PACKET_SIZE;
-
 			float light_coefficient;
 			cif(shadow_ray_packets[shadow_packet_index].geomID[programIndex]== 0)
 				light_coefficient= 0.0f;
 			else
 				light_coefficient= geometry_terms[packet_index* PACKET_SIZE+ programIndex];
 
-			//light_coefficient= geometry_terms[packet_indices[packet_index]* PACKET_SIZE+ programIndex];
-
-			//uniform int light_coefficient_offset= light_index* PACKET_SIZE;
-			(ray_packets[packet_index].light_coefficients+ light_index* PACKET_SIZE)[programIndex]= light_coefficient;
+			(ray_packets[packet_index].light_coefficients+ lighting->point_light_count* light_index)[programIndex]= light_coefficient;
 		}
 	}
-#endif
 }

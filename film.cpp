@@ -118,7 +118,16 @@ bool Film::Develop_Parallel(int interval_index)
 				   receptors_b+ interval_offset, 
 				   sample_counts+ interval_offset,
 				   reinterpret_cast<int8_t *>(image.GetPixels()+ interval_offset), 
-				   1, FILM_INTERVAL_SIZE);
+#if PROGRESSIVE_RENDER
+				   1.0f* (System::graphics.GetFrameCount()+ 1),
+#else
+				   1.0f, 
+#endif
+				   FILM_INTERVAL_SIZE);
+
+#if PROGRESSIVE_RENDER
+
+#endif
 
 #else
 	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);

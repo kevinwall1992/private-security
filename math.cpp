@@ -25,3 +25,34 @@ Vec2f::Vec2f()
 	x= 0.0f;
 	y= 0.0f;
 }
+
+//http://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
+int IntegerPow(int base, int exp)
+{
+    int result = 1;
+
+    while(exp)
+    {
+        if(exp& 1)
+            result*= base;
+
+        exp>>= 1;
+        base*= base;
+    }
+
+    return result;
+}
+
+//http://stackoverflow.com/questions/10956543/gcd-function-in-c-sans-cmath-library
+int GCD(int u, int v) 
+{
+    while(v != 0) 
+	{
+        unsigned r= u% v;
+
+        u= v;
+        v= r;
+    }
+
+    return u;
+}
