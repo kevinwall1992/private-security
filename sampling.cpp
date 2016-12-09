@@ -29,4 +29,3 @@ Vec2f SampleUnitDisc(int &index)
 
 	return sample;
 }
-

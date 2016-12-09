@@ -4,6 +4,37 @@
 #include "Timer.h"
 
 
+void Camera::GetSamples(float *&samples_x, float *&samples_y)
+{
+#if PROGRESSIVE_RENDER
+	
+	int frame_count= System::graphics.GetFrameCount();
+	if(current_frame_count!= frame_count)
+	{
+		Turn turn= Team::WaitForTurn("get_samples_queue");
+		if(current_frame_count!= frame_count)
+		{
+			current_frame_count= frame_count;
+
+			for(int i= 0; i< MIN_SAMPLES_PER_PIXEL; i++)
+			{
+				int sample_index= current_frame_count* MIN_SAMPLES_PER_PIXEL+ i+ 20;
+				progressive_samples_x[i]= HaltonSequence(2, sample_index);
+				progressive_samples_y[i]= HaltonSequence(3, sample_index);
+			}
+		}
+		turn.AllDone();
+	}
+
+	samples_x= progressive_samples_x;
+	samples_y= progressive_samples_y;
+
+#else
+	samples_x= default_samples_x;
+	samples_y= default_samples_y;
+#endif
+}
+
 Camera::Camera(float fov_in_degrees, Vec3f position_, Vec3f direction_)
 	: shutter(this)
 {
@@ -15,39 +46,39 @@ Camera::Camera(float fov_in_degrees, Vec3f position_, Vec3f direction_)
 
 #if CURATED_SAMPLES
 
-	samples_x[0]= 0.24f; samples_y[0]= 0.12f;
-	samples_x[1]= 0.78f; samples_y[1]= 0.37f;
-	samples_x[2]= 0.12f; samples_y[2]= 0.64f;
-	samples_x[3]= 0.81f; samples_y[3]= 0.86f;
+	default_samples_x[0]= 0.24f; default_samples_y[0]= 0.12f;
+	default_samples_x[1]= 0.78f; default_samples_y[1]= 0.37f;
+	default_samples_x[2]= 0.12f; default_samples_y[2]= 0.64f;
+	default_samples_x[3]= 0.81f; default_samples_y[3]= 0.86f;
 
-	samples_x[4]= 0.61f; samples_y[4]= 0.15f;
-	samples_x[5]= 0.10f; samples_y[5]= 0.27f;
-	samples_x[6]= 0.49f; samples_y[6]= 0.49f;
-	samples_x[7]= 0.44f; samples_y[7]= 0.79f;
+	default_samples_x[4]= 0.61f; default_samples_y[4]= 0.15f;
+	default_samples_x[5]= 0.10f; default_samples_y[5]= 0.27f;
+	default_samples_x[6]= 0.49f; default_samples_y[6]= 0.49f;
+	default_samples_x[7]= 0.44f; default_samples_y[7]= 0.79f;
 
-	samples_x[8]= 0.44f; samples_y[8]= 0.02f;
-	samples_x[9]= 0.82f; samples_y[9]= 0.06f;
-	samples_x[10]= 0.50f; samples_y[10]= 0.30f;
-	samples_x[11]= 0.28f; samples_y[11]= 0.46f;
-	samples_x[12]= 0.70f; samples_y[12]= 0.56f;
-	samples_x[13]= 0.93f; samples_y[13]= 0.55f;
-	samples_x[14]= 0.04f; samples_y[14]= 0.89f;
-	samples_x[15]= 0.59f; samples_y[15]= 0.92f;
+	default_samples_x[8]= 0.44f; default_samples_y[8]= 0.02f;
+	default_samples_x[9]= 0.82f; default_samples_y[9]= 0.06f;
+	default_samples_x[10]= 0.50f; default_samples_y[10]= 0.30f;
+	default_samples_x[11]= 0.28f; default_samples_y[11]= 0.46f;
+	default_samples_x[12]= 0.70f; default_samples_y[12]= 0.56f;
+	default_samples_x[13]= 0.93f; default_samples_y[13]= 0.55f;
+	default_samples_x[14]= 0.04f; default_samples_y[14]= 0.89f;
+	default_samples_x[15]= 0.59f; default_samples_y[15]= 0.92f;
 
-	samples_x[16]= 0.07f; samples_y[16]= 0.06f;
-	samples_x[17]= 0.29f; samples_y[17]= 0.28f;
-	samples_x[18]= 0.89f; samples_y[18]= 0.24f;
-	samples_x[19]= 0.06f; samples_y[19]= 0.44f;
-	samples_x[20]= 0.34f; samples_y[20]= 0.64f;
-	samples_x[21]= 0.61f; samples_y[21]= 0.72f;
-	samples_x[22]= 0.94f; samples_y[22]= 0.73f;
-	samples_x[23]= 0.25f; samples_y[23]= 0.86f;
+	default_samples_x[16]= 0.07f; default_samples_y[16]= 0.06f;
+	default_samples_x[17]= 0.29f; default_samples_y[17]= 0.28f;
+	default_samples_x[18]= 0.89f; default_samples_y[18]= 0.24f;
+	default_samples_x[19]= 0.06f; default_samples_y[19]= 0.44f;
+	default_samples_x[20]= 0.34f; default_samples_y[20]= 0.64f;
+	default_samples_x[21]= 0.61f; default_samples_y[21]= 0.72f;
+	default_samples_x[22]= 0.94f; default_samples_y[22]= 0.73f;
+	default_samples_x[23]= 0.25f; default_samples_y[23]= 0.86f;
 
 #else
 	for(int i= 0; i< MAX_SAMPLES_PER_PIXEL; i++)
 	{
-		samples_x[i]= HaltonSequence(2, i);
-		samples_y[i]= HaltonSequence(3, i);
+		default_samples_x[i]= HaltonSequence(2, i);
+		default_samples_y[i]= HaltonSequence(3, i);
 	}
 
 #endif
@@ -135,11 +166,15 @@ Image * Camera::TakePicture(Scene &scene)
 
 bool Camera::GetRayPackets(RayPacket *ray_packets, int tile_index, int *indices, int index_count)
 {
-	//if(tile_index> 4)
+	//if(tile_index> 963)
 	//	return false;
 
 	if((indices== nullptr) && (tile_index>= ((film->width/ CAMERA_TILE_WIDTH)* (film->height/ CAMERA_TILE_HEIGHT))))
 		return false;
+
+	float *samples_x;
+	float * samples_y;
+	GetSamples(samples_x, samples_y);
 
 	Timer::get_rays_timer.Start();
 

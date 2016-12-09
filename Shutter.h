@@ -13,7 +13,7 @@ using std::queue;
 #include "ISPCInterop.h"
 
 
-struct Camera;
+class Camera;
 struct RayBlock;
 struct RayPacketBlock;
 struct Task;
@@ -38,8 +38,10 @@ class Shutter
 	std::atomic_int noisy_receptors_front;
 
 	float *primary_disc_samples;
-	int disc_sample_index= 0;
 	int *disc_sample_indices;
+	float *interval_samples;
+	//int *interval_sample_order;
+	int *interval_sample_indices;
 
 	bool initial_samples_exhausted;
 	bool additional_samples_exhausted;
@@ -49,6 +51,7 @@ class Shutter
 	void ReportNoisyReceptors(int *indices, int count);
 
 	int * GetDiscSampleIndices(int x, int y, int bounce_count);
+	int * GetIntervalSampleIndices(int x, int y, int bounce_count);
 
 	RayBlock * TakeEmptyPrimaryRayBlock();
 	RayBlock * TakeEmptySecondaryRayBlock();

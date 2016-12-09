@@ -63,7 +63,7 @@ inline void SampleUnitDisc(uniform int * index, varying float * uniform x, varyi
 }
 #endif
 
-void SampleHemisphere_GeometryImportance(varying int index, 
+void SampleHemisphere_GeometryImportance(uniform int index, 
 										 varying float normal_x, varying float normal_y, varying float normal_z, 
 										 varying float * uniform sample_x, varying float * uniform sample_y, varying float * uniform sample_z,
 										 uniform float disc_samples[])

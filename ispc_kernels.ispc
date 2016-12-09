@@ -478,6 +478,7 @@ void WriteRayPacket_Coalesced(uniform RayPacket * uniform ray_packet,
 	(ray_packet->mask+ ray_offset)[programIndex]= -1;
 }
 
+//Get rid of need for mask
 unmasked void WriteRayPacket_Coherent(RayPacket * uniform ray_packets, 
 									uniform int * uniform packet_count, uniform int * uniform front_packet_ray_count,
 									varying int mask, 
@@ -584,7 +585,10 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 										  uniform int * uniform sample_index,
 										  uniform Data * uniform data,
 										  uniform float primary_disc_samples[],
-										  uniform int disc_sample_indices[])
+										  uniform int disc_sample_indices[],
+										  uniform float * uniform interval_samples,
+										  uniform int * uniform interval_sample_indices,
+										  uniform int frame_count)
 {
 	uniform int secondary_ray_count= 0;
 
@@ -614,7 +618,7 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 
 		bool is_primary= ray_packets[i].type[programIndex]< 2;
 
-		float packet_x= ray_packets[i].x[programIndex];
+		float packet_x= ray_packets[i].x[programIndex];//name change
 		float packet_y= ray_packets[i].y[programIndex];
 
 		float<3> color= {0.0f, 0.0f, 0.0f};
@@ -639,11 +643,6 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 
 		int bounce_count= ray_packets[i].bounce_count[programIndex];
 		bool bounce_limit_achieved= bounce_count>= MAX_BOUNCE_COUNT;
-
-		float absoption_intensity= (ray_packets[i].absorption_r[programIndex]+ 
-									 ray_packets[i].absorption_g[programIndex]+ 
-									 ray_packets[i].absorption_b[programIndex])/ 3;
-		bool is_faint= absoption_intensity< FAINTNESS_THRESHOLD;
 
 		float<3> surface_diffuse_color;
 		float<3> surface_specular_color;
@@ -687,166 +686,194 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 				transmitted_refractive_index= materials[unique_material_id].refractive_index;
 			}
 		}
-		bool is_reflective= reflectivity> 0.000001f;
 		float reflectivity_complement= 1- reflectivity;
-		bool is_transparent= transmittance> 0.000001f;
 		float transmittance_complement= 1- transmittance;
-
 		float glass_complement= 1- transmittance- reflectivity;
 		bool glass_interaction= (glass_complement)< 0.001f;
-		//print("%\n", glass_complement);
+		
 
-		cif(!bounce_limit_achieved)//try cif
+		//bool do_print= packet_x== 234 && packet_y== 404;
+
+
+		cif(!bounce_limit_achieved)
 		{
-			cif(!is_faint)
-			{
-				if(!in_air)
-					transmitted_refractive_index= 1.0f;
+			if(!in_air)
+				transmitted_refractive_index= 1.0f;
+			float incoming_refractive_index= ray_packets[i].medium.refractive_index[programIndex];//name change
+			float cos_incoming= -(direction.x* normal.x+ 
+									direction.y* normal.y+ 
+									direction.z* normal.z);
 
-				float incoming_refractive_index= ray_packets[i].medium.refractive_index[programIndex];//name change
+			float push= 0.015f;
+			float<3> reflection_position= {position[0]+ normal[0]* push, 
+											position[1]+ normal[1]* push, 
+											position[2]+ normal[2]* push};
 
-				float cos_incoming= -(direction.x* normal.x+ 
-									   direction.y* normal.y+ 
-									   direction.z* normal.z);
+#if RUSSIAN_ROULETTE
+			//Diffuse
+			float interval_sample= (interval_samples+ (interval_sample_indices[i]+ frame_count)* PACKET_SIZE)[programIndex];
 
-				cif(is_transparent)
-				{
-					float index_ratio= incoming_refractive_index/ transmitted_refractive_index;
-					float sin_transmitted_squared= (index_ratio* index_ratio)* (1- cos_incoming* cos_incoming);
+			float diffuse_color_magnitude= 0.316f* surface_diffuse_color.b+ 
+											0.461f* surface_diffuse_color.g+ 
+											0.223f* surface_diffuse_color.r;
+			float diffuse_threshold= diffuse_color_magnitude* glass_complement;
+			bool diffuse_interaction= interval_sample< diffuse_threshold;
 
-					cif(sin_transmitted_squared> 1)
-					{
-						reflectivity+= transmittance;
-						is_reflective= true;
-					}
-					else
-					{
-						float cos_transmitted= sqrt(1- sin_transmitted_squared);
+			float adjusted_diffuse_term;
+			if(bounce_count>= RUSSIAN_ROULETTE_BOUNCE)
+				adjusted_diffuse_term= diffuse_interaction ? 1.0f : 0.0f;
+			else
+				adjusted_diffuse_term= diffuse_color_magnitude* glass_complement;
 
-						float r0= (incoming_refractive_index- transmitted_refractive_index)/
-								  (incoming_refractive_index+ transmitted_refractive_index);
-						r0= r0* r0;
-						float cos_term= incoming_refractive_index<= transmitted_refractive_index ? cos_incoming : cos_transmitted;
-						float reflection_coefficient= r0+ (1- r0)* pow(1- cos_term, 5);
+			bool do_diffuse= adjusted_diffuse_term> 0.001f;
 
-						reflectivity+= reflection_coefficient* transmittance;
-						is_reflective= true;
-						transmittance*= 1- reflection_coefficient;
 
-						float push= -0.015f;
-						float<3> refraction_position= {position[0]+ normal[0]* push, 
-													   position[1]+ normal[1]* push, 
-													   position[2]+ normal[2]* push};
+			//Refraction
+			float refraction_threshold= diffuse_threshold+ transmittance;
+			float fresnel_reflectivity= 0.0f;
+			float fresnel_transmittance= 0.0f;
+			
+			bool refractive_interaction= interval_sample< refraction_threshold && !diffuse_interaction;
+			bool do_refraction= refractive_interaction;
 
-						float normal_coefficient= index_ratio* cos_incoming- cos_transmitted;
-						float<3> refraction_direction= {direction.x* index_ratio+ normal.x* normal_coefficient, 
-														direction.y* index_ratio+ normal.y* normal_coefficient, 
-														direction.z* index_ratio+ normal.z* normal_coefficient};
 
-						float absorption_r= ray_packets[i].absorption_r[programIndex]* surface_diffuse_color.r* transmittance;
-						float absorption_g= ray_packets[i].absorption_g[programIndex]* surface_diffuse_color.g* transmittance;
-						float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_diffuse_color.b* transmittance;
+			//Reflection
+			float specular_color_magnitude= 0.316f* surface_specular_color.b+ 
+											0.461f* surface_specular_color.g+ 
+											0.223f* surface_specular_color.r;
+			float reflection_threshold= refraction_threshold+ specular_color_magnitude* reflectivity;
+			bool reflective_interaction= interval_sample< reflection_threshold && !refractive_interaction && !diffuse_interaction;
 
-						//Need way to get rid of these blocks
-#if PACKETED_SECONDARY_RAYS
-						WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count,
-									   !bounce_limit_achieved && is_transparent && !is_faint && ray_is_active, //should just use activity_mask (in function)
-									   refraction_position, refraction_direction, 0.0f, 1000000, 
-									   packet_x, packet_y, 
-									   bounce_count+ 1, is_primary ? 2 : 4, 
-									   transmitted_refractive_index, !in_air,
-									   absorption_r, absorption_g, absorption_b);
+			float adjusted_reflection_term= reflective_interaction ? 1.0f : fresnel_reflectivity;
+
+			bool do_reflection= adjusted_reflection_term> 0;
+
 #else
-						not implemented
+			bool do_diffuse= !glass_interaction;
+			bool do_refraction= transmittance> 0;
+			bool do_reflection= reflectivity> 0;
+
 #endif
-					}
-				}
 
-				float push= 0.015f;
-				float<3> reflection_position= {position[0]+ normal[0]* push, 
-												position[1]+ normal[1]* push, 
-												position[2]+ normal[2]* push};
+			if(do_diffuse)
+			{
+				float<3> normalized_diffuse_color= {surface_diffuse_color.r/ diffuse_color_magnitude, 
+					                                surface_diffuse_color.g/ diffuse_color_magnitude, 
+													surface_diffuse_color.b/ diffuse_color_magnitude};
 
-				//see if better to combine conditions so they don't need to be recomputed
-				bool faint_internal_reflection= in_air ? false : (reflectivity* absoption_intensity)< FAINTNESS_THRESHOLD;
+				float absorption_r= ray_packets[i].absorption_r[programIndex]* normalized_diffuse_color.r* adjusted_diffuse_term;
+				float absorption_g= ray_packets[i].absorption_g[programIndex]* normalized_diffuse_color.g* adjusted_diffuse_term;
+				float absorption_b= ray_packets[i].absorption_b[programIndex]* normalized_diffuse_color.b* adjusted_diffuse_term;
 
-				cif(is_reflective && !faint_internal_reflection)
-				{
-					float normal_coefficient= cos_incoming* 2;
+				float<3> reflection_direction;
+				SampleHemisphere_GeometryImportance(disc_sample_indices[i]+ frame_count,
+													normal.x, normal.y, normal.z,
+													&(reflection_direction.x), &(reflection_direction.y), &(reflection_direction.z),
+													primary_disc_samples);
 
-					float<3> reflection_direction= {direction.x+ normal.x* normal_coefficient, 
-													direction.y+ normal.y* normal_coefficient, 
-													direction.z+ normal.z* normal_coefficient};
-
-					float absorption_r= ray_packets[i].absorption_r[programIndex]* surface_specular_color.r* reflectivity;
-					float absorption_g= ray_packets[i].absorption_g[programIndex]* surface_specular_color.g* reflectivity;
-					float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_specular_color.b* reflectivity;
+#if DATA_COLLECTION
+				LogData_Shading_Reflection(data,
+											normal.x, normal.y, normal.z, 
+											reflection_direction.x, reflection_direction.y, reflection_direction.z, 
+											ray_packets[i].x[programIndex], ray_packets[i].y[programIndex],
+											bounce_count, 
+											ray_packets[i].type[programIndex],
+											5);
+#endif
 
 #if PACKETED_SECONDARY_RAYS
-					WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count, 
-								   !bounce_limit_achieved && is_reflective && !is_faint && !faint_internal_reflection && ray_is_active,
-								   reflection_position, reflection_direction, 0.0f, 1000000, 
-								   packet_x, packet_y, 
-								   bounce_count+ 1, is_primary ? 1 : 3, 
-								   incoming_refractive_index, in_air,
-								   absorption_r, absorption_g, absorption_b);
+				WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count, 
+								!bounce_limit_achieved && do_diffuse && ray_is_active, 
+								reflection_position, reflection_direction, 0.0f, 1000000,
+								packet_x, packet_y, 
+								bounce_count+ 1, 5,
+								incoming_refractive_index, in_air,
+								absorption_r, absorption_g, absorption_b);
+#else
+				not implemented
+#endif
+			}
+
+			if(do_refraction)
+			{
+				//print("refraction\n");
+				float index_ratio= incoming_refractive_index/ transmitted_refractive_index;
+				float sin_transmitted_squared= (index_ratio* index_ratio)* (1- cos_incoming* cos_incoming);
+
+				cif(sin_transmitted_squared> 1)
+					reflectivity+= transmittance;
+				else
+				{
+					float cos_transmitted= sqrt(1- sin_transmitted_squared);
+
+					float r0= (incoming_refractive_index- transmitted_refractive_index)/
+								(incoming_refractive_index+ transmitted_refractive_index);
+					r0= r0* r0;
+					float cos_term= incoming_refractive_index<= transmitted_refractive_index ? cos_incoming : cos_transmitted;
+					float reflection_coefficient= r0+ (1- r0)* pow(1- cos_term, 5);
+
+					fresnel_reflectivity= reflection_coefficient;
+					fresnel_transmittance= 1- reflection_coefficient;
+
+					float push= -0.015f;
+					float<3> refraction_position= {position[0]+ normal[0]* push, 
+													position[1]+ normal[1]* push, 
+													position[2]+ normal[2]* push};
+
+					float normal_coefficient= index_ratio* cos_incoming- cos_transmitted;
+					float<3> refraction_direction= {direction.x* index_ratio+ normal.x* normal_coefficient, 
+													direction.y* index_ratio+ normal.y* normal_coefficient, 
+													direction.z* index_ratio+ normal.z* normal_coefficient};
+
+					float absorption_r= ray_packets[i].absorption_r[programIndex]* fresnel_transmittance;//Transparent objects colorless for now
+					float absorption_g= ray_packets[i].absorption_g[programIndex]* fresnel_transmittance;
+					float absorption_b= ray_packets[i].absorption_b[programIndex]* fresnel_transmittance;
+
+					//Need way to get rid of these blocks
+#if PACKETED_SECONDARY_RAYS
+					WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count,
+									!bounce_limit_achieved && do_refraction && ray_is_active, //should just use activity_mask (in function)
+									refraction_position, refraction_direction, 0.0f, 1000000, 
+									packet_x, packet_y, 
+									bounce_count+ 1, is_primary ? 2 : 4, 
+									transmitted_refractive_index, !in_air,
+									absorption_r, absorption_g, absorption_b);
 #else
 					not implemented
 #endif
 				}
+			}
 
-				cif(!glass_interaction)
-				{
-					float absorption_r= ray_packets[i].absorption_r[programIndex]* surface_diffuse_color.r* glass_complement;
-					float absorption_g= ray_packets[i].absorption_g[programIndex]* surface_diffuse_color.g* glass_complement;
-					float absorption_b= ray_packets[i].absorption_b[programIndex]* surface_diffuse_color.b* glass_complement;
+			if(do_reflection)
+			{
+				float normal_coefficient= cos_incoming* 2;
 
-					//Consider not calculating internal GI bounces at all
-					bool faint_internal_reflection= in_air ? false : ((absorption_r+ absorption_g+ absorption_b)/ 3)< FAINTNESS_THRESHOLD;
+				float<3> reflection_direction= {direction.x+ normal.x* normal_coefficient, 
+												direction.y+ normal.y* normal_coefficient, 
+												direction.z+ normal.z* normal_coefficient};
 
-					cif(!faint_internal_reflection)
-					{
-						int activity;
-						unmasked {activity= !bounce_limit_achieved && !is_faint && !faint_internal_reflection && !glass_interaction && ray_is_active;}
-#if PATHTRACING == 0
-							not implemented
-						else
-#endif
-						{
-							float<3> reflection_direction;
-							SampleHemisphere_GeometryImportance(disc_sample_indices[i],
-																normal.x, normal.y, normal.z,
-																&(reflection_direction.x), &(reflection_direction.y), &(reflection_direction.z),
-																primary_disc_samples);
-
-#if DATA_COLLECTION
-							LogData_Shading_Reflection(data,
-														normal.x, normal.y, normal.z, 
-														reflection_direction.x, reflection_direction.y, reflection_direction.z, 
-														ray_packets[i].x[programIndex], ray_packets[i].y[programIndex],
-														bounce_count, 
-														ray_packets[i].type[programIndex],
-														5);
-#endif
+				float absorption_r= ray_packets[i].absorption_r[programIndex]* (surface_specular_color.r/ specular_color_magnitude)* adjusted_reflection_term;
+				float absorption_g= ray_packets[i].absorption_g[programIndex]* (surface_specular_color.g/ specular_color_magnitude)* adjusted_reflection_term;
+				float absorption_b= ray_packets[i].absorption_b[programIndex]* (surface_specular_color.b/ specular_color_magnitude)* adjusted_reflection_term;
 
 #if PACKETED_SECONDARY_RAYS
-							WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count, 
-											activity, 
-											reflection_position, reflection_direction, 0.0f, 1000000, 
-											packet_x, packet_y, 
-											bounce_count+ 1, 5,
-											incoming_refractive_index, in_air,
-											absorption_r, absorption_g, absorption_b);
+				WriteRayPacket_Coherent(secondary_ray_packets, secondary_packet_count, &secondary_ray_count, 
+								!bounce_limit_achieved && do_reflection && ray_is_active,
+								reflection_position, reflection_direction, 0.0f, 1000000, 
+								packet_x, packet_y, 
+								bounce_count+ 1, is_primary ? 1 : 3, 
+								incoming_refractive_index, in_air,
+								absorption_r, absorption_g, absorption_b);
 #else
-							not implemented
+				not implemented
 #endif
-						}
-					}
-				}
 			}
+
+			//if(!reflective_interaction && !refractive_interaction && !diffuse_interaction)
+			//	print("absorbed\n");
 		}
 
-		cif(in_air && !glass_interaction)//need to test this
+		cif(in_air && !glass_interaction)
 		{
 			for(uniform int j= 0; j< lighting->point_light_count; j++)
 			{
@@ -941,16 +968,19 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 			}
 
 #else
-			int receptor_index= packet_y* film_width+ packet_x;
+			//if(bounce_count== 2)
+			//{
+				int receptor_index= packet_y* film_width+ packet_x;
 
-			foreach_unique(unique_receptor_index in receptor_index)
-			{
-				uniform float<3> color_sum= {reduce_add(color[0]), reduce_add(color[1]), reduce_add(color[2])};
+				foreach_unique(unique_receptor_index in receptor_index)
+				{
+					uniform float<3> color_sum= {reduce_add(color[0]), reduce_add(color[1]), reduce_add(color[2])};
 
-				receptors_r[unique_receptor_index]+= color_sum[0];
-				receptors_g[unique_receptor_index]+= color_sum[1];
-				receptors_b[unique_receptor_index]+= color_sum[2];
-			}
+					receptors_r[unique_receptor_index]+= color_sum[0];
+					receptors_g[unique_receptor_index]+= color_sum[1];
+					receptors_b[unique_receptor_index]+= color_sum[2];
+				}
+			//}
 
 #if ADAPTIVE_SAMPLING
 			if(noisy_receptors!= NULL)

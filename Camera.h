@@ -6,8 +6,22 @@
 #include "Math.h"
 #include "Ray.h"
 
-struct Camera
+class Camera
 {
+	Shutter shutter;
+
+	float default_samples_x[MAX_SAMPLES_PER_PIXEL];//Might consider finding a better place for this
+	float default_samples_y[MAX_SAMPLES_PER_PIXEL];
+	float filtering_kernels[MAX_SAMPLES_PER_PIXEL* 9];
+
+	float progressive_samples_x[MIN_SAMPLES_PER_PIXEL];//Might consider finding a better place for this
+	float progressive_samples_y[MIN_SAMPLES_PER_PIXEL];
+	int current_frame_count= -1;
+
+	void GetSamples(float *&samples_x, float *&samples_y);
+
+public:
+
 	Vec3f position, forward, up, right;
 	float fov;
 	bool orthograhpic;
@@ -37,13 +51,6 @@ struct Camera
 	
 
 	Image * TakePicture(Scene &scene);
-
-private:
-	Shutter shutter;
-
-	float samples_x[MAX_SAMPLES_PER_PIXEL];//Might consider finding a better place for this
-	float samples_y[MAX_SAMPLES_PER_PIXEL];
-	float filtering_kernels[MAX_SAMPLES_PER_PIXEL* 9];
 };
 
 #endif

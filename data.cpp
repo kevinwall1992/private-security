@@ -64,7 +64,10 @@ void ISPCData::Write()
 		int x= shading.image_xys[i* 2+ 0];
 		int y= shading.image_xys[i* 2+ 1];
 		int bounce_count= shading.bounce_counts[i];
-		if(x== 26 && y== (512- 31) && bounce_count== 1 && normal.y< -0.99f)
+
+		//if(x>= 0 && x<= 3 && y>= 330 && y<= 333  && bounce_count== 1)
+		//if(x>= 1 && x<= 1 && y>= 330 && y<= 330  && bounce_count== 1)
+		if(x>= 25 && x<= 26 && y>= 27 && y<= 27  && bounce_count== 2)
 		{
 			if(foo>= shading.max_count)
 				break;
@@ -85,7 +88,10 @@ void ISPCData::Write()
 
 			foo++;
 
-			output2 << direction.x << " " << direction.y << " " << direction.z << endl;
+			float component= dot(normal, direction);
+			direction= direction- (normal* component);
+
+			output2 << (direction.x+ 2)+ (normal.x* 10)+ (x== 26 ? 30 : 0) << " " << direction.y+ (normal.y* 10) << " " << direction.z+ (normal.z* 10) << endl;
 		}
 	}
 	output2.close();

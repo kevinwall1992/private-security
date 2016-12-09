@@ -16,6 +16,7 @@ int frame_set_count= 1;
 int main(int argument_count, char **arguments)
 {
 	DisableProcessWindowsGhosting();
+	srand(0);
 
 	cout << sizeof(ispc::RayPacket) << ", " << sizeof(RayPacket) << endl;
 
@@ -101,11 +102,6 @@ int main(int argument_count, char **arguments)
 
 				cout << get_rays_ms << "ms/" << embree_ms << "ms/" << primary_shading_ms << "ms/" << secondary_shading_ms << "ms/" << pre_shading_ms << "ms/" << shadow_ms << "ms," << "o:" << other_ms << "ms,";
 				cout << "Render:" << 1/ seconds_to_render << "fps/" << seconds_to_render* 1000 << "ms\n";
-				cout << "rays processed: " << camera.GetShutter()->rays_processed << ", packets: " << camera.GetShutter()->packets_processed << ", percent: " << 100* camera.GetShutter()->rays_processed/ float(camera.GetShutter()->packets_processed* PACKET_SIZE) << endl;
-				/*for(int i= 0; i< (MAX_BOUNCE_COUNT+ 1); i++)
-					cout << camera.GetShutter()->rays_processed[i]<< ", ";
-				cout << "\n";*/
-				//cout << ",Display:" << 1/ seconds_to_display << "fps/" << seconds_to_display* 1000 << "ms\n";
 			}
 
 			bool exit_requested= false;
@@ -115,6 +111,13 @@ int main(int argument_count, char **arguments)
 					exit_requested= true;
 			if(exit_requested)
 				break;
+
+			if(false)
+			if(System::graphics.GetFrameCount()>= 100)
+			{
+				getchar();
+				break;
+			}
 
 			//if((System::graphics.GetFrameCount()% (print_frame_count* 15))== 0)
 			//	break;

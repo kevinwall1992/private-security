@@ -135,6 +135,11 @@ void Shutter::ReturnRayPacketBlock(RayPacketBlock *ray_packet_block)
 	turn.AllDone();
 }
 
+bool IntPairComparator(std::pair<int, int> a, std::pair<int, int> b)
+{
+	return a.first> b.first;
+}
+
 Shutter::Shutter(Camera *camera_)
 #if SERIAL_MODE == 0
 	: team(THREAD_COUNT)
@@ -156,11 +161,11 @@ Shutter::Shutter(Camera *camera_)
 
 #endif
 
-#if BAKE_DISC_SAMPLES
+/*#if BAKE_DISC_SAMPLES
 	int disc_sample_count= RAY_PACKET_BLOCK_SIZE* PACKET_SIZE;
 	primary_disc_samples= new float[disc_sample_count* 2];
 
-	int pixel_count= SCREEN_WIDTH* SCREEN_HEIGHT;
+	/*int pixel_count= SCREEN_WIDTH* SCREEN_HEIGHT;
 	disc_sample_indices= new int[pixel_count];
 	RandomIterator random_iterator= RandomIterator(5003, 2, RAY_PACKET_BLOCK_SIZE);
 	for(int i= 0; i< pixel_count/ RAY_PACKET_BLOCK_SIZE; i++)
@@ -168,6 +173,29 @@ Shutter::Shutter(Camera *camera_)
 		random_iterator.Reset(i+ 1);
 		for(int j= 0; j< RAY_PACKET_BLOCK_SIZE; j++)
 			disc_sample_indices[i* RAY_PACKET_BLOCK_SIZE+ j]= random_iterator.GetNext();
+	}/
+
+	vector<std::pair<int, int>> random_values; 
+	int pixel_count= SCREEN_WIDTH* SCREEN_HEIGHT;
+	disc_sample_indices= new int[pixel_count];
+	foos= new int[pixel_count];
+	for(int i= 0; i< pixel_count/ RAY_PACKET_BLOCK_SIZE; i++)
+	{
+		random_values.clear(); 
+		for(int j= 0; j< RAY_PACKET_BLOCK_SIZE; j++)
+			random_values.push_back(std::pair<int, int>(rand(), j));
+		std::sort(random_values.begin(), random_values.end(), IntPairComparator);
+
+		for(int j= 0; j< RAY_PACKET_BLOCK_SIZE; j++)
+			disc_sample_indices[i* RAY_PACKET_BLOCK_SIZE+ j]= random_values[j].second;
+
+		random_values.clear(); 
+		for(int j= 0; j< RAY_PACKET_BLOCK_SIZE; j++)
+			random_values.push_back(std::pair<int, int>(rand(), j));
+		std::sort(random_values.begin(), random_values.end(), IntPairComparator);
+
+		for(int j= 0; j< RAY_PACKET_BLOCK_SIZE; j++)
+			foos[i* RAY_PACKET_BLOCK_SIZE+ j]= random_values[j].second;
 	}
 
 #else
@@ -176,6 +204,90 @@ Shutter::Shutter(Camera *camera_)
 	disc_sample_indices= nullptr;
 	secondary_disc_sample_order= nullptr;
 #endif
+
+	interval_samples= new float[RAY_PACKET_BLOCK_SIZE* PACKET_SIZE];
+	interval_sample_order= new int[RAY_PACKET_BLOCK_SIZE];
+
+	random_values.clear(); 
+	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+		random_values.push_back(std::pair<int, int>(rand(), i));
+	std::sort(random_values.begin(), random_values.end(), IntPairComparator);
+	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+		interval_sample_order[i]= random_values[i].second;*/
+
+
+
+
+
+
+
+
+#if BAKE_DISC_SAMPLES
+	int pixel_count= SCREEN_WIDTH* SCREEN_HEIGHT;
+	int buffer_factor= 2;
+	int reuse_factor= 1;
+	int disc_sample_count= (pixel_count* buffer_factor* PACKET_SIZE)/ reuse_factor;
+	primary_disc_samples= new float[disc_sample_count* 2];
+
+	/*int pixel_count= SCREEN_WIDTH* SCREEN_HEIGHT;
+	disc_sample_indices= new int[pixel_count];
+	RandomIterator random_iterator= RandomIterator(5003, 2, RAY_PACKET_BLOCK_SIZE);
+	for(int i= 0; i< pixel_count/ RAY_PACKET_BLOCK_SIZE; i++)
+	{
+		random_iterator.Reset(i+ 1);
+		for(int j= 0; j< RAY_PACKET_BLOCK_SIZE; j++)
+			disc_sample_indices[i* RAY_PACKET_BLOCK_SIZE+ j]= random_iterator.GetNext();
+	}*/
+
+	int index_count= pixel_count;
+	vector<std::pair<int, int>> random_values0, random_values1;
+	disc_sample_indices= new int[index_count];
+	interval_sample_indices= new int[index_count];
+	for(int i= 0; i< index_count; i++)
+	{
+		random_values0.push_back(std::pair<int, int>(rand(), i));
+		random_values1.push_back(std::pair<int, int>(rand(), i));
+	}
+	std::sort(random_values0.begin(), random_values0.end(), IntPairComparator);
+	std::sort(random_values1.begin(), random_values1.end(), IntPairComparator);
+	for(int i= 0; i< index_count; i++)
+	{
+		disc_sample_indices[i]= random_values0[i].second/ reuse_factor;//(int)(random_values0[i].second/ (float)index_count* 40);
+		interval_sample_indices[i]= random_values1[i].second/ reuse_factor;//(int)(random_values1[i].second/ (float)index_count* 40);
+	}
+
+	int index= 20;
+	for(int i= 0; i< disc_sample_count; i++)
+	{
+		Vec2f disc_sample= SampleUnitDisc(index);
+
+		int packet_index= i/ PACKET_SIZE;
+		int ray_index= i% PACKET_SIZE;
+		primary_disc_samples[(packet_index* 2+ 0)* 8+ ray_index]= disc_sample.x;
+		primary_disc_samples[(packet_index* 2+ 1)* 8+ ray_index]= disc_sample.y;
+	}
+
+#else
+	primary_disc_samples= nullptr;
+	secondary_disc_samples= nullptr;
+	disc_sample_indices= nullptr;
+	secondary_disc_sample_order= nullptr;
+#endif
+
+	int interval_sample_count= pixel_count* PACKET_SIZE* buffer_factor;
+	interval_samples= new float[interval_sample_count];
+	//interval_sample_order= new int[interval_index_count];
+
+	/*random_values0.clear(); 
+	for(int i= 0; i< interval_sample_count; i++)
+		random_values0.push_back(std::pair<int, int>(rand(), i));
+	std::sort(random_values0.begin(), random_values0.end(), IntPairComparator);*/
+
+	for(int i= 0; i< interval_sample_count; i++)
+	{
+		float floop= HaltonSequence(5, i+ 20);//try changing this back to 2/3
+		interval_samples[i]= floop;//random_values[j].second]= floop;
+	}
 }
 
 Shutter::~Shutter()
@@ -204,6 +316,9 @@ Shutter::~Shutter()
 	delete disc_sample_indices;
 #endif
 
+	delete interval_samples;
+	delete interval_sample_indices;
+	//delete interval_sample_order;
 }
 
 void Shutter::ReportNoisyReceptors(int *indices, int count)
@@ -220,9 +335,19 @@ int * Shutter::GetDiscSampleIndices(int x, int y, int bounce_count)
 	int tile_x= x/ CAMERA_TILE_WIDTH;
 	int tile_y= y/ CAMERA_TILE_HEIGHT;
 	int tile_index= tile_x+ tile_y* camera->film->width/ CAMERA_TILE_WIDTH;
-	tile_index= (tile_index+ bounce_count* (System::graphics.GetFrameCount()+ 1)* 3+ bounce_count)% (camera->film->width* camera->film->height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
+	tile_index= (tile_index+ bounce_count* 7)% (camera->film->width* camera->film->height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
 
 	return disc_sample_indices+ tile_index* RAY_PACKET_BLOCK_SIZE;
+}
+
+int * Shutter::GetIntervalSampleIndices(int x, int y, int bounce_count)
+{
+	int tile_x= x/ CAMERA_TILE_WIDTH;
+	int tile_y= y/ CAMERA_TILE_HEIGHT;
+	int tile_index= tile_x+ tile_y* camera->film->width/ CAMERA_TILE_WIDTH;
+	tile_index= (tile_index+ bounce_count* 6)% (camera->film->width* camera->film->height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
+
+	return interval_sample_indices+ tile_index* RAY_PACKET_BLOCK_SIZE;
 }
 
 void Shutter::Refill(RayBlock *primary_ray_block)
@@ -424,7 +549,7 @@ void Shutter::Develop(Film *film)
 
 void Shutter::PacketedRefill(RayPacketBlock *primary_ray_packet_block)
 {
-	int camera_tile_index= Team::TakeANumber("next_camera_tile_index");
+	int camera_tile_index= Team::TakeANumber("next_camera_tile_index");//+ 963;
 	bool successful= camera->GetRayPackets(primary_ray_packet_block->GetFront(), camera_tile_index);
 	if(successful)
 	{
@@ -512,27 +637,13 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	{
 		scene->Intersect(ray_packet_block->ray_packets[i]);
 
-		packets_processed++;
-		/*for(int j= 0; j< PACKET_SIZE; j++)
-		{
-			RayPacket *ray_packet= &(ray_packet_block->ray_packets[i]);
-			unsigned int foo= -1;
-			if(ray_packet->mask[j]== -1)
-			{
-				rays_processed++;
-			}
-		}*/
-
 		//Preshading - Interpolation
 #if ISPC_INTERPOLATION == 0
 		scene->Interpolate(ray_packet_block->ray_packets[i], ray_packet_block->ray_packet_extrass[i]);
 #endif
 	}
 	else
-	{
 		scene->Intersect(ray_packet_block->ray_packets, ray_packet_block->front_index, false);
-		packets_processed+= ray_packet_block->front_index;
-	}
 #endif
 	Timer::embree_timer.Pause();
 
@@ -609,12 +720,14 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 #endif
 
 	int *disc_sample_indices= nullptr;
+	int *interval_sample_indices= nullptr;
 	for(int i= 0; i< PACKET_SIZE; i++)
 	{
 		RayPacket *ray_packet= &(ray_packet_block->ray_packets[0]);
 		if(ray_packet->mask[i]== -1)
 		{
 			disc_sample_indices= GetDiscSampleIndices((int)(ray_packet->x[i]), (int)(ray_packet->y[i]), ray_packet->bounce_count[i]);
+			interval_sample_indices= GetIntervalSampleIndices((int)(ray_packet->x[i]), (int)(ray_packet->y[i]), ray_packet->bounce_count[i]);
 			break;
 		}
 	}
@@ -628,6 +741,8 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 			if(disc_sample_indices[i]== disc_sample_indices[j] && i!= j)
 				cout << "WHAT!!!?\n";
 	}*/
+
+	int frame_count= System::graphics.GetFrameCount();
 
 	if(ray_packet_block->is_primary)
 		Timer::primary_shading_timer.Start();
@@ -672,7 +787,10 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 										gi_sample_index, 
 										ispc_data,
 										primary_disc_samples,
-										disc_sample_indices+ total_rays_shaded_count);
+										disc_sample_indices+ total_rays_shaded_count,
+										interval_samples,
+										interval_sample_indices+ total_rays_shaded_count,
+										frame_count);
 
 			if(secondary_ray_packet_block->front_index> 0)
 				secondary_ray_packet_block->state= secondary_ray_packet_block->front_index>= (RAY_PACKET_BLOCK_SIZE- MAX_SECONDARY_RAY_COUNT)? BlockState::Full : BlockState::Partial;
@@ -821,11 +939,11 @@ void Shutter::Reset()
 		noisy_receptors= new int[camera->film->width* camera->film->height];
 	noisy_receptors_front= 0;
 
-#if BAKE_DISC_SAMPLES
-	int disc_sample_index= this->disc_sample_index++;
+/*#if BAKE_DISC_SAMPLES
+	int frame_count= System::graphics.GetFrameCount();
 	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
 	{
-		int foo= i* 64+ disc_sample_index* PACKET_SIZE+ 10;
+		int foo= i* 67+ frame_count* PACKET_SIZE+ 10;//should increase 64
 		for(int j= 0; j< PACKET_SIZE; j++)
 		{
 			Vec2f disc_sample= SampleUnitDisc(foo);
@@ -836,6 +954,23 @@ void Shutter::Reset()
 	}
 
 #endif
+
+	vector<std::pair<int, int>> random_values; 
+	for(int i= 0; i< RAY_PACKET_BLOCK_SIZE; i++)
+	{
+		random_values.clear();
+		for(int j= 0; j< PACKET_SIZE; j++)
+			random_values.push_back(std::pair<int, int>(rand(), j));
+		std::sort(random_values.begin(), random_values.end(), IntPairComparator);
+
+		int foo= i* 139+ frame_count* PACKET_SIZE+ 10;
+		for(int j= 0; j< PACKET_SIZE; j++)
+		{
+			int bar= interval_sample_order[i];
+			float floop= HaltonSequence(5, foo++);
+			interval_samples[bar* 8+ j]= floop;//random_values[j].second]= floop;
+		}
+	}*/
 
 	rays_processed= 0;
 	packets_processed= 0;

@@ -21,12 +21,11 @@
 
 #define MAX_SECONDARY_RAY_COUNT 3//should be ray _packet_ count
 #define MAX_BOUNCE_COUNT 4//need special setting for refraction bounces
-#define FAINTNESS_THRESHOLD 0.01f//Faint rays should still be traced if other packet members still active
 #define DIFFUSE_PACKETS_PER_PRIMARY_RAY 0
 #define PATHTRACING (DIFFUSE_PACKETS_PER_PRIMARY_RAY< 1)
 
 
-#define THREAD_COUNT 1
+#define THREAD_COUNT 4
 #define SERIAL_MODE (THREAD_COUNT == 1)
 
 #define ISPC_GET_RAYS 1
@@ -56,8 +55,9 @@
 
 #define RANDOM_PACKET_ORDER 0
 #define BAKE_DISC_SAMPLES 1
+#define RUSSIAN_ROULETTE 1
+#define RUSSIAN_ROULETTE_BOUNCE 0
 
 
 #define PRINT_AVERAGES 1
 #define DATA_COLLECTION 0
-
