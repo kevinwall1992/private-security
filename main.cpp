@@ -11,7 +11,7 @@
 const int print_frame_count= 1;
 int frame_set_count= 1;
 
-#define CORNELL 0
+#define CORNELL 1
 
 int main(int argument_count, char **arguments)
 {
@@ -29,7 +29,7 @@ int main(int argument_count, char **arguments)
 
 #if CORNELL
 		scene.AddProps(Prop::ParseOBJ("cornell1s.obj"));
-		scene.AddLight(new PointLight(Vec3f(23.8f, 45.0f, -30.0f), Color(0.65f, 0.80f, 0.92f)));
+		scene.AddLight(new PointLight(Vec3f(23.8f, 45.0f, -30.0f), Color(0.92f, 0.80f, 0.65f)));
 #else
 		scene.AddProps(Prop::ParseOBJ("test_scene_1.obj"));
 		scene.AddLight(new PointLight(Vec3f(26.5f, 45.0f, -30.0f), Color(0.9f, 0.9f, 0.9f)));

@@ -406,9 +406,9 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ (normalization_term* sample_counts[index]));
 		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ (normalization_term* sample_counts[index]));
 #else
-		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
+		image[image_offset+ 0]= (int8)(255* receptors_b[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
 		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
-		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
+		image[image_offset+ 2]= (int8)(255* receptors_r[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
 #endif
 
 #endif
@@ -709,13 +709,14 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 											position[1]+ normal[1]* push, 
 											position[2]+ normal[2]* push};
 
+			float diffuse_color_magnitude= 0.223f* surface_diffuse_color.r+ 
+											0.461f* surface_diffuse_color.g+ 
+											0.316f* surface_diffuse_color.b;
+
 #if RUSSIAN_ROULETTE
-			//Diffuse
 			float interval_sample= (interval_samples+ (interval_sample_indices[i]+ frame_count)* PACKET_SIZE)[programIndex];
 
-			float diffuse_color_magnitude= 0.316f* surface_diffuse_color.b+ 
-											0.461f* surface_diffuse_color.g+ 
-											0.223f* surface_diffuse_color.r;
+			
 			float diffuse_threshold= diffuse_color_magnitude* glass_complement;
 			bool diffuse_interaction= interval_sample< diffuse_threshold;
 
@@ -726,33 +727,11 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 				adjusted_diffuse_term= diffuse_color_magnitude* glass_complement;
 
 			bool do_diffuse= adjusted_diffuse_term> 0.001f;
-
-
-			//Refraction
-			float refraction_threshold= diffuse_threshold+ transmittance;
-			float fresnel_reflectivity= 0.0f;
-			float fresnel_transmittance= 0.0f;
 			
-			bool refractive_interaction= interval_sample< refraction_threshold && !diffuse_interaction;
-			bool do_refraction= refractive_interaction;
-
-
-			//Reflection
-			float specular_color_magnitude= 0.316f* surface_specular_color.b+ 
-											0.461f* surface_specular_color.g+ 
-											0.223f* surface_specular_color.r;
-			float reflection_threshold= refraction_threshold+ specular_color_magnitude* reflectivity;
-			bool reflective_interaction= interval_sample< reflection_threshold && !refractive_interaction && !diffuse_interaction;
-
-			float adjusted_reflection_term= reflective_interaction ? 1.0f : fresnel_reflectivity;
-
-			bool do_reflection= adjusted_reflection_term> 0;
 
 #else
+			float adjusted_diffuse_term= diffuse_color_magnitude* glass_complement;
 			bool do_diffuse= !glass_interaction;
-			bool do_refraction= transmittance> 0;
-			bool do_reflection= reflectivity> 0;
-
 #endif
 
 			if(do_diffuse)
@@ -793,6 +772,20 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 				not implemented
 #endif
 			}
+
+
+			float fresnel_reflectivity= 0.0f;
+			float fresnel_transmittance= 0.0f;
+
+#if RUSSIAN_ROULETTE
+			float refraction_threshold= diffuse_threshold+ transmittance;
+			
+			bool refractive_interaction= interval_sample< refraction_threshold && !diffuse_interaction;
+			bool do_refraction= refractive_interaction;
+
+#else
+			bool do_refraction= transmittance> 0;
+#endif
 
 			if(do_refraction)
 			{
@@ -843,6 +836,24 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 #endif
 				}
 			}
+
+
+			float specular_color_magnitude= 0.223f* surface_specular_color.r+ 
+											0.461f* surface_specular_color.g+ 
+											0.316f* surface_specular_color.b;
+
+#if RUSSIAN_ROULETTE
+			float reflection_threshold= refraction_threshold+ specular_color_magnitude* reflectivity;
+			bool reflective_interaction= interval_sample< reflection_threshold && !refractive_interaction && !diffuse_interaction;
+
+			float adjusted_reflection_term= reflective_interaction ? 1.0f : fresnel_reflectivity;
+
+			bool do_reflection= adjusted_reflection_term> 0;
+
+#else
+			float adjusted_reflection_term= reflectivity+ fresnel_reflectivity;
+			bool do_reflection= adjusted_reflection_term> 0;
+#endif
 
 			if(do_reflection)
 			{
