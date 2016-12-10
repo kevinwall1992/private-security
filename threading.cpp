@@ -51,7 +51,7 @@ namespace Threading
 
 
 vector<Team *> Team::teams;
-Team Team::serial_team= Team();
+Team Team::serial_team;
 
 __declspec(thread) Team *my_team;
 __declspec(thread) int my_index;

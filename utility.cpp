@@ -1,6 +1,7 @@
 #include "Utility.h"
 
 #include <sstream>
+#include <iterator>
 
 
 //http://stackoverflow.com/questions/236129/splitting-a-string-in-c

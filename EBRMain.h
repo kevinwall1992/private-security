@@ -1,0 +1,1 @@
+int EBR_main(int argument_count, char **arguments);

@@ -12,7 +12,7 @@ Vec2f SampleUnitDisc(int &index);
 
 #else
 
-#include "Parameters.h"
+#include "EBRParameters.h"
 
 #if BAKE_DISC_SAMPLES == 0
 //http://en.wikipedia.org/wiki/Halton_sequence

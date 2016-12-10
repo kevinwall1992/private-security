@@ -20,7 +20,7 @@ vector<Material *> ParseMaterialLibrary(string filename)
 {
 	vector<Material *> materials;
 
-	std::ifstream input_stream(filename);
+	std::ifstream input_stream("scenes/"+ filename);
 
 	PhongMaterial *material= nullptr;
 

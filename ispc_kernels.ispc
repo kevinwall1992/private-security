@@ -9,7 +9,7 @@ struct Vec3f
 };
 
 #define ISPC_CODE
-#include "Parameters.h"
+#include "EBRParameters.h"
 #undef ISPC_CODE
 
 #include <embree2\rtcore.isph>
