@@ -222,6 +222,8 @@ struct Mesh
 
 	int vertex_count;
 	int triangle_count;
+
+	int8 indirect_only;
 };
 
 struct PhongMaterial
@@ -352,10 +354,9 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 		ray_packets[packet_index].orgy[programIndex]= camera_position[1];
 		ray_packets[packet_index].orgz[programIndex]= camera_position[2];
 
-		//-normalized is quick hack
-		ray_packets[packet_index].dirx[programIndex]= camera_forward[0]+ view_plane_u[0]* -normalized_x+ view_plane_v[0]* normalized_y;
-		ray_packets[packet_index].diry[programIndex]= camera_forward[1]+ view_plane_u[1]* -normalized_x+ view_plane_v[1]* normalized_y;
-		ray_packets[packet_index].dirz[programIndex]= camera_forward[2]+ view_plane_u[2]* -normalized_x+ view_plane_v[2]* normalized_y;
+		ray_packets[packet_index].dirx[programIndex]= camera_forward[0]+ view_plane_u[0]* normalized_x+ view_plane_v[0]* normalized_y;
+		ray_packets[packet_index].diry[programIndex]= camera_forward[1]+ view_plane_u[1]* normalized_x+ view_plane_v[1]* normalized_y;
+		ray_packets[packet_index].dirz[programIndex]= camera_forward[2]+ view_plane_u[2]* normalized_x+ view_plane_v[2]* normalized_y;
 
 		ray_packets[packet_index].tnear[programIndex]= 0.0f;
 		ray_packets[packet_index].tfar[programIndex]= 1000000000;
@@ -371,14 +372,48 @@ export void GetRayPackets(uniform int x_offset, uniform int y_offset,
 		ray_packets[packet_index].bounce_count[programIndex]= 0;
 		ray_packets[packet_index].type[programIndex]= 0;
 		ray_packets[packet_index].x[programIndex]= x;
-#if NO_OPENGL
-		ray_packets[packet_index].y[programIndex]= (height- 1)- y;//map to image space
-#else
 		ray_packets[packet_index].y[programIndex]= y;
-#endif
 
 		ray_packets[packet_index].medium.refractive_index[programIndex]= 1.0f;
 		ray_packets[packet_index].medium.is_air[programIndex]= true;
+	}
+}
+
+export void GetRayPackets_Compositing(uniform int x_offset, uniform int y_offset, 
+									uniform float camera_position[], uniform float camera_forward[], 
+									uniform float view_plane_u[], uniform float view_plane_v[],
+									uniform int width, uniform int height,
+									uniform RayPacket ray_packets[], 
+									uniform int count)
+{
+	for(uniform int i= 0; i< count; i++)
+	{
+		uniform int index= i* programCount;
+		uniform int packet_index= i;
+
+		int x= ((index+ programIndex)% 64)+ x_offset;
+		uniform int y= index/ 64+ y_offset;
+		float normalized_x= ((x+ 0.5f)/ width)* 2- 1;
+		uniform float normalized_y= ((y+ 0.5f)/ height)* 2- 1;
+
+
+		ray_packets[packet_index].orgx[programIndex]= camera_position[0];
+		ray_packets[packet_index].orgy[programIndex]= camera_position[1];
+		ray_packets[packet_index].orgz[programIndex]= camera_position[2];
+
+		ray_packets[packet_index].dirx[programIndex]= camera_forward[0]+ view_plane_u[0]* normalized_x+ view_plane_v[0]* normalized_y;
+		ray_packets[packet_index].diry[programIndex]= camera_forward[1]+ view_plane_u[1]* normalized_x+ view_plane_v[1]* normalized_y;
+		ray_packets[packet_index].dirz[programIndex]= camera_forward[2]+ view_plane_u[2]* normalized_x+ view_plane_v[2]* normalized_y;
+
+		ray_packets[packet_index].tnear[programIndex]= 0.0f;
+		ray_packets[packet_index].tfar[programIndex]= 1000000000;
+		ray_packets[packet_index].geomID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].primID[programIndex]= RTC_INVALID_GEOMETRY_ID;
+		ray_packets[packet_index].mask[programIndex]= -1;
+		ray_packets[packet_index].time[programIndex]= 0;
+
+		ray_packets[packet_index].x[programIndex]= x;
+		ray_packets[packet_index].y[programIndex]= y;
 	}
 }
 
@@ -565,6 +600,7 @@ unmasked void WriteRayPacket_Coherent(RayPacket * uniform ray_packets,
 
 }
 
+//Need to start cutting down on this...
 export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[], 
 										  uniform int packet_count, 
 										  uniform int ** uniform order, uniform int max_packet_index,
@@ -690,9 +726,6 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 		float transmittance_complement= 1- transmittance;
 		float glass_complement= 1- transmittance- reflectivity;
 		bool glass_interaction= (glass_complement)< 0.001f;
-		
-
-		//bool do_print= packet_x== 234 && packet_y== 404;
 
 
 		cif(!bounce_limit_achieved)
@@ -979,8 +1012,10 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 			}
 
 #else
-			//if(bounce_count== 2)
-			//{
+#if INDIRECT_LIGHTING_ONLY
+			if(bounce_count> 0)
+#endif
+			{
 				int receptor_index= packet_y* film_width+ packet_x;
 
 				foreach_unique(unique_receptor_index in receptor_index)
@@ -991,7 +1026,7 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 					receptors_g[unique_receptor_index]+= color_sum[1];
 					receptors_b[unique_receptor_index]+= color_sum[2];
 				}
-			//}
+			}
 
 #if ADAPTIVE_SAMPLING
 			if(noisy_receptors!= NULL)
@@ -1188,10 +1223,10 @@ export void ComputeLightCoefficients_Coherent(uniform RayPacket ray_packets[],
 
 			//Assuming we add surface position to ray extras via Interpolate
 			float<3> direction= {light_position[0]- surface_position[0], 
-				                 light_position[1]- surface_position[1], 
+				                 light_position[1]- surface_position[1],
 								 light_position[2]- surface_position[2]};
 			float direction_magnitude= sqrt(direction[0]* direction[0]+ 
-											 direction[1]* direction[1]+ 
+											 direction[1]* direction[1]+
 											 direction[2]* direction[2]);
 			direction[0]/= direction_magnitude;
 			direction[1]/= direction_magnitude;
@@ -1265,5 +1300,93 @@ export void ComputeLightCoefficients_Coherent(uniform RayPacket ray_packets[],
 
 			(ray_packets[packet_index].light_coefficients+ lighting->point_light_count* light_index)[programIndex]= light_coefficient;
 		}
+	}
+}
+
+export void GenerateCompositingMaps(uniform RayPacket ray_packets[], 
+									uniform int packet_count, 
+									uniform Mesh meshes[],
+									uniform PhongMaterial materials[],	
+									uniform float camera_transform[],
+									uniform unsigned int8 diffuse_map[],
+									uniform unsigned int8 glossiness_map[],
+									uniform unsigned int8 normal_map[],
+									uniform float depth_map[],
+									uniform int map_width)
+{
+	for(uniform int i= 0; i< packet_count; i++)
+	{
+		uniform int x= extract(ray_packets[i].x[programIndex], 0);
+		uniform int y= extract(ray_packets[i].y[programIndex], 0);
+
+		int mesh_id= ray_packets[i].geomID[programIndex];
+
+		uniform int uniform_mesh_id;
+		if(reduce_equal(mesh_id, &uniform_mesh_id))
+		{
+			if(uniform_mesh_id== RTC_INVALID_GEOMETRY_ID || meshes[uniform_mesh_id].indirect_only)
+				continue;
+		}
+		else
+		{
+			if(mesh_id== RTC_INVALID_GEOMETRY_ID || meshes[mesh_id].indirect_only)
+				continue;
+		}
+
+		float<3> position= {ray_packets[i].surface_.position_x[programIndex], 
+			                ray_packets[i].surface_.position_y[programIndex], 
+						    ray_packets[i].surface_.position_z[programIndex]};
+
+		float<3> normal= {ray_packets[i].surface_.normal_x[programIndex], 
+			              ray_packets[i].surface_.normal_y[programIndex], 
+						  ray_packets[i].surface_.normal_z[programIndex]};
+
+		float<3> surface_diffuse_color;
+		float surface_glossiness;
+
+		int material_id= ray_packets[i].surface_.material_id[programIndex];
+		uniform int uniform_material_id;
+		uniform bool material_is_uniform= reduce_equal(material_id, &uniform_material_id);
+		if(material_is_uniform)
+		{
+			surface_diffuse_color.r= materials[uniform_material_id].diffuse[0];
+			surface_diffuse_color.g= materials[uniform_material_id].diffuse[1];
+			surface_diffuse_color.b= materials[uniform_material_id].diffuse[2];
+			surface_glossiness= materials[uniform_material_id].glossiness;
+		}
+		else
+		{
+			foreach_unique(unique_material_id in material_id)
+			{
+				surface_diffuse_color.r= materials[unique_material_id].diffuse[0];
+				surface_diffuse_color.g= materials[unique_material_id].diffuse[1];
+				surface_diffuse_color.b= materials[unique_material_id].diffuse[2];
+				surface_glossiness= materials[unique_material_id].glossiness;
+			}
+		}
+
+		int map_index= (y* map_width+ x)+ programIndex;
+
+		diffuse_map[map_index* 4+ 0]= (int)(255* surface_diffuse_color.b);
+		diffuse_map[map_index* 4+ 1]= (int)(255* surface_diffuse_color.g);
+		diffuse_map[map_index* 4+ 2]= (int)(255* surface_diffuse_color.r);
+
+		glossiness_map[map_index* 4+ 2]= (int)(255* (surface_glossiness/ 100.0f));
+
+		normal_map[map_index* 4+ 0]= (int)(255* (normal.z+ 1)/ 2);
+		normal_map[map_index* 4+ 1]= (int)(255* (normal.y+ 1)/ 2);
+		normal_map[map_index* 4+ 2]= (int)(255* (normal.x+ 1)/ 2);
+
+		float position_x= position.x;
+		float position_y= position.y;
+		float position_z= position.z;
+		depth_map[map_index]= ((camera_transform[8]* position_x+ 
+											camera_transform[9]* position_y+ 
+											camera_transform[10]* position_z+ 
+											camera_transform[11])/ 
+											(camera_transform[12]* position_x+ 
+											camera_transform[13]* position_y+ 
+											camera_transform[14]* position_z+ 
+											camera_transform[15])+ 1)/ 2;
 	}
 }

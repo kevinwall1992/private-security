@@ -14,6 +14,12 @@ ISPCLighting::~ISPCLighting()
 }
 
 
+void Scene::AddPrimitive(RaytracingPrimitive *primitive)
+{
+	primitive->AddToEmbreeScene(embree_scene);
+	primitives.push_back(primitive);
+}
+
 void Scene::BuildISPCLighting()
 {
 	ispc_lighting= ISPCLighting();
@@ -26,7 +32,7 @@ void Scene::BuildISPCLighting()
 		Color intensity= lights[i]->GetIntensity();
 		SetFloat3(ispc_lighting.point_lights[i].intensity, intensity);
 	}
-	ispc_lighting.point_light_count= lights.size();
+	ispc_lighting.point_light_count= (int)lights.size();
 
 	Vec3f ambient(0.0f, 0.0f, 0.0f);
 	for(unsigned int i= 0; i< ambient_lights.size(); i++)
@@ -36,29 +42,8 @@ void Scene::BuildISPCLighting()
 
 void Scene::BuildISPCMeshes()
 {
-	for(unsigned int i= 0; i< props.size(); i++)
-	{
-		ISPCMesh mesh;
-
-		mesh.positions= &(props[i].mesh->positions[0]);
-		mesh.position_indices= &(props[i].mesh->position_indices[0]);
-
-		mesh.normals= &(props[i].mesh->normals[0]);
-		mesh.normal_indices= &(props[i].mesh->normal_indices[0]);
-		
-		if(props[i].mesh->texture_coordinates.size()> 0)
-		{
-			mesh.texture_coordinates= &(props[i].mesh->texture_coordinates[0]);
-			mesh.texture_coordinate_indices= &(props[i].mesh->texture_coordinate_indices[0]);
-		}
-		else
-		{
-			mesh.texture_coordinates= nullptr;
-			mesh.texture_coordinate_indices= nullptr;
-		}
-
-		ispc_meshes.push_back(mesh);
-	}
+	for(unsigned int i= 0; i< primitives.size(); i++)
+		ispc_meshes.push_back(dynamic_cast<RaytracingMesh *>(primitives[i])->MakeISPCMesh());
 }
 
 void Scene::BuildISPCMaterials()
@@ -79,12 +64,12 @@ void Scene::BuildISPCMaterials()
 		ispc_materials.push_back(ispc_material);
 	}
 
-	for(unsigned int i= 0; i< geometry_ids.size(); i++)
+	for(unsigned int i= 0; i< primitives.size(); i++)
 	{
-		if(geometry_ids[i]>= material_ids.size())
-			material_ids.resize(geometry_ids[i]+ 1);
+		if(primitives[i]->GetGeometryID()>= material_ids.size())
+			material_ids.resize(primitives[i]->GetGeometryID()+ 1);
 
-		Material *material= props[i].material;
+		Material *material= dynamic_cast<RaytracingMesh *>(primitives[i])->GetMesh()->material;
 		int material_id;
 		for(unsigned int j= 0; j< materials.size(); j++)
 			if(materials[j]== material)
@@ -93,7 +78,7 @@ void Scene::BuildISPCMaterials()
 				break;
 			}
 
-		material_ids[geometry_ids[i]]= material_id;
+		material_ids[primitives[i]->GetGeometryID()]= material_id;
 	}
 }
 
@@ -128,14 +113,13 @@ Scene::~Scene()
 	rtcDeleteScene(embree_scene);
 }
 
-void Scene::AddProp(Prop prop)
+/*void Scene::AddMesh(Mesh *mesh)
 {
-	Mesh *mesh= prop.mesh;
 	int vertex_count= mesh->GetVertexCount();
 	int triangle_count= mesh->GetTriangleCount();
 	unsigned int geometry_id= rtcNewTriangleMesh(embree_scene, RTC_GEOMETRY_STATIC, triangle_count, vertex_count);
 	Vertex *vertices= (Vertex *)rtcMapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);
-	for(unsigned int j= 0; j< vertex_count; j++)
+	for(int j= 0; j< vertex_count; j++)
 	{
 		vertices[j].x= mesh->positions[j* 3+ 0];
 		vertices[j].y= mesh->positions[j* 3+ 1];
@@ -147,7 +131,7 @@ void Scene::AddProp(Prop prop)
 	memcpy(triangles, &mesh->position_indices[0], sizeof(int)* triangle_count* 3);
 	rtcUnmapBuffer(embree_scene, geometry_id, RTC_INDEX_BUFFER);
 
-#if RTC_INTERPOLATE == 0
+#if ISPC_INTERPOLATION == 0
 	rtcSetBuffer(embree_scene, geometry_id, RTC_USER_VERTEX_BUFFER0, &(mesh->normals[0]), 0, sizeof(Vec3f));
 #endif
 
@@ -155,21 +139,21 @@ void Scene::AddProp(Prop prop)
 
 	geometry_ids.push_back(geometry_id);
 
-	props.push_back(prop);
-}
+	meshes.push_back(mesh);
+}*/
 
-void Scene::AddProps(vector<Prop> props)
+/*void Scene::AddProps(vector<Prop> props)
 {
 	for(unsigned int i= 0; i< props.size(); i++)
 		AddProp(props[i]);
-}
+}*/
 
-Prop * Scene::GetProp(int geometry_id)
+RaytracingPrimitive * Scene::GetPrimitiveByGeometryID(int geometry_id)
 {
-	for(unsigned int i= 0; i< geometry_ids.size(); i++)
+	for(unsigned int i= 0; i< primitives.size(); i++)
 	{
-		if(geometry_id== geometry_ids[i])
-			return &(props[i]);
+		if(geometry_id== primitives[i]->GetGeometryID())
+			return primitives[i];
 	}
 
 	assert(false && "Called Scene::GetProp with invalid geometry_id.");
@@ -226,7 +210,11 @@ int * Scene::GetMaterialIDs()
 
 void Scene::Commit()
 {
+	vector<RaytracingPrimitive *> meshes= GetRaytracingPrimitives();
+	for(unsigned int i= 0; i< meshes.size(); i++)
+		AddPrimitive(meshes[i]);
 	rtcCommit(embree_scene);
+
 	BuildISPCData();
 
 	commited= true;

@@ -1,9 +1,11 @@
+#ifdef USE_EBR
+
 #include "Shutter.h"
 #include "Scene.h"
-#include "Camera.h"
+#include "RayCamera.h"
 #include "Surface.h"
 #include "Timer.h"
-#include "Data.h"
+#include "EBRData.h"
 #include "Random.h"
 #include "Sampling.h"
 
@@ -140,7 +142,7 @@ bool IntPairComparator(std::pair<int, int> a, std::pair<int, int> b)
 	return a.first> b.first;
 }
 
-Shutter::Shutter(Camera *camera_)
+Shutter::Shutter(RayCamera *camera_)
 #if SERIAL_MODE == 0
 	: team(THREAD_COUNT)
 #endif
@@ -162,7 +164,8 @@ Shutter::Shutter(Camera *camera_)
 #endif
 
 #if BAKE_DISC_SAMPLES
-	int pixel_count= SCREEN_WIDTH* SCREEN_HEIGHT;
+	//This is a hack. Need to make Shutter resizable and have deferred sized initialization
+	int pixel_count= System::graphics.GetScreenWidth()* System::graphics.GetScreenHeight();
 	int buffer_factor= 2;
 	int reuse_factor= 1;
 	int disc_sample_count= (pixel_count* buffer_factor* PACKET_SIZE)/ reuse_factor;
@@ -256,8 +259,8 @@ int * Shutter::GetDiscSampleIndices(int x, int y, int bounce_count)
 {
 	int tile_x= x/ CAMERA_TILE_WIDTH;
 	int tile_y= y/ CAMERA_TILE_HEIGHT;
-	int tile_index= tile_x+ tile_y* camera->film->width/ CAMERA_TILE_WIDTH;
-	tile_index= (tile_index+ bounce_count* 7)% (camera->film->width* camera->film->height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
+	int tile_index= tile_x+ tile_y* camera->film.Width/ CAMERA_TILE_WIDTH;
+	tile_index= (tile_index+ bounce_count* 7)% (camera->film.Width* camera->film.Height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
 
 	return disc_sample_indices+ tile_index* RAY_PACKET_BLOCK_SIZE;
 }
@@ -266,8 +269,8 @@ int * Shutter::GetIntervalSampleIndices(int x, int y, int bounce_count)
 {
 	int tile_x= x/ CAMERA_TILE_WIDTH;
 	int tile_y= y/ CAMERA_TILE_HEIGHT;
-	int tile_index= tile_x+ tile_y* camera->film->width/ CAMERA_TILE_WIDTH;
-	tile_index= (tile_index+ bounce_count* 6)% (camera->film->width* camera->film->height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
+	int tile_index= tile_x+ tile_y* camera->film.Width/ CAMERA_TILE_WIDTH;
+	tile_index= (tile_index+ bounce_count* 6)% (camera->film.Width* camera->film.Height/ CAMERA_TILE_WIDTH/ CAMERA_TILE_HEIGHT);
 
 	return interval_sample_indices+ tile_index* RAY_PACKET_BLOCK_SIZE;
 }
@@ -314,7 +317,7 @@ void ShadingKernel(Ray &ray, vector<Light *> &lights, vector<AmbientLight *> &am
 	for(unsigned int i= 0; i< ambient_lights.size(); i++)
 		color+= ambient_lights[i]->GetLuminosity(ray.surface.position);
 
-	film->Stimulate(ray.x, ray.y, color* ray.absorption);
+	film->Stimulate((int)(ray.x), (int)(ray.y), color* ray.absorption);
 }
 
 void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
@@ -344,8 +347,8 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		if(ray->geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
 
-		Prop *prop= scene->GetProp(ray->geomID);
-		ray->surface.material= prop->material;
+		Mesh *mesh= dynamic_cast<RaytracingMesh *>(scene->GetPrimitiveByGeometryID(ray->geomID))->GetMesh();
+		ray->surface.material= mesh->material;
 
 		ray->surface.position= Vec3f(ray->org[0]+ ray->dir[0]* ray->tfar, 
 			                                ray->org[1]+ ray->dir[1]* ray->tfar, 
@@ -355,10 +358,10 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		float v= ray->v;
 		float w= 1- u- v;
 
-		int *normal_indices= &(prop->mesh->normal_indices[ray->primID* 3]);
-		Vec3f normal0= MakeVec3f(&(prop->mesh->normals[normal_indices[0]* 3]));
-		Vec3f normal1= MakeVec3f(&(prop->mesh->normals[normal_indices[1]* 3]));
-		Vec3f normal2= MakeVec3f(&(prop->mesh->normals[normal_indices[2]* 3]));
+		int *normal_indices= &(mesh->normal_indices[ray->primID* 3]);
+		Vec3f normal0= Vec3f(&(mesh->normals[normal_indices[0]* 3]));
+		Vec3f normal1= Vec3f(&(mesh->normals[normal_indices[1]* 3]));
+		Vec3f normal2= Vec3f(&(mesh->normals[normal_indices[2]* 3]));
 
 		ray->surface.normal= normal0* w+ normal1* u+ normal2* v;
 	}
@@ -370,7 +373,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 	vector<Light *> lights= scene->GetLights();
 	vector<AmbientLight *> ambient_lights= scene->GetAmbientLights();
-	float *light_coefficients= Team::GetBuffer<float>("light_coefficient_buffer", RAY_BLOCK_SIZE* lights.size());
+	float *light_coefficients= Team::GetBuffer<float>("light_coefficient_buffer", (int)(RAY_BLOCK_SIZE* lights.size()));
 	VisibilityRay *shadow_rays= Team::GetBuffer<VisibilityRay>("shadow_ray_buffer", RAY_BLOCK_SIZE);
 	for(int i= 0; i< ray_block->front_index; i++)
 		ray_block->rays[i].light_coefficients= light_coefficients+ i* lights.size();
@@ -391,7 +394,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 				continue;
 
 			Vec3f direction= -lights[light_index]->SampleDirectionAtPoint(ray->surface.position);
-			float geometry_term= dot(normalize(direction), ray->surface.normal);
+			float geometry_term= direction.Normalized().Dot(ray->surface.normal);
 
 			if(geometry_term< 0)
 			{
@@ -439,7 +442,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		Timer::secondary_shading_timer.Start();
 
 	int rays_processed_count= 0;
-	for(unsigned int i= 0; i< ray_block->front_index; i++)
+	for(int i= 0; i< ray_block->front_index; i++)
 	{
 		if(ray_block->rays[i].geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
@@ -462,7 +465,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 void Shutter::Develop(Film *film)
 {
 	int film_interval_index= Team::TakeANumber("next_film_interval_index");
-	develop_finished= !film->Develop_Parallel(film_interval_index);
+	develop_finished= !film->Develop_Parallel(1.0f/ (camera->frame_count+ 1), film_interval_index);
 
 #if PROGRESSIVE_RENDER == 0
 	film->Clear_Parallel(film_interval_index);
@@ -575,7 +578,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 
 	ISPCLighting *lighting= scene->GetISPCLighting();
 	float *light_coefficient_buffer= Team::GetBuffer<float>("light_coefficient_buffer", RAY_PACKET_BLOCK_SIZE* PACKET_SIZE* lighting->point_light_count);
-	ispc::VisibilityRayPacket *shadow_ray_packet_buffer= reinterpret_cast<ispc::VisibilityRayPacket *>(Team::GetBuffer<ispc::VisibilityRayPacket>("shadow_ray_buffer", RAY_PACKET_BLOCK_SIZE));
+	ISPCVisibilityRayPacket *shadow_ray_packet_buffer= reinterpret_cast<ISPCVisibilityRayPacket *>(Team::GetBuffer<ISPCVisibilityRayPacket>("shadow_ray_buffer", RAY_PACKET_BLOCK_SIZE));
 	for(int i= 0; i< ray_packet_block->front_index; i++)
 		ray_packet_block->ray_packets[i].light_coefficients= light_coefficient_buffer+ i* PACKET_SIZE* lighting->point_light_count;
 
@@ -655,7 +658,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	}
 	assert(disc_sample_indices!= nullptr && "all rays in packet were inactive, unable to get disc sample indices!");
 
-	int frame_count= System::graphics.GetFrameCount();
+	int frame_count= camera->frame_count;
 
 	if(ray_packet_block->is_primary)
 		Timer::primary_shading_timer.Start();
@@ -691,7 +694,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 										&order, ray_packet_block->front_index- 1,
 										&rays_shaded_count,
 										film->receptors_r, film->receptors_g, film->receptors_b, 
-										film->sample_counts, film->width, 
+										film->sample_counts, film->Width, 
 										lighting, materials, 
 										camera->GetFilteringKernels(), 
 										noisy_receptors, &noisy_receptors_count, 
@@ -849,7 +852,7 @@ void Shutter::Reset()
 	develop_finished= false;
 
 	if(noisy_receptors== nullptr)
-		noisy_receptors= new int[camera->film->width* camera->film->height];
+		noisy_receptors= new int[camera->film.Width* camera->film.Height];
 	noisy_receptors_front= 0;
 
 	rays_processed= 0;
@@ -884,9 +887,9 @@ void Shutter::TaskLoop(Scene *scene)
 
 		case TaskType::Shade: 
 			if(task.is_packeted)
-				PacketedShade(task.shade.ray_packet_block, scene, camera->film);
+				PacketedShade(task.shade.ray_packet_block, scene, &(camera->film));
 			else
-				Shade(task.shade.ray_block, scene, camera->film);
+				Shade(task.shade.ray_block, scene, &(camera->film));
 			break;
 
 		default: break;
@@ -902,7 +905,7 @@ void Shutter::TaskLoop(Scene *scene)
 		switch(task.type)
 		{
 		case TaskType::Develop:
-			Develop(camera->film);
+			Develop(&(camera->film));
 			break;
 
 		case TaskType::None:
@@ -1036,3 +1039,5 @@ Task::Task()
 	type= TaskType::None;
 	refill.primary_ray_block= nullptr;
 }
+
+#endif

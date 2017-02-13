@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<shaders>
+  <vertex>passthrough.vert</vertex>
+  <fragment>photo.frag</fragment>
+</shaders>

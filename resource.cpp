@@ -1,10 +1,10 @@
 #include "Resource.h"
-#include "System.h"
+#include "ResourceSystem.h"
 
 
-Resource::Resource(string name_)
+Resource::Resource(string name)
 {
-	name= name_;
+	this->name= name;
 
 	System::resource.RegisterResource(this);
 }

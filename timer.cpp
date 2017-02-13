@@ -1,5 +1,6 @@
 #include "Timer.h"
-#include "GraphicsHeaders.h"
+
+#include <SDL.h>
 
 
 Timer Timer::get_rays_timer;

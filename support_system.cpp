@@ -1,4 +1,5 @@
 #include "SupportSystem.h"
+#include "Common.h"
 
 #ifdef _WIN32
 //  Windows

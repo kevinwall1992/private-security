@@ -1,4 +1,3 @@
-#include "EBRParameters.h"
 #include "Macros.h"
 
 #include <string>

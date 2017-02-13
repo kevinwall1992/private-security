@@ -1,6 +1,7 @@
 #ifndef EBR_TIMER
 #define EBR_TIMER
 
+//All returned timings are in seconds
 class Timer
 {
 	unsigned int elapsed_milliseconds= 0;

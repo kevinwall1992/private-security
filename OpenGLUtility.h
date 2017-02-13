@@ -3,7 +3,6 @@
 
 #include "GraphicsHeaders.h"
 
-GLuint CreateShader(GLenum shader_type, const char *shader_source, const char *name= nullptr);
-GLuint CreateShaderProgram(GLuint vertex_shader, GLuint fragment_shader);
+void HandleGLErrors();//Should be HandleOpenGLErrors
 
 #endif

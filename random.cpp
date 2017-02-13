@@ -1,8 +1,6 @@
 #include "Random.h"
 #include "Math.h"
-
-#include <vector>
-using std::vector;
+#include "Common.h"
 
 RandomIterator::RandomIterator(int prime_, int seed_primitive_root, int count_, int seed_state)
 {
@@ -30,7 +28,7 @@ RandomIterator::RandomIterator(int prime_, int seed_primitive_root, int count_, 
 	}
       
 	primitive_roots.resize(primitive_roots.size()/ 2+ 1);
-	for(int i= primitive_roots.size()- 1; i>= 0; i--)
+	for(int i= (int)primitive_roots.size()- 1; i>= 0; i--)
 	{
 		if(primitive_roots[i]< (std::numeric_limits<int>::max()/ prime))
 		{

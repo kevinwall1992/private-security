@@ -1,6 +1,7 @@
 #ifndef EBR_SURFACE
 #define EBR_SURFACE
 
+#include "EBRParameters.h"
 #include "Math.h"
 #include "Material.h"
 

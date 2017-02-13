@@ -7,10 +7,11 @@ class Resource : public Polymorphic
 {
 	string name;
 
-public:
-	Resource(string name);
+protected:
+	Resource(string name= "");
 	~Resource();
 
+public:
 	string GetName();
 };
 

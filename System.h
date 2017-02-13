@@ -1,10 +1,13 @@
 #ifndef EBR_SYSTEM
 #define EBR_SYSTEM
 
+
 class SupportSystem;
 class EmbreeSystem;
 class GraphicsSystem;
+class InputSystem;
 class ResourceSystem;
+
 class System
 {
 	static bool systems_initialized;
@@ -17,15 +20,11 @@ public:
 	static SupportSystem support;
 	static EmbreeSystem embree;
 	static GraphicsSystem graphics;
+	static InputSystem input;
 	static ResourceSystem resource;
 
-	static void InitializeSystems();
+	static void InitializeSystems();//Add flags to initialize only certain systems. 
 	static void TerminateSystems();
 };
-
-#include "SupportSystem.h"
-#include "GraphicsSystem.h"
-#include "EmbreeSystem.h"
-#include "ResourceSystem.h"
 
 #endif

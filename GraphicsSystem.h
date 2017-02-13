@@ -7,27 +7,29 @@
 #include "Image.h"
 
 
+class Photo;
+class ShaderProgram;
+
 class GraphicsSystem : public System
 {
+	SDL_GLContext opengl_context;
+	SDL_Window *window;
+
+	int screen_width= 1024;
+	int screen_height= 1024;
+
 	int frame_count= 0;
-	
+
 protected:
 	void Initialize();
 	void Terminate();
 
 public:
-	SDL_Window *window;
-	int screen_width;
-	int screen_height;
+	int GetScreenWidth();
+	int GetScreenHeight();
+	
 
-#if !NO_OPENGL
-	SDL_GLContext opengl_context;
-#endif
-
-	Image GetWindowImage();
-	void ReturnWindowImage(Image window_image);
-
-	void Display(Image &image);
+	void Display(Photo photo);
 
 	int GetFrameCount();
 

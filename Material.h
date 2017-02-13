@@ -4,21 +4,19 @@
 #include "Common.h"
 #include "Color.h"
 #include "Math.h"
-#include "Resource.h"
+#include "FileResource.h"
 
-struct Material : public Resource
+struct Material : public FileResource<Material>
 {
-	Material(string name);
-	~Material();
+	static vector<Material *> GetMaterials();//Would be nice if this was done for us by Resource/ResourceSystem
 
-	Material * GetMaterial(string name);
+	static string MakeFilepath(string filename);
+	static vector<Material *> Parse(string filename);
 
-	static vector<Material *> GetMaterials();
-	static Material * GetDefaultMaterial();
+protected:
+	Material(string filepath, string element_name);
 
-private:
-	static vector<Material *> materials;
-	static Material *default_material;
+	static vector<Material *> materials_;
 };
 
 struct PhongMaterial : public Material
@@ -33,14 +31,10 @@ struct PhongMaterial : public Material
 	float refractive_index;
 	float transparency;
 
+	friend Material;//ewwwww
 
-	PhongMaterial(string name, 
-		          Color diffuse,
-				  Color specular, float glossiness, 
-				  float reflectivity,
-				  float refractive_index, float transparency);
-
-	PhongMaterial(string name);
+protected:
+	PhongMaterial(string filepath, string element_name);
 };
 
 #endif

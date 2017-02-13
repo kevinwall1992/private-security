@@ -1,188 +1,144 @@
 #include "Prop.h"
 #include "Common.h"
+#include "Shader.h"
 
 #include <fstream>
 #include <algorithm>
-
-Prop::Prop(Mesh *mesh_, Material *material_)
-{
-	mesh= mesh_;
-	material= material_;
-}
+#include <map>
 
 Prop::Prop()
 {
-	mesh= nullptr;
-	material= nullptr;
+	AddDrawFlags(DrawFlags::RasterizeGbuffers);
 }
 
-vector<Material *> ParseMaterialLibrary(string filename)
+void Prop::AddDrawFlags(DrawFlags::Enum draw_flags_)
 {
-	vector<Material *> materials;
-
-	std::ifstream input_stream("scenes/"+ filename);
-
-	PhongMaterial *material= nullptr;
-
-	while (input_stream.good())
-	{
-		string line;
-		getline(input_stream, line);
-		vector<string> tokens = TokenizeOverSpaces(line);
-
-		if(tokens.size()== 0)
-			continue;
-
-		if (tokens[0] == "newmtl")
-		{
-			if(material!= nullptr)
-				materials.push_back(material);
-
-			material= new PhongMaterial(tokens[1]);
-			
-			material->reflectivity= 0.0f;
-			material->transparency= 0.0f;
-		}
-		else if (tokens[0] == "Kd")
-			material->diffuse= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
-			//material->diffuse= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
-		else if (tokens[0] == "Ks")
-			material->specular= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
-			//material->specular= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
-		else if (tokens[0] == "Ns")
-			material->glossiness= (float)atof(tokens[1].c_str())/ 1000;
-		else if (tokens[0] == "Ni")
-			material->refractive_index= (float)atof(tokens[1].c_str());
-		else if (tokens[0] == "Tr")
-			material->transparency= (float)atof(tokens[1].c_str());
-		else if (tokens[0] == "Rf")
-			material->reflectivity= (float)atof(tokens[1].c_str());
-	}
-	input_stream.close();
-	if(material!= nullptr)
-		materials.push_back(material);
-
-
-	return materials;
+	draw_flags= (DrawFlags::Enum)(draw_flags | draw_flags_);
 }
 
-vector<Prop> Prop::ParseOBJ(string filename)
+void Prop::RemoveDrawFlags(DrawFlags::Enum draw_flags_)
 {
-	vector<Mesh *> meshes;
-	vector<string> material_names;
+	draw_flags= (DrawFlags::Enum)(draw_flags ^ (draw_flags & draw_flags_));
+}
 
-	vector<Material *> materials;
+bool Prop::AreDrawFlagsActive(DrawFlags::Enum draw_flags_)
+{
+	return (draw_flags & draw_flags_)== 0 ? false : true;
+}
 
-	int position_index_offset= 1;
-	int normal_index_offset= 1;
-	int texture_coordinate_index_offset= 1;
+void Prop::RasterizeConditionally(DrawFlags::Enum draw_flags_)
+{
+	if(AreDrawFlagsActive(draw_flags_))
+		Rasterize();
+}
 
+vector<RaytracingPrimitive *> PropContainer::GetRaytracingPrimitives()
+{
+	vector<RaytracingPrimitive *> primitives;
 
-	Mesh *mesh= nullptr;
-
-	std::ifstream input_stream;
-	input_stream.open(filename);
-
-	string material_library_filename;
-
-	while (input_stream.good())
+	vector<Prop *> props= GetProps();
+	for(unsigned int i= 0; i< props.size(); i++)
 	{
-		string line;
-		getline(input_stream, line);
-		vector<string> tokens = TokenizeOverSpaces(line);
+		vector<RaytracingPrimitive *> prop_primitives= props[i]->GetRaytracingPrimitives();
 
-		if(tokens.size()== 0)
-			continue;
-
-		if (tokens[0] == "mtllib")
-			materials= ParseMaterialLibrary(tokens[1]);
-
-		else if(tokens[0] == "o")
-		{
-			if(mesh!= nullptr)
-			{
-				meshes.push_back(mesh);
-
-				position_index_offset+= mesh->positions.size()/ 3;
-				normal_index_offset+= mesh->normals.size()/ 3;
-				texture_coordinate_index_offset+= mesh->texture_coordinates.size()/ 3;
-			}
-
-			mesh= new Mesh(tokens[1]);
-		}
-
-		else if (tokens[0] == "v")
-		{
-			mesh->positions.push_back((float)atof(tokens[1].c_str()));
-			mesh->positions.push_back((float)atof(tokens[2].c_str()));
-			mesh->positions.push_back((float)atof(tokens[3].c_str()));
-		}
-
-		else if (tokens[0] == "vt")
-		{
-			mesh->texture_coordinates.push_back((float)atof(tokens[1].c_str()));
-			mesh->texture_coordinates.push_back((float)atof(tokens[2].c_str()));
-		}
-
-		else if(tokens[0] == "vn")
-		{
-			mesh->normals.push_back((float)atof(tokens[1].c_str()));
-			mesh->normals.push_back((float)atof(tokens[2].c_str()));
-			mesh->normals.push_back((float)atof(tokens[3].c_str()));
-		}
-
-		else if (tokens[0] == "usemtl")
-			material_names.push_back(tokens[1]);
-
-		else if (tokens[0] == "f")
-		{
-			for (unsigned int i = 1; i < tokens.size(); i++)
-			{
-				std::replace(tokens[i].begin(), tokens[i].end(), '/', ' ');
-				vector<string> token_tokens = TokenizeOverSpaces(tokens[i]);
-
-				int token_index= 0;
-
-				mesh->position_indices.push_back(atoi(token_tokens[token_index++].c_str())- position_index_offset);
-				if(mesh->texture_coordinates.size()> 0) mesh->texture_coordinate_indices.push_back(atoi(token_tokens[token_index++].c_str())- texture_coordinate_index_offset);
-				if(mesh->normals.size()> 0) mesh->normal_indices.push_back(atoi(token_tokens[token_index++].c_str())- normal_index_offset);
-
-			}
-
-			//quads
-			if(tokens.size()== 5)
-			{
-				int last= (int)(mesh->position_indices.size()- 1);
-
-				mesh->position_indices.push_back(mesh->position_indices[last- 3]);
-				if(mesh->texture_coordinates.size()> 0) mesh->texture_coordinate_indices.push_back(mesh->texture_coordinate_indices[last- 3]);
-				if(mesh->normals.size()> 0) mesh->normal_indices.push_back(mesh->normal_indices[last- 3]);
-
-				mesh->position_indices.push_back(mesh->position_indices[last- 1]);
-				if(mesh->texture_coordinates.size()> 0) mesh->texture_coordinate_indices.push_back(mesh->texture_coordinate_indices[last- 1]);
-				if(mesh->normals.size()> 0) mesh->normal_indices.push_back(mesh->normal_indices[last- 1]);
-			}
-		}
-	}
-	input_stream.close();
-	if(mesh!= nullptr)
-		meshes.push_back(mesh);
-
-	vector<Prop> props;
-	for(unsigned int i= 0; i< meshes.size(); i++)
-	{
-		Material *material= nullptr;
-		for(unsigned int j= 0; j< materials.size(); j++)
-			if(materials[j]->GetName()== material_names[i])
-			{
-				material= materials[j];
-				break;
-			}
-		if(material== nullptr)
-			material= Material::GetDefaultMaterial();
-
-		props.push_back(Prop(meshes[i], material));
+		//Consider writing some vector utility functions, and replacing this
+		primitives.insert(primitives.end(), prop_primitives.begin(), prop_primitives.end()); 
 	}
 
+	return	primitives;
+}
+
+void PropContainer::Rasterize()
+{
+	vector<Prop *> props= GetProps();
+
+	for(unsigned int i= 0; i< props.size(); i++)
+		props[i]->Rasterize();
+}
+
+void PropContainer::RasterizeConditionally(DrawFlags::Enum draw_flags)
+{
+	if(!AreDrawFlagsActive(draw_flags))
+		return;
+
+	vector<Prop *> props= GetProps();
+
+	for(unsigned int i= 0; i< props.size(); i++)
+		props[i]->RasterizeConditionally(draw_flags);
+}
+
+
+vector<Prop *> BasicPropContainer::GetProps()
+{
 	return props;
+}
+
+void BasicPropContainer::AddProp(Prop *prop)
+{
+	props.push_back(prop);
+}
+
+
+void MeshProp::Initialize()
+{
+	glGenVertexArrays(1, &vao_handle);
+	glBindVertexArray(vao_handle);
+
+	GLuint vertex_buffer_handle;
+	glGenBuffers(1, &vertex_buffer_handle);
+	glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_handle);
+	glBufferData(GL_ARRAY_BUFFER, mesh->GetVertexCount()* 3* sizeof(float), &mesh->positions[0], GL_STATIC_DRAW);
+
+	ShaderProgram::GetCurrentProgram()->SetAttribute("position", 3, sizeof(float)* 3, 0);
+
+	GLuint normal_buffer_handle;
+	glGenBuffers(1, &normal_buffer_handle);
+	glBindBuffer(GL_ARRAY_BUFFER, normal_buffer_handle);
+	glBufferData(GL_ARRAY_BUFFER, mesh->GetVertexCount()* 3* sizeof(float), &mesh->normals[0], GL_STATIC_DRAW);
+
+	ShaderProgram::GetCurrentProgram()->SetAttribute("normal", 3, sizeof(float)* 3, 0);
+
+	glGenBuffers(1, &element_buffer_handle);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer_handle);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->GetTriangleCount()* 3* sizeof(float), &mesh->position_indices[0], GL_STATIC_DRAW);
+
+	is_initialized= true;
+}
+
+MeshProp::MeshProp(Mesh *mesh_)
+{
+	mesh= mesh_;
+}
+
+void MeshProp::SetDisplacement(Vec3f displacement_)
+{
+	displacement= displacement_;
+}
+
+void MeshProp::SetRotation(float rotation_)
+{
+	rotation= rotation_;
+}
+
+vector<RaytracingPrimitive *> MeshProp::GetRaytracingPrimitives()
+{
+	return MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, mesh));
+}
+
+void MeshProp::Rasterize()
+{
+	if(!is_initialized)
+		Initialize();
+
+	glBindVertexArray(vao_handle);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer_handle);
+
+	PhongMaterial *material= dynamic_cast<PhongMaterial *>(mesh->material);
+
+	ShaderProgram *shader_program= ShaderProgram::GetCurrentProgram();
+	shader_program->SetUniformMatrix4x4f("model_transform", Transform().RotateAboutY(0).Translate(displacement));
+	shader_program->SetUniformVector3f("material_diffuse", material->diffuse);
+	shader_program->SetUniformFloat("material_glossiness", material->glossiness);
+	
+	glDrawElements(GL_TRIANGLES, mesh->GetTriangleCount()* 3, GL_UNSIGNED_INT, nullptr);
 }

@@ -13,14 +13,14 @@ using std::queue;
 #include "ISPCInterop.h"
 
 
-class Camera;
+class RayCamera;
 struct RayBlock;
 struct RayPacketBlock;
 struct Task;
 
 class Shutter
 {
-	Camera *camera;
+	RayCamera *camera;
 
 #if SERIAL_MODE == 0
 	Team team;
@@ -85,7 +85,7 @@ public:
 	int rays_processed= 0;
 	int packets_processed= 0;
 
-	Shutter(Camera *camera= nullptr);
+	Shutter(RayCamera *camera= nullptr);
 	~Shutter();
 
 	void Open(Scene &scene);
@@ -130,7 +130,7 @@ struct RayPacketBlock
 	RayPacket * GetFront();
 };
 
-struct TaskType{enum Enum {None, Refill, Shade, Develop};};
+struct TaskType{enum Enum {None, Refill, Shade, Develop, Cancel};};
 
 struct Task
 {

@@ -8,24 +8,6 @@ void SetFloat3(float *destination, const Vec3f &vector)
 	destination[2]= vector[2];
 }
 
-//Need to decide on Make/Construct/Build/etc for these sorts of functions
-Vec3f MakeVec3f(const float components[3])
-{
-	return Vec3f(components[0], components[1], components[2]);
-}
-
-Vec2f::Vec2f(float x_, float y_)
-{
-	x= x_;
-	y= y_;
-}
-
-Vec2f::Vec2f()
-{
-	x= 0.0f;
-	y= 0.0f;
-}
-
 //http://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
 int IntegerPow(int base, int exp)
 {
@@ -55,4 +37,19 @@ int GCD(int u, int v)
     }
 
     return u;
+}
+
+float DegreesToRadians(float degrees)
+{
+	return (float)((degrees/ 360)* 2* M_PI);
+}
+
+float RadiansToDegrees(float radians)
+{
+	return (float)((radians/ (2* M_PI))* 360);
+}
+
+float GetAspectRatio(int width, int height)
+{
+	return width/ (float)height;
 }

@@ -1,4 +1,4 @@
-#include "Data.h"
+#include "EBRData.h"
 #include "Math.h"
 
 #include <fstream>
@@ -59,10 +59,10 @@ void ISPCData::Write()
 	int foo= 0;
 	for(int i= 0; i< shading.count; i++)
 	{
-		Vec3f normal= MakeVec3f(shading.normals+ i* 3);
+		Vec3f normal= Vec3f(shading.normals+ i* 3);
 
-		int x= shading.image_xys[i* 2+ 0];
-		int y= shading.image_xys[i* 2+ 1];
+		int x= (int)(shading.image_xys[i* 2+ 0]);
+		int y= (int)(shading.image_xys[i* 2+ 1]);
 		int bounce_count= shading.bounce_counts[i];
 
 		//if(x>= 0 && x<= 3 && y>= 330 && y<= 333  && bounce_count== 1)
@@ -71,7 +71,7 @@ void ISPCData::Write()
 		{
 			if(foo>= shading.max_count)
 				break;
-			Vec3f direction= MakeVec3f(shading.directions+ i* 3); 
+			Vec3f direction= Vec3f(shading.directions+ i* 3); 
 
 			shading.normals[foo* 3+ 0]= normal.x;
 			shading.normals[foo* 3+ 1]= normal.y;
@@ -81,14 +81,14 @@ void ISPCData::Write()
 			shading.directions[foo* 3+ 1]= direction.y;
 			shading.directions[foo* 3+ 2]= direction.z;
 
-			shading.image_xys[foo* 2+ 0]= x;
-			shading.image_xys[foo* 2+ 1]= y;
+			shading.image_xys[foo* 2+ 0]= (float)x;
+			shading.image_xys[foo* 2+ 1]= (float)y;
 
 			shading.bounce_counts[foo]= bounce_count;
 
 			foo++;
 
-			float component= dot(normal, direction);
+			float component= normal.Dot(direction);
 			direction= direction- (normal* component);
 
 			output2 << (direction.x+ 2)+ (normal.x* 10)+ (x== 26 ? 30 : 0) << " " << direction.y+ (normal.y* 10) << " " << direction.z+ (normal.z* 10) << endl;

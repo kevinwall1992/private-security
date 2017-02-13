@@ -1,58 +1,82 @@
 #include "Material.h"
 #include "System.h"
 
-vector<Material *> Material::materials;
-Material * Material::default_material= nullptr;
+#include <fstream>
+
+vector<Material *> Material::materials_;
 
 vector<Material *> Material::GetMaterials()
 {
+	return materials_;
+}
+
+string Material::MakeFilepath(string filename)
+{
+	return "data/assets/graphical/materials/"+ filename;
+}
+
+vector<Material *> Material::Parse(string filename)
+{
+	string filepath= MakeFilepath(filename);
+
+	vector<Material *> materials;
+
+	std::ifstream input_stream(filepath);
+
+	PhongMaterial *material= nullptr;
+
+	while (input_stream.good())
+	{
+		string line;
+		getline(input_stream, line);
+		vector<string> tokens = TokenizeOverSpaces(line);
+
+		if(tokens.size()== 0)
+			continue;
+
+		if (tokens[0] == "newmtl")
+		{
+			if(material!= nullptr)
+				materials.push_back(material);
+
+			material= new PhongMaterial(filepath, tokens[1]);
+			
+			material->reflectivity= 0.0f;
+			material->transparency= 0.0f;
+		}
+		else if (tokens[0] == "Kd")
+		{
+			material->diffuse= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
+			//material->diffuse= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
+		}
+		else if (tokens[0] == "Ks")
+			material->specular= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
+			//material->specular= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
+		else if (tokens[0] == "Ns")
+			material->glossiness= (float)atof(tokens[1].c_str());
+		else if (tokens[0] == "Ni")
+			material->refractive_index= (float)atof(tokens[1].c_str());
+		else if (tokens[0] == "Tr")
+			material->transparency= (float)atof(tokens[1].c_str());
+		else if (tokens[0] == "Rf")
+			material->reflectivity= (float)atof(tokens[1].c_str());
+	}
+	input_stream.close();
+	if(material!= nullptr)
+		materials.push_back(material);
+
+
 	return materials;
 }
 
-Material * Material::GetDefaultMaterial()
+Material::Material(string filepath, string element_name)
+	: FileResource(filepath, element_name)
 {
-	if(default_material== nullptr)
-		default_material= new PhongMaterial("material.default", Color(0.7f, 0.7f, 0.7f), Color(1.0f, 1.0f, 1.0f), 100.0f, 0.0f, 1.0f, 0.0f);
-
-	return default_material;
+	materials_.push_back(this);
 }
 
-Material::Material(string name_)
-	: Resource(name_)
-{
-	materials.push_back(this);
-}
-
-Material::~Material()
-{
-	for(unsigned int i= 0; i< materials.size(); i++)
-		if(materials[i]->GetName()== this->GetName())
-			materials.erase(materials.begin()+ i);
-}
-
-Material * Material::GetMaterial(string name)
-{
-	return dynamic_cast<Material *>(System::resource.GetResource(name));
-}
-
-
-PhongMaterial::PhongMaterial(string name_, 
-							 Color diffuse_,
-							 Color specular_, float glossiness_, 
-							 float reflectivity_,
-							 float refractive_index_, float transparency_)
-	: Material(name_)
-{
-	diffuse= diffuse_;
-	specular= specular_;
-	glossiness= glossiness_;
-	reflectivity= reflectivity_;
-	refractive_index= refractive_index_;
-	transparency= transparency_;
-}
-
-PhongMaterial::PhongMaterial(string name_)
-	: Material(name_)
+PhongMaterial::PhongMaterial(string filepath, string element_name)
+	: Material(filepath, element_name)
 {
 	
 }

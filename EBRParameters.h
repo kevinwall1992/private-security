@@ -11,9 +11,6 @@
 
 #define FILM_INTERVAL_SIZE 8192
 
-#define SCREEN_WIDTH 512
-#define SCREEN_HEIGHT 512
-
 //We want to have a way to test out ray block sizes and tile sizes independently
 //We can at least use a multiple pretty easily
 #define RAY_BLOCK_SIZE (CAMERA_TILE_WIDTH* CAMERA_TILE_HEIGHT* MIN_SAMPLES_PER_PIXEL)
@@ -25,16 +22,13 @@
 #define PATHTRACING (DIFFUSE_PACKETS_PER_PRIMARY_RAY< 1)
 
 
-#define THREAD_COUNT 4
+#define THREAD_COUNT 6
 #define SERIAL_MODE (THREAD_COUNT == 1)
 
 #define ISPC_GET_RAYS 1
 #define ISPC_DEVELOP 1
 #define ISPC_SHADING 1
 #define ISPC_CLEAR 1
-
-#define NO_OPENGL 1
-#define DRAW_DIRECTLY_TO_SCREEN 1
 
 #define STREAM_MODE 0
 #define PACKET_MODE 1
@@ -55,9 +49,14 @@
 
 #define RANDOM_PACKET_ORDER 0
 #define BAKE_DISC_SAMPLES 1
-#define RUSSIAN_ROULETTE 0
-#define RUSSIAN_ROULETTE_BOUNCE 1
+#define RUSSIAN_ROULETTE 1
+#define RUSSIAN_ROULETTE_BOUNCE 0
+
+//OpenGL Compositing
+#define SAMPLE_PIXEL_CENTERS 1
+#define INDIRECT_LIGHTING_ONLY 1
+#define EBR_GENERATE_GBUFFERS 1
 
 
-#define PRINT_AVERAGES 1
+#define PRINT_AVERAGES 0
 #define DATA_COLLECTION 0

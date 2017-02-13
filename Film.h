@@ -7,10 +7,9 @@
 
 
 
-struct Film
+struct Film : public Resizable
 {
-	int width, height;
-	Image image;
+	ColorImage image;
 
 	float *receptors_r;
 	float *receptors_g;
@@ -18,15 +17,22 @@ struct Film
 	int *sample_counts;
 
 	Film(int width, int height);
+	Film();
 	~Film();
+
+	void Resize(int width, int height);
 
 	void Clear();
 	bool Clear_Parallel(int interval_index);
 
 	void Stimulate(int x, int y, Color light);
 
-	void Develop();
-	bool Develop_Parallel(int interval_index);
+	void Develop(float factor);
+	bool Develop_Parallel(float factor, int interval_index);
+
+private:
+	void Initialize_Sized();
+	void Free_Sized();
 };
 
 #endif

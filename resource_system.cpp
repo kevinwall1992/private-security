@@ -1,4 +1,5 @@
 #include "ResourceSystem.h"
+#include "Resource.h"
 
 
 void ResourceSystem::Initialize()

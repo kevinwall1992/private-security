@@ -1,7 +1,7 @@
 #ifndef EBR_MEDIUM
 #define EBR_MEDIUM
 
-#include "Common.h"
+#include "EBRParameters.h"
 
 struct Medium
 {

@@ -5,16 +5,14 @@
 #include "EmbreeSystem.h"
 #include "Light.h"
 #include "Prop.h"
-#include "ISPCKernels.h"
+#include "Ray.h"
 
-struct ISPCLighting : public ispc::Lighting { ISPCLighting(); ~ISPCLighting(); };
-typedef ispc::Mesh ISPCMesh;
-typedef ispc::PhongMaterial ISPCMaterial;
 
-class Scene
+class Scene : public BasicPropContainer
 {
 	RTCScene embree_scene;
-	vector<unsigned int> geometry_ids;
+
+	vector<RaytracingPrimitive *> primitives;
 	vector<Light *> lights;
 	vector<AmbientLight *> ambient_lights;
 
@@ -25,7 +23,8 @@ class Scene
 
 	bool commited= false;
 
-	vector<Prop> props;
+
+	void AddPrimitive(RaytracingPrimitive *primitive);
 
 	void BuildISPCLighting();
 	void BuildISPCMeshes();
@@ -36,9 +35,7 @@ public:
 	Scene();
 	~Scene();
 
-	void AddProp(Prop prop);
-	void AddProps(vector<Prop> props);
-	Prop * GetProp(int geometry_id);
+	RaytracingPrimitive * GetPrimitiveByGeometryID(int geometry_id);
 
 	void AddLight(Light *light);
 	vector<Light *> GetLights();
@@ -61,36 +58,6 @@ public:
 	void Intersect_Visibility(VisibilityRayPacket &ray_packet);
 
 	void Interpolate(RayPacket &ray_packet);
-};
-
-struct Vertex
-{
-	float x, y, z, w;
-
-	Vertex(float x_, float y_, float z_)
-	{
-		x= x_; y= y_; z= z_;
-	}
-
-	Vertex()
-	{
-		x= 0.0f; y= 0.0f; z= 0.0f;
-	}
-};
-
-struct Triangle
-{
-	int a, b, c;
-
-	Triangle(int a_, int b_, int c_)
-	{
-		a= a_; b= b_; c= c_;
-	}
-
-	Triangle()
-	{
-		a= -1; b= -1; c= -1;
-	}
 };
 
 #endif

@@ -2,7 +2,10 @@
 #define EBR_RESOURCE_SYSTEM
 
 #include "System.h"
-#include "Resource.h"
+#include "Common.h"
+
+
+class Resource;
 
 class ResourceSystem : public System
 {

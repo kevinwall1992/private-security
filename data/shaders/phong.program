@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<shaders>
+  <vertex>phong.vert</vertex>
+  <fragment>phong.frag</fragment>
+</shaders>

@@ -1,6 +1,7 @@
 #include "EmbreeSystem.h"
 #include "Common.h"
 
+#ifdef USE_EBR
 
 void ErrorHandler(const RTCError code, const char* str)
 {
@@ -24,3 +25,17 @@ void EmbreeSystem::Terminate()
 {
 	rtcDeleteDevice(device);
 }
+
+#else
+
+void EmbreeSystem::Initialize()
+{
+	
+}
+
+void EmbreeSystem::Terminate()
+{
+	
+}
+
+#endif

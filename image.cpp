@@ -1,50 +1,17 @@
 #include "Image.h"
 #include "Common.h"
 
+Pixel Pixel::black(0, 0, 0, 1);
 
-Image::Image(int width, int height)
+Pixel::Pixel(unsigned char r_, unsigned char b_, unsigned char g_, unsigned char a_)
 {
-	pixels= nullptr;
-	Resize(width, height);
+	r= r_;
+	g= g_;
+	b= b_;
+	a= a_;
 }
 
-Image::Image(Pixel *pixels_)
+Pixel::Pixel()
 {
-	pixels= pixels_;
-	pixels_are_owned= false;
-}
 
-Image::Image()
-{
-	pixels= nullptr;
-}
-
-Image::~Image()
-{
-	if(pixels!= nullptr && pixels_are_owned)
-		delete pixels;
-}
-
-void Image::SetPixels(Pixel *pixels_)
-{
-	if(pixels!= nullptr && pixels_are_owned)
-		delete pixels;
-
-	pixels= pixels_;
-	pixels_are_owned= false;
-}
-
-Pixel * Image::GetPixels()
-{
-	return pixels;
-}
-
-void Image::Resize(int width, int height)
-{
-	assert(pixels_are_owned && "Tried to resize image that doesn't own its pixels");
-
-	if(pixels!= nullptr)
-		delete pixels;
-
-	pixels= new Pixel[width* height];
 }

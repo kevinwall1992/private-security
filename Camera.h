@@ -5,52 +5,71 @@
 #include "Shutter.h"
 #include "Math.h"
 #include "Ray.h"
+#include "Transform.h"
+#include "Property.h"
+#include "PropertySpecializations.h"
 
-class Camera
+
+class Photo
 {
-	Shutter shutter;
+	ColorImage image;
+	DepthImage depth_image;
+	Texture texture;
 
-	float default_samples_x[MAX_SAMPLES_PER_PIXEL];//Might consider finding a better place for this
-	float default_samples_y[MAX_SAMPLES_PER_PIXEL];
-	float filtering_kernels[MAX_SAMPLES_PER_PIXEL* 9];
-
-	float progressive_samples_x[MIN_SAMPLES_PER_PIXEL];//Might consider finding a better place for this
-	float progressive_samples_y[MIN_SAMPLES_PER_PIXEL];
-	int current_frame_count= -1;
-
-	void GetSamples(float *&samples_x, float *&samples_y);
+	bool is_depth;
+	bool image_was_first;
+	bool image_is_empty;
+	bool texture_is_empty;
 
 public:
+	Photo(ColorImage image);
+	Photo(DepthImage image);
+	Photo(Texture texture);
+	Photo(DepthTexture texture);
 
-	Vec3f position, forward, up, right;
-	float fov;
-	bool orthograhpic;
+	Photo();
 
-	Vec3f view_plane_u;
-	Vec3f view_plane_v;
+	Photo & operator=(const Photo &other);
 
-	Film *film;
+	ColorImage GetImage();
+	Texture GetTexture();
 
-
-	Camera(float fov_in_degrees, Vec3f position, Vec3f direction= Vec3f(0, 0, -1));
-
-	void LookAt(Vec3f look_at_position);
-	void OrthogonalizeVectors();
-	void ComputeViewPlane();
-
-	Film * LoadFilm(Film *film);
-	Film * RemoveFilm();
-
-	Shutter * GetShutter();
-
-	//Is "Get" the best word here?
-	bool GetRayPackets(RayPacket *ray_packets, int tile_index, int *indices= nullptr, int index_count= 0);
-	bool GetRays(Ray *rays, int tile_index, int *indices= nullptr);
-
-	float * GetFilteringKernels();
-	
-
-	Image * TakePicture(Scene &scene);
+	void Free();
 };
+
+
+class Camera : public Updatable
+{
+	Vec3f position;
+	float pitch= 0, yaw= 0, roll= 0;
+	float fov;
+
+	bool orthograhpic= false;
+
+protected:
+	Transform GetDirectionTransform();
+
+public:
+	Camera(float fov, Vec3f position);
+
+	Vec3fProperty Position;
+	FloatProperty Pitch, Yaw, Roll;
+	FloatProperty FOV;
+
+	Vec3f GetForward();
+	Vec3f GetRight();
+	Vec3f GetUp();
+
+	virtual void LookAt(Vec3f position);
+
+	void AssumeOrientation(Camera &other);
+
+	Transform GetTransform();
+	Transform GetProjectedTransform(int width, int height);
+	
+	virtual Photo TakePhoto(Scene &scene, int width, int height)= 0;
+};
+
+
 
 #endif

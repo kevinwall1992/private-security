@@ -1,42 +1,45 @@
+#ifdef USE_EBR
+
+#include "EBRParameters.h"
 #include "Film.h"
 #include "Common.h"
 #include "Math.h"
-#include "System.h"
+#include "GraphicsSystem.h"
 #include "Timer.h"
 
 #include "ISPCKernels.h"
 
 
-Film::Film(int width_, int height_)
-#if DRAW_DIRECTLY_TO_SCREEN
-	: image()
-#else
-	: image(width_, height_)
-#endif
+Film::Film(int width, int height)
 {
-	width= width_;
-	height= height_;
+	Resize(width, height);
+}
 
-	receptors_r= new float[width* height];
-	receptors_g= new float[width* height];
-	receptors_b= new float[width* height];
-	sample_counts= new int[width* height];
-
-	Clear();
+Film::Film()
+{
+	receptors_r= nullptr;
+	receptors_g= nullptr;
+	receptors_b= nullptr;
+	sample_counts= nullptr;
 }
 
 Film::~Film()
 {
-	delete receptors_r;
-	delete receptors_g;
-	delete receptors_b;
-	delete sample_counts;
+	Free_Sized();
+	image.Free();
+}
+
+void Film::Resize(int width, int height)
+{
+	Resizable::Resize(width, height);
+
+	image.Resize(width, height);
 }
 
 void Film::Clear()
 {
 #if ISPC_CLEAR
-	ispc::Clear(receptors_r, receptors_g, receptors_b, width* height);
+	ispc::Clear(receptors_r, receptors_g, receptors_b, Width* Height);
 
 #else
 	for(int i= 0; i< width* height; i++)
@@ -46,11 +49,12 @@ void Film::Clear()
 		receptors_b[i]= 0.0f;
 	}
 #endif
+
 }
 
 bool Film::Clear_Parallel(int interval_index)
 {
-	if(interval_index>= (width* height)/ FILM_INTERVAL_SIZE)
+	if(interval_index>= (Width* Height)/ FILM_INTERVAL_SIZE)
 		return false;
 
 #if ISPC_CLEAR
@@ -70,12 +74,12 @@ bool Film::Clear_Parallel(int interval_index)
 
 void Film::Stimulate(int x, int y, Color light)
 {
-	receptors_r[y* width+ x]+= light[0];
-	receptors_g[y* width+ x]+= light[1];
-	receptors_b[y* width+ x]+= light[2];
+	receptors_r[y* Width+ x]+= light[0];
+	receptors_g[y* Width+ x]+= light[1];
+	receptors_b[y* Width+ x]+= light[2];
 }
 
-void Film::Develop()
+void Film::Develop(float factor)
 {
 #if ISPC_SHADING
 	assert(false && "Single threaded Develop() not implemented");
@@ -101,33 +105,24 @@ struct BGRAPixel
 	unsigned char b, g, r, a;
 };
 
-bool Film::Develop_Parallel(int interval_index)
+bool Film::Develop_Parallel(float factor, int interval_index)
 {
-	if(interval_index>= (width* height)/ FILM_INTERVAL_SIZE)
+	if(interval_index>= (Width* Height)/ FILM_INTERVAL_SIZE)
 		return false;
 
 	Timer::develop_timer.Start();
-#if DRAW_DIRECTLY_TO_SCREEN
-	Image image= System::graphics.GetWindowImage();
-#endif
+
+	//Image image= System::graphics.CheckOutWindowImage();
 
 #if ISPC_DEVELOP
 	int interval_offset= interval_index* FILM_INTERVAL_SIZE;
 	ispc::Develop(receptors_r+ interval_offset, 
 		           receptors_g+ interval_offset, 
 				   receptors_b+ interval_offset, 
-				   sample_counts+ interval_offset,
-				   reinterpret_cast<int8_t *>(image.GetPixels()+ interval_offset), 
-#if PROGRESSIVE_RENDER
-				   1.0f* (System::graphics.GetFrameCount()+ 1),
-#else
-				   1.0f, 
-#endif
+				   sample_counts+ interval_offset, 
+				   reinterpret_cast<int8_t *>(image.GetPixels()+ interval_offset), //this should probably be uint8_t
+				   0.95f/ factor, 
 				   FILM_INTERVAL_SIZE);
-
-#if PROGRESSIVE_RENDER
-
-#endif
 
 #else
 	Pixel *pixels= &(image.pixels[interval_index* FILM_INTERVAL_SIZE]);
@@ -141,10 +136,37 @@ bool Film::Develop_Parallel(int interval_index)
 
 #endif
 
-#if DRAW_DIRECTLY_TO_SCREEN
-	System::graphics.ReturnWindowImage(image);
-#endif
+	//System::graphics.ReturnWindowImage(image);
+
 	Timer::develop_timer.Pause();
 
 	return true;
 }
+
+void Film::Initialize_Sized()
+{
+	receptors_r= new float[Width* Height];
+	receptors_g= new float[Width* Height];
+	receptors_b= new float[Width* Height];
+	sample_counts= new int[Width* Height];
+
+	Clear();
+}
+
+void Film::Free_Sized()
+{
+	if(receptors_r== nullptr)
+		return;
+
+	delete receptors_r;
+	delete receptors_g;
+	delete receptors_b;
+	delete sample_counts;
+
+	receptors_r= nullptr;
+	receptors_g= nullptr;
+	receptors_b= nullptr;
+	sample_counts= nullptr;
+}
+
+#endif
