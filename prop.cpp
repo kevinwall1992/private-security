@@ -105,6 +105,11 @@ void MeshProp::Initialize()
 	is_initialized= true;
 }
 
+Transform MeshProp::GetModelTransform()
+{
+	return Transform().RotateAboutY(0).Translate(displacement);
+}
+
 MeshProp::MeshProp(Mesh *mesh_)
 {
 	mesh= mesh_;
@@ -122,7 +127,7 @@ void MeshProp::SetRotation(float rotation_)
 
 vector<RaytracingPrimitive *> MeshProp::GetRaytracingPrimitives()
 {
-	return MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, mesh));
+	return MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, mesh, GetModelTransform()));
 }
 
 void MeshProp::Rasterize()
@@ -136,7 +141,7 @@ void MeshProp::Rasterize()
 	PhongMaterial *material= dynamic_cast<PhongMaterial *>(mesh->material);
 
 	ShaderProgram *shader_program= ShaderProgram::GetCurrentProgram();
-	shader_program->SetUniformMatrix4x4f("model_transform", Transform().RotateAboutY(0).Translate(displacement));
+	shader_program->SetUniformMatrix4x4f("model_transform", GetModelTransform());
 	shader_program->SetUniformVector3f("material_diffuse", material->diffuse);
 	shader_program->SetUniformFloat("material_glossiness", material->glossiness);
 	

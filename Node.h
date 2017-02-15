@@ -15,9 +15,13 @@ class Node
 	Node *previous= nullptr;
 
 public:
-	Node(Actor *actor, Tile *tile);
+	//Actor should probably be replaced with some interface that just means
+	//"has movement capability" because currently this is misleading; 
+	//You don't need an actor, you just need an oracle that tells you if a move
+	//is possible.
+	Node(Actor *actor, Tile *tile, Node *previous= nullptr);
 
-	bool operator==(Node *other);
+	bool operator==(const Node &other);
 
 	Tile * GetTile();
 

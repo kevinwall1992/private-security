@@ -15,7 +15,9 @@ struct Direction
 	};
 
 	static Direction::Enum GetDirection(Tile *source, Tile *destination);
-	static Tile * GetDestination(Tile *source, Direction::Enum);
+	static Direction::Enum GetOpposite(Direction::Enum direction);
+	static Tile * GetDestination(Tile *source, Direction::Enum direction);
+	static float GetLength(Direction::Enum direction);
 };
 
 #endif

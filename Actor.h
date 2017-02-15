@@ -8,7 +8,7 @@
 #include "Movement.h"
 #include "Perceptible.h"
 
-class Actor : public Object, public MovementEnabler, public MovementBlocker
+class Actor : public Object, public Mover
 {
 	Item *item = new Gun();
 
@@ -17,7 +17,7 @@ public:
 
 	void PerformMove(Move *move);
 
-	vector<Move *> GetMoves();
+	vector<Move *> GetPotentialMoves(Tile *source);
 	bool DoesBlock(Move *move);
 
 	virtual Pose GetPose();

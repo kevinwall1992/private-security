@@ -116,7 +116,7 @@ void RasterCamera::GenerateCompositingBuffers(Scene *scene, int width, int heigh
 }
 
 RasterCamera::RasterCamera(float fov, Vec3f position)
-	: Camera(fov, position), ray_camera(fov, position), compositing_camera(fov, position), shadow_camera(DegreesToRadians(110), Vec3f())
+	: Camera(fov, position), ray_camera(fov, position), compositing_camera(fov, position), shadow_camera(DegreesToRadians(70), Vec3f())
 {
 	animation_timer.Start();
 }
@@ -213,9 +213,10 @@ Photo RasterCamera::TakePhoto(Scene &scene, int width, int height)
 
 	Light *light= scene.GetLights()[0];
 	Vec3f light_position= light->GetPosition();
-	Vec3f raster_light_position= Transform().Translate(Vec3f(7, 0, 0)).RotateAboutY((float)(elapsed_seconds* M_PI/ 3)).Apply(Vec3f())+ light->GetPosition();
+	//Vec3f raster_light_position= Transform().Translate(Vec3f(7, 0, 0)).RotateAboutY((float)(elapsed_seconds* M_PI/ 3)).Apply(Vec3f())+ light->GetPosition();
+	Vec3f raster_light_position= light_position;
 	shadow_camera.Position= raster_light_position;
-	shadow_camera.LookAt(Vec3f(28, -5, -20));
+	shadow_camera.LookAt(Vec3f(1, 1, 0));
 	shadow_camera.TakePhoto(scene, 2048, 2048).GetTexture().BindToIndex(6);
 
 

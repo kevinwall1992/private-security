@@ -1,9 +1,10 @@
 #include "Node.h"
 
-Node::Node(Actor * actor, Tile * tile)
+Node::Node(Actor *actor_, Tile *tile_, Node *previous_)
 {
-	this->actor= actor;
-	this->tile= tile;
+	actor= actor_;
+	tile= tile_;
+	previous= previous_;
 }
 
 Tile * Node::GetTile()
@@ -15,14 +16,10 @@ vector<Edge *> Node::GetEdges()
 {
 	vector<Edge *> edges;
 
-	vector<Move *> moves= actor->GetMoves();
-	vector<Move *> enabled_moves= actor->GetTile()->GetMoves();
-	for(unsigned int i= 0; i< enabled_moves.size(); i++)
-		moves.push_back(enabled_moves[i]);
+	vector<Move *> moves= actor->GetMoves(tile);
 	
-	for(unsigned int i= 0; i< moves.size(); i++)
-		if(!(actor->DoesBlock(moves[i]) || actor->GetTile()->DoesBlock(moves[i])))
-			edges.push_back(new Edge(new Node(actor, moves[i]->GetDestination()), 1));
+	for(auto move : moves)
+		edges.push_back(new Edge(new Node(actor, move->GetDestination(), this), move->GetCost()));
 
 	return edges;
 }
@@ -57,10 +54,7 @@ float Node::GetHeuristicCost(Node *target)
 	return GetPathCost()+ tile->GetPosition().Distance(target->tile->GetPosition());
 }
 
-bool Node::operator==(Node *other)
+bool Node::operator==(const Node &other)
 {
-	if(other== nullptr)
-		return false;
-
-	return tile== other->tile;
+	return tile== other.tile;
 }

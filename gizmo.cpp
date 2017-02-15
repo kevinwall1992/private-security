@@ -212,7 +212,7 @@ CameraGizmo::CameraGizmo(Camera *camera_)
 	
 void CameraGizmo::KeyHold(Button::Enum button, EventType::Enum event_type, float t)
 {
-	float speed= 10;
+	float speed= 2.5f;
 
 	switch(button)
 	{

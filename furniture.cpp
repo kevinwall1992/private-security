@@ -5,14 +5,9 @@ Furniture::Furniture()
 
 }
 
-vector<Move*> Furniture::GetMoves()
+vector<Move*> Furniture::GetPotentialMoves(Tile *source)
 {
 	return vector<Move*>();
-}
-
-bool Furniture::DoesBlock(Move * move)
-{
-	return false;
 }
 
 string Furniture::GetEntityDataFilename()
@@ -28,6 +23,11 @@ string Furniture::GetEntityDataFolderName()
 ThickWall::ThickWall()
 {
 
+}
+
+bool ThickWall::DoesBlock(Move *move)
+{
+	return AllBlocker::DoesBlock(move);
 }
 
 string ThickWall::GetEntityDataFilename()

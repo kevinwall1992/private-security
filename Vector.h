@@ -35,21 +35,21 @@ struct Vector
 	}
 
 	template<class U>
-	Vector<d, T> & Mutate(std::function<T(U)> function)
+	Vector<d, U> & Mutate(std::function<U(U)> function)
 	{
 		for(int i= 0; i< d; i++)
-			this->c[i]= (T)function(c[i]);
+			this->c[i]= function((U)c[i]);
 
 		return *this;
 	}
 
 	template<class U>
-	Vector<d, T> Mutated(std::function<T(U)> function)
+	Vector<d, U> Mutated(std::function<U(U)> function)
 	{
-		Vector<d, T> result;
+		Vector<d, U> result;
 
 		for(int i= 0; i< d; i++)
-			result.c[i]= (T)function(c[i]);
+			result.c[i]= function((U)c[i]);
 
 		return result;
 	}
@@ -65,9 +65,9 @@ struct Vector
 	}
 
 	template<class U>
-	T Sum(std::function<U(U)> function)
+	U Sum(std::function<U(U)> function)
 	{
-		return Vector<d, U>(*this).Mutate<U>(function).Sum();
+		return Mutated<U>(function).Sum();
 	}
 
 	Vector()
@@ -110,7 +110,7 @@ struct Vector
 	template<class U>
 	operator Vector<d, U>()
 	{
-		return Vector<d, U>().Mutate<T>(*this, [](T a, U b){ return b; });
+		return Mutated<U>(*this, [](T a, U b){ return b; });
 	}
 
 	bool operator==(const Vector<d, T> &other)
@@ -217,7 +217,7 @@ struct Vector
 
 	float Magnitude()
 	{
-		return (float)sqrt(Sum<float>([](float a){ return (float)pow(a, 2); }));
+		return (float)sqrt(Sum<float>([](float a){ return (float)pow((float)a, 2); }));
 	}
 
 	float Distance(const Vector<d, T> &other)

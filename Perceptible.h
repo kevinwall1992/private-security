@@ -55,6 +55,8 @@ class Entity: public Perceptible, public HasPosition
 
 	EntityData * GetEntityData();
 
+	MeshProp * GetMeshProp();
+
 public:
 
 	struct State

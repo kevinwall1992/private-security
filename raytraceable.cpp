@@ -21,10 +21,11 @@ int RaytracingPrimitive::GetGeometryID()
 	return geometry_id;
 }
 
-RaytracingMesh::RaytracingMesh(bool has_direct_visibility, Mesh *mesh_)
+RaytracingMesh::RaytracingMesh(bool has_direct_visibility, Mesh *mesh_, Transform transform_)
 	: RaytracingPrimitive(has_direct_visibility)
 {
 	mesh= mesh_;
+	transform= transform_;
 }
 
 Mesh * RaytracingMesh::GetMesh()
@@ -40,9 +41,11 @@ void RaytracingMesh::AddToEmbreeScene(RTCScene &embree_scene)
 	EmbreeVertex *vertices= (EmbreeVertex *)rtcMapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);
 	for(int j= 0; j< vertex_count; j++)
 	{
-		vertices[j].x= mesh->positions[j* 3+ 0];
-		vertices[j].y= mesh->positions[j* 3+ 1];
-		vertices[j].z= mesh->positions[j* 3+ 2];
+		Vec3f transformed_vertex= transform.Apply(*reinterpret_cast<Vec3f *>((&mesh->positions[j* 3+ 0])));
+
+		vertices[j].x= transformed_vertex.x;
+		vertices[j].y= transformed_vertex.y;
+		vertices[j].z= transformed_vertex.z;
 		vertices[j].w= 0;
 	}
 	rtcUnmapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);

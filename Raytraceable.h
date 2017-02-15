@@ -29,9 +29,10 @@ struct Mesh;
 class RaytracingMesh : public RaytracingPrimitive
 {
 	Mesh *mesh;
+	Transform transform;
 
 public:
-	RaytracingMesh(bool has_direct_visibility, Mesh *mesh);
+	RaytracingMesh(bool has_direct_visibility, Mesh *mesh, Transform transform= Transform());
 
 	Mesh * GetMesh();
 

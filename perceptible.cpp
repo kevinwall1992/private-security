@@ -75,6 +75,19 @@ Entity::EntityData * Entity::GetEntityData()
 	return EntityData::Retrieve(GetEntityDataFolderName()+ "/"+ GetEntityDataFilename());
 }
 
+MeshProp * Entity::GetMeshProp()
+{
+	if(mesh_prop== nullptr)
+		mesh_prop= new MeshProp(GetEntityData()->animations["default"]->GetMesh());
+
+	//hack
+	Vec3f space_position= GetPosition();
+	Vec3f world_position(space_position.x, space_position.z, space_position.y);
+	mesh_prop->SetDisplacement(world_position);
+
+	return mesh_prop;
+}
+
 Entity::Entity()
 {
 	
@@ -83,14 +96,10 @@ Entity::Entity()
 //Raytracing and Rasterization methods very similar; might want to abstract their implementations
 vector<RaytracingPrimitive *> Entity::GetRaytracingPrimitives()
 {
-	return MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, 
-																GetEntityData()->animations["default"]->GetMesh()));
+	return GetMeshProp()->GetRaytracingPrimitives();
 }
 
 void Entity::Rasterize()
 {
-	if(mesh_prop== nullptr)
-		mesh_prop= new MeshProp(GetEntityData()->animations["default"]->GetMesh());
-	mesh_prop->SetDisplacement(GetPosition());
-	mesh_prop->Rasterize();
+	GetMeshProp()->Rasterize();
 }

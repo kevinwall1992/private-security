@@ -61,6 +61,8 @@ class MeshProp : public Prop
 	bool is_initialized= false;
 	void Initialize();
 
+	Transform GetModelTransform();
+
 public:
 	MeshProp(Mesh *mesh);
 

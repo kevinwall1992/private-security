@@ -4,9 +4,9 @@ Space * Space::space= new Space();
 
 Vec3i Space::GetTilePosition(Tile *tile)
 {
-	for(unsigned int i= 0; i< 10; i++)
-		for(unsigned int j= 0; j< 10; j++)
-			for(unsigned int k= 0; k< 1; k++)
+	for(int i= 0; i< Width; i++)
+		for(int j= 0; j< Height; j++)
+			for(int k= 0; k< Depth; k++)
 				if(&tiles[i][j][k]== tile)
 					return Vec3i(i, j, k);
 
@@ -15,9 +15,9 @@ Vec3i Space::GetTilePosition(Tile *tile)
 
 Vec3i Space::GetObjectPosition(Object *object)
 {
-	for(unsigned int i= 0; i< 10; i++)
-		for(unsigned int j= 0; j< 10; j++)
-			for(unsigned int k= 0; k< 1; k++)
+	for(int i= 0; i< Width; i++)
+		for(int j= 0; j< Height; j++)
+			for(int k= 0; k< Depth; k++)
 				if(tiles[i][j][k].Contains(object))
 					return Vec3i(i, j, k);
 
@@ -25,6 +25,7 @@ Vec3i Space::GetObjectPosition(Object *object)
 }
 
 Space::Space()
+	: Width(&width), Height(&height), Depth(&depth)
 {
 
 }
@@ -33,9 +34,10 @@ vector<Perceptible*> Space::GetPerceptibles()
 {
 	vector<Perceptible *> perceptibles;
 
-	for(unsigned int i= 0; i< 10; i++)
-		for(unsigned int j= 0; j< 10; j++)
-			perceptibles.push_back(&(tiles[i][j][0]));
+	for(int i= 0; i< Width; i++)
+		for(int j= 0; j< Height; j++)
+			for(int k= 0; k< Depth; k++)
+				perceptibles.push_back(&(tiles[i][j][k]));
 
 	return perceptibles;
 }

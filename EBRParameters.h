@@ -55,7 +55,6 @@
 //OpenGL Compositing
 #define SAMPLE_PIXEL_CENTERS 1
 #define INDIRECT_LIGHTING_ONLY 1
-#define EBR_GENERATE_GBUFFERS 1
 
 
 #define PRINT_AVERAGES 0

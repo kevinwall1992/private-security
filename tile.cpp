@@ -45,13 +45,16 @@ Item * Tile::RemoveItem(Item *item)
 	return item;
 }
 
-vector<Move *> Tile::GetMoves()
+vector<Move *> Tile::GetPotentialMoves(Tile *source)
 {
+	//This is another reason for parameterizing Moves with source tiles later
+	assert(source== nullptr && "Tile::GetPotentialMoves: source is not supposed to be used.");
+
 	vector<Move *> moves;
 
 	for(unsigned int i= 0; i< furnitures.size(); i++)
 	{
-		vector<Move *> furniture_enabled_moves= furnitures[i]->GetMoves();
+		vector<Move *> furniture_enabled_moves= furnitures[i]->GetPotentialMoves(this);
 
 		for(unsigned int i= 0; i< furniture_enabled_moves.size(); i++)
 			moves.push_back(furniture_enabled_moves[i]);
@@ -62,12 +65,32 @@ vector<Move *> Tile::GetMoves()
 
 bool Tile::DoesBlock(Move *move)
 {
-	if(actor!= nullptr && move->GetDestination()== this)
-		return true;
+	position= GetPosition();
 
-	for(unsigned int i= 0; i< furnitures.size(); i++)
-		if(furnitures[i]->DoesBlock(move))
+	if(move->GetSource()== this)
+	{
+		for(unsigned int i= 0; i< furnitures.size(); i++)
+			if(furnitures[i]->DoesBlock(move))
+				return true;
+	}
+	else if(move->GetDestination()== this)
+	{
+		if(actor!= nullptr)
 			return true;
+
+		RelativeMove *relative_move= dynamic_cast<RelativeMove *>(move);
+		if(relative_move!= nullptr)
+			move= new RelativeMove(this, Direction::GetOpposite(relative_move->GetDirection()), move->GetType());
+
+		bool does_block= false;
+		for(unsigned int i= 0; i< furnitures.size(); i++)
+			if(furnitures[i]->DoesBlock(move))
+				does_block= true;
+
+		delete move;
+
+		return does_block;
+	}
 
 	return false;
 }
@@ -88,7 +111,7 @@ bool Tile::Contains(Object *object)
 	return false;
 }
 
-Vec3f Tile::GetPosition()
+Vec3i Tile::GetPosition()
 {
 	return Space::space->GetTilePosition(this);
 }

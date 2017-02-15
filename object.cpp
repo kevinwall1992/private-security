@@ -7,7 +7,9 @@ Object::Object()
 
 Tile * Object::GetTile()
 {
-	return nullptr;
+	Vec3i position= GetPosition();
+
+	return &Space::space->tiles[position.x][position.y][position.z];
 }
 
 Vec3f Object::GetPosition()

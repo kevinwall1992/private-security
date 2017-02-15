@@ -19,29 +19,35 @@ struct MoveType
 
 class Move
 {
+	Tile *source;
+	Tile *destination;
+
 	MoveType::Enum type;
 
 public:
-	Move(MoveType::Enum type);
+	Move(Tile *source, Tile *destination, MoveType::Enum type);
 
 	MoveType::Enum GetType();
 
-	virtual Tile * GetDestination()= 0;
+	virtual Tile * GetSource();
+	virtual Tile * GetDestination();
+
+	//this is just a stopgap
+	virtual float GetCost()= 0;
 };
+
 
 class AbsoluteMove : public Move
 {
-	Tile *destination;
-
 public:
-	AbsoluteMove(Tile *destination, MoveType::Enum type);
+	AbsoluteMove(Tile *source, Tile *destination, MoveType::Enum type);
 
-	Tile * GetDestination();
+	float GetCost();
 };
+
 
 class RelativeMove : public Move
 {
-	Tile *destination;
 	Direction::Enum direction;
 
 public:
@@ -49,9 +55,9 @@ public:
 
 	Direction::Enum GetDirection();
 
-	Tile * GetDestination();
-
+	float GetCost();
 };
+
 
 class MovementBlocker
 {
@@ -70,15 +76,27 @@ public:
 	virtual bool DoesBlock(Move *move);
 };
 
+
 class AllBlocker : public MovementBlocker
 {
+public:
 	virtual bool DoesBlock(Move *move);
 };
+
 
 class MovementEnabler
 {
 public:
-	virtual vector<Move *> GetMoves()= 0;
+	virtual vector<Move *> GetPotentialMoves(Tile *source)= 0;
+};
+
+
+class Mover : public MovementEnabler, public MovementBlocker
+{
+public:
+	vector<Move *> GetMoves(Tile *source);
+
+	virtual void PerformMove(Move *move)= 0;
 };
 
 #endif
