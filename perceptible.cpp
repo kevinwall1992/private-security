@@ -63,13 +63,6 @@ Entity::EntityData::EntityData(string filepath)
 	}
 }
 
-
-Entity::Pose::Pose(State::Enum state_, float time_)
-{
-	state= state_;
-	time= time_;
-}
-
 Entity::EntityData * Entity::GetEntityData()
 {
 	return EntityData::Retrieve(GetEntityDataFolderName()+ "/"+ GetEntityDataFilename());

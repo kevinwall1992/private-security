@@ -5,6 +5,8 @@
 #include "ShadowCamera.h"
 
 
+#define NO_RAYTRACING
+
 void RasterCamera::Initialize(int width, int height)
 {
 	if(initialized)
@@ -123,6 +125,7 @@ RasterCamera::RasterCamera(float fov, Vec3f position)
 
 RasterCamera::~RasterCamera()
 {
+#ifndef NO_RAYTRACING
 	raytracing_thread->join();
 	delete raytracing_thread;
 
@@ -131,6 +134,7 @@ RasterCamera::~RasterCamera()
 		compositing_thread->join();
 		delete compositing_thread;
 	}
+#endif
 }
 
 Photo RasterCamera::TakePhoto(Scene &scene, int width, int height)
@@ -144,7 +148,7 @@ Photo RasterCamera::TakePhoto(Scene &scene, int width, int height)
 	float elapsed_seconds= animation_timer.GetElapsedSeconds();
 	animation_timer.Start();
 
-
+#ifndef NO_RAYTRACING
 	if(indirect_light_texture_was_modified || raytracing_thread== nullptr)
 	{
 		if(indirect_light_texture_was_modified)
@@ -185,7 +189,9 @@ Photo RasterCamera::TakePhoto(Scene &scene, int width, int height)
 			compositing_camera_is_invalid= false;
 		}
 	}
+#endif
 
+#ifndef NO_RAYTRACING
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, compositing_framebuffer.GetHandle());
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gbuffer_framebuffer.GetHandle());
 
@@ -203,6 +209,12 @@ Photo RasterCamera::TakePhoto(Scene &scene, int width, int height)
 
 	gbuffer_framebuffer.ActivateDefaultDrawBuffers();
 	glViewport(0, 0, width, height);
+
+#else
+	gbuffer_framebuffer.Bind();
+	glViewport(0, 0, width, height);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#endif
 
 	ShaderProgram *gbuffer_shader_program= ShaderProgram::Retrieve("gbuffer.program");
 	gbuffer_shader_program->Use();

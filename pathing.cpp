@@ -1,16 +1,19 @@
 #include "Pathing.h"
 
-Path::Path(vector<Node*> nodes_)
+Path::Path(vector<Edge *> edges_)
 {
-	nodes= nodes_;
+	edges= edges_;
 }
 
-Node * Path::PopNode()
+Edge * Path::PopEdge()
 {
-	Node *node= nodes[0];
-	nodes.erase(nodes.begin());
+	if(edges.size()== 0)
+		return nullptr;
+
+	Edge *edge= edges[0];
+	edges.erase(edges.begin());
 	
-	return node;
+	return edge;
 }
 
 Path Path::GetPath(Node *starting_node, Node *ending_node)
@@ -57,5 +60,5 @@ Path Path::GetPath(Node *starting_node, Node *ending_node)
 		}
 	}
 
-	return vector<Node *>();
+	return vector<Edge *>();
 }

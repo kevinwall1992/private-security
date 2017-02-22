@@ -1,5 +1,6 @@
 #include "Object.h"
 #include "Space.h"
+#include "GameSystem.h"
 
 Object::Object()
 {
@@ -7,17 +8,17 @@ Object::Object()
 
 Tile * Object::GetTile()
 {
-	Vec3i position= GetPosition();
+	Vec3i tile_position= System::game.space.GetObjectPosition(this);
 
-	return &Space::space->tiles[position.x][position.y][position.z];
+	return &System::game.space.tiles[tile_position.x][tile_position.y][tile_position.z];
 }
 
 Vec3f Object::GetPosition()
 {
-	return Space::space->GetObjectPosition(this);
+	return System::game.space.GetObjectPosition(this);
 }
 
-Entity::Pose Object::GetPose()
+void Object::Step(Chronons chronons)
 {
-	return Entity::Pose(Entity::State::None);
+	HasPose::Step(chronons);
 }

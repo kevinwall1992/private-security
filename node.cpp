@@ -1,10 +1,9 @@
 #include "Node.h"
 
-Node::Node(Actor *actor_, Tile *tile_, Node *previous_)
+Node::Node(Actor *actor_, Tile *tile_)
 {
 	actor= actor_;
 	tile= tile_;
-	previous= previous_;
 }
 
 Tile * Node::GetTile()
@@ -19,34 +18,35 @@ vector<Edge *> Node::GetEdges()
 	vector<Move *> moves= actor->GetMoves(tile);
 	
 	for(auto move : moves)
-		edges.push_back(new Edge(new Node(actor, move->GetDestination(), this), move->GetCost()));
+		edges.push_back(new Edge(this, new Node(actor, move->GetDestination()), move));
 
 	return edges;
 }
 
-void Node::SetPrevious(Node *previous_)
+void Node::SetInEdge(Edge *in_)
 {
-	previous= previous_;
+	in= in_;
 }
 
-vector<Node *> Node::GetPath()
+vector<Edge *> Node::GetPath()
 {
-	vector<Node *> path;
+	vector<Edge *> path;
 
-	if(previous!= nullptr)
-		path= previous->GetPath();
-
-	path.push_back(this);
+	if(in!= nullptr)
+	{
+		path= in->GetSource()->GetPath();
+		path.push_back(in);
+	}
 
 	return path;
 }
 
 float Node::GetPathCost()
 {
-	if(previous== nullptr)
+	if(in== nullptr)
 		return 0;
 	
-	return 1+ previous->GetPathCost();
+	return in->GetCost()+ in->GetSource()->GetPathCost();
 }
 
 float Node::GetHeuristicCost(Node *target)

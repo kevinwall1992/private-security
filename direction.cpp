@@ -1,5 +1,6 @@
 #include "Direction.h"
 #include "Space.h"
+#include "GameSystem.h"
 
 Direction::Enum Direction::GetDirection(Tile *source, Tile *destination)
 {
@@ -42,7 +43,7 @@ Direction::Enum Direction::GetOpposite(Direction::Enum direction)
 
 Tile * Direction::GetDestination(Tile *source, Direction::Enum direction)
 {
-	Vec3i source_position= Space::space->GetTilePosition(source);
+	Vec3i source_position= System::game.space.GetTilePosition(source);
 	Vec3i offset(0, 0, 0);
 
 	switch(direction)
@@ -133,12 +134,12 @@ Tile * Direction::GetDestination(Tile *source, Direction::Enum direction)
 	}
 	
 	Vec3i destination_position= source_position+ offset;
-	if((destination_position.x< 0 || destination_position.x>= Space::space->Width) || 
-	   (destination_position.y< 0 || destination_position.y>= Space::space->Height) || 
-	   (destination_position.z< 0 || destination_position.z>= Space::space->Depth))
+	if((destination_position.x< 0 || destination_position.x>= System::game.space.Width) || 
+	   (destination_position.y< 0 || destination_position.y>= System::game.space.Height) || 
+	   (destination_position.z< 0 || destination_position.z>= System::game.space.Depth))
 		return nullptr;
 
-	return &Space::space->tiles[destination_position.x][destination_position.y][destination_position.z];
+	return &System::game.space.tiles[destination_position.x][destination_position.y][destination_position.z];
 }
 
 float Direction::GetLength(Direction::Enum direction)

@@ -1,5 +1,6 @@
 #include "Tile.h"
 #include "Space.h"
+#include "GameSystem.h"
 
 void Tile::PutFurniture(Furniture *furniture)
 {
@@ -12,6 +13,8 @@ bool Tile::PutActor(Actor *actor_)
 		return false;
 
 	actor= actor_;
+	actor->position= GetPosition();
+
 	return true;
 }
 
@@ -25,7 +28,7 @@ Actor * Tile::RemoveActor()
 	Actor *actor_= actor;
 	actor= nullptr;
 
-	return actor;
+	return actor_;
 }
 
 Item * Tile::RemoveItem(Item *item)
@@ -65,7 +68,7 @@ vector<Move *> Tile::GetPotentialMoves(Tile *source)
 
 bool Tile::DoesBlock(Move *move)
 {
-	position= GetPosition();
+	GetPosition();
 
 	if(move->GetSource()== this)
 	{
@@ -111,9 +114,11 @@ bool Tile::Contains(Object *object)
 	return false;
 }
 
-Vec3i Tile::GetPosition()
+Vec3f Tile::GetPosition()
 {
-	return Space::space->GetTilePosition(this);
+	space_position= System::game.space.GetTilePosition(this);
+
+	return space_position;
 }
 
 vector<Perceptible *> Tile::GetPerceptibles()
@@ -130,6 +135,18 @@ vector<Perceptible *> Tile::GetPerceptibles()
 		perceptibles.push_back(actor);
 
 	return perceptibles;
+}
+
+void Tile::Step(Chronons chronons)
+{
+	for(Item *item : items)
+		item->Step(chronons);
+
+	for(Furniture *furniture : furnitures)
+		furniture->Step(chronons);
+
+	if(actor!= nullptr)
+		actor->Step(chronons);
 }
 
 /*void Tile::Draw()

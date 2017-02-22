@@ -1,6 +1,6 @@
 #include "Space.h"
 
-Space * Space::space= new Space();
+/*Space * Space::space= new Space();
 
 Vec3i Space::GetTilePosition(Tile *tile)
 {
@@ -40,7 +40,7 @@ vector<Perceptible*> Space::GetPerceptibles()
 				perceptibles.push_back(&(tiles[i][j][k]));
 
 	return perceptibles;
-}
+}*/
 
 /*void Space::Draw()
 {

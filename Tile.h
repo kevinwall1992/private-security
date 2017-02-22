@@ -8,11 +8,12 @@
 #include "Item.h"
 #include "Furniture.h"
 #include "Math.h"
+#include "Chronon.h"
 
-class Tile : public MovementEnabler, public MovementBlocker, public PerceptibleContainer
+class Tile : public MovementEnabler, public MovementBlocker, public PerceptibleContainer, public HasPosition, public Chronal
 {
-	//temporary
-	Vec3i position= Vec3i(-1, -1, -1);
+	//for debugging purposes
+	Vec3i space_position= Vec3i(-1, -1, -1);
 
 	vector<Furniture *> furnitures;
 
@@ -32,9 +33,11 @@ public:
 
 	bool Contains(Object *object);
 
-	Vec3i GetPosition();
+	Vec3f GetPosition();
 
 	virtual vector<Perceptible *> GetPerceptibles();
+
+	void Step(Chronons chronons);
 };
 
 #endif

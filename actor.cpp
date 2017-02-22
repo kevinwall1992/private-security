@@ -6,6 +6,11 @@ Actor::Actor()
 {
 }
 
+Vec3f Actor::GetPosition()
+{
+	return Physical::GetPosition();
+}
+
 void Actor::PerformMove(Move *move)
 {
 	move->GetDestination()->PutActor(this->GetTile()->RemoveActor());
@@ -35,11 +40,6 @@ bool Actor::DoesBlock(Move *move)
 	return false;
 }
 
-Entity::Pose Actor::GetPose()
-{
-	return Entity::Pose(Entity::State::Stand);
-}
-
 string Actor::GetEntityDataFilename()
 {
 	return "actor.xml";
@@ -48,4 +48,10 @@ string Actor::GetEntityDataFilename()
 string Actor::GetEntityDataFolderName()
 {
 	return "actors";
+}
+
+void Actor::Step(Chronons chronons)
+{
+	Object::Step(chronons);
+	Physical::Step(chronons);
 }

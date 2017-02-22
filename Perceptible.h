@@ -2,13 +2,13 @@
 #define PS_PERCEPTIBLE
 
 #include "Common.h"
-#include "Action.h"
 #include "Visible.h"
 #include "Audible.h"
 #include "Sound.h"
 #include "Animation.h"
 #include "HasPosition.h"
 #include "FileResource.h"
+#include "Pose.h"
 
 #include <map>
 
@@ -37,7 +37,9 @@ public:
 //Also handles making sounds based on events
 //May possibly integrate events into visuals in the future
 
-class Entity: public Perceptible, public HasPosition
+//The confusion due to Entity/Component/System model may mean this needs name change
+
+class Entity: public Perceptible, public virtual HasPosition, public virtual HasPose
 {
 	struct EntityData : public FileResource<EntityData>
 	{
@@ -59,22 +61,6 @@ class Entity: public Perceptible, public HasPosition
 
 public:
 
-	struct State
-	{
-		enum Enum
-		{
-			None, Walk, Run, Stand
-		};
-	};
-
-	struct Pose
-	{
-		State::Enum state;
-		float time;
-
-		Pose(State::Enum state, float time= 0.0f);
-	};
-
 	struct Event
 	{
 		enum Enum
@@ -85,7 +71,6 @@ public:
 
 	Entity();
 
-	virtual Pose GetPose()= 0;
 	virtual string GetEntityDataFilename()= 0;
 	virtual string GetEntityDataFolderName()= 0;
 

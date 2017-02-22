@@ -7,6 +7,8 @@
 #include "InputSystem.h"
 #include "DictionaryFile.h"
 #include "Pathing.h"
+#include "GameSystem.h"
+#include "Actions.h"
 
 #include "EBRMain.h"
 
@@ -36,17 +38,20 @@ int main(int argument_count, char **arguments)
 #else
 	Actor *actor= new Actor();
 
-	Space::space->tiles[1][1][0].PutFurniture(new ThickWall());
-	Space::space->tiles[1][2][0].PutFurniture(new ThickWall());
-	Space::space->tiles[2][1][0].PutFurniture(new ThickWall());
-	Space::space->tiles[3][1][1].PutFurniture(new ThickWall());
-	Space::space->tiles[2][2][0].PutActor(actor);
+	System::game.space.tiles[1][1][0].PutFurniture(new ThickWall());
+	System::game.space.tiles[1][2][0].PutFurniture(new ThickWall());
+	System::game.space.tiles[2][1][0].PutFurniture(new ThickWall());
+	System::game.space.tiles[3][1][1].PutFurniture(new ThickWall());
+	System::game.space.tiles[2][2][0].PutActor(actor);
 	
-	Path path= Path::GetPath(new Node(actor, actor->GetTile()), new Node(actor, &Space::space->tiles[0][0][0]));
+	Path path= Path::GetPath(new Node(actor, actor->GetTile()), new Node(actor, &System::game.space.tiles[0][0][0]));
 
+	Edge *edge;
+	while((edge= path.PopEdge())!= nullptr)
+		System::game.SubmitAction(new MoveAction(actor, edge->GetMove()));
 
 	Scene scene;
-	scene.AddProp(Space::space);
+	scene.AddProp(&System::game.space);
 
 	RasterCamera camera(DegreesToRadians(60), Vec3f(0, 0, 5));
 	camera.LookAt(Vec3f(-2, 2, 0));
@@ -59,7 +64,10 @@ int main(int argument_count, char **arguments)
 	System::input.AddGizmo(camera_gizmo);
 
 	while(System::input.HandleInput())
+	{
+		System::game.Step(10);
 		System::graphics.Display(camera.TakePhoto(scene, System::graphics.GetScreenWidth(), System::graphics.GetScreenHeight()));
+	}
 
 	System::TerminateSystems();
 	return 0;

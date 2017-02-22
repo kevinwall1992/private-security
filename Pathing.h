@@ -6,13 +6,13 @@
 
 class Path
 {
-	vector<Node *> nodes;
+	vector<Edge *> edges;
 
-	Path(vector<Node *> nodes);
+	Path(vector<Edge *> edges);
 
 public:
 
-	Node * PopNode();
+	Edge * PopEdge();
 
 	static Path GetPath(Node *starting_node, Node *ending_node);
 };

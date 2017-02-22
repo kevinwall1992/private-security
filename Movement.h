@@ -95,8 +95,6 @@ class Mover : public MovementEnabler, public MovementBlocker
 {
 public:
 	vector<Move *> GetMoves(Tile *source);
-
-	virtual void PerformMove(Move *move)= 0;
 };
 
 #endif

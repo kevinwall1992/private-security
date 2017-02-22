@@ -3,6 +3,7 @@
 
 #include "Common.h"
 #include "Perceptible.h"
+#include "Chronon.h"
 
 
 //Considering whether subclasses of Actor, Furniture, etc might simply be 
@@ -15,7 +16,7 @@
 
 class Tile;
 
-class Object : public Polymorphic, public Entity
+class Object : public Polymorphic, public Entity, public virtual Chronal, public virtual HasPosition, public virtual HasPose
 {
 public:
 
@@ -23,9 +24,9 @@ public:
 
 	Tile *GetTile();
 
-	Vec3f GetPosition();
+	virtual Vec3f GetPosition();
 
-	virtual Pose GetPose();
+	virtual void Step(Chronons chronons);
 };
 
 #endif

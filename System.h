@@ -7,6 +7,7 @@ class EmbreeSystem;
 class GraphicsSystem;
 class InputSystem;
 class ResourceSystem;
+class GameSystem;
 
 class System
 {
@@ -22,6 +23,7 @@ public:
 	static GraphicsSystem graphics;
 	static InputSystem input;
 	static ResourceSystem resource;
+	static GameSystem game;
 
 	static void InitializeSystems();//Add flags to initialize only certain systems. 
 	static void TerminateSystems();
