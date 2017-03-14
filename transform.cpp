@@ -65,7 +65,7 @@ Transform & Transform::Merge(Transform other, bool reverse_order)
 		inverse_matrix= other.inverse_matrix* inverse_matrix;
 	}
 
-	is_invertible= is_invertible&& other.is_invertible;//see whether you can use &=
+	is_invertible= is_invertible&& other.is_invertible;
 
 	return *this;
 }
@@ -201,6 +201,28 @@ Transform Transform::Scaled(float scale, bool reverse_order)
 	return Copy().Scale(scale, reverse_order);
 }
 
+Transform & Transform::Scale(Vec3f scale, bool reverse_order)
+{
+	float cells[16]= { scale.x,  0,			0,		 0, 
+					   0,		 scale.y,	0,		 0, 
+					   0,		 0,			scale.z, 0,
+					   0,		 0,			0,		 1 };
+
+	float inverse_cells[16]= { 1/ scale.x,	0,			0,			0, 
+							   0,			1/ scale.y, 0,			0, 
+							   0,			0,			1/ scale.z, 0,
+							   0,			0,			0,			1 };
+
+	Push(cells, inverse_cells, reverse_order);
+
+	return *this;
+}
+
+Transform Transform::Scaled(Vec3f scale, bool reverse_order)
+{
+	return Copy().Scale(scale, reverse_order);
+}
+
 Transform & Transform::Translate(Vec3f displacement, bool reverse_order)
 {
 	float x= displacement.x;
@@ -227,7 +249,6 @@ Transform Transform::Translated(Vec3f displacement, bool reverse_order)
 	return Copy().Translate(displacement, reverse_order);
 }
 
-//Does not account for w coordinate
 Vec3f Transform::Apply(Vec3f vector_, bool is_direction)
 {
 	return (matrix* vector_.Push(is_direction ? 0.0f : 1.0f)).Pop();

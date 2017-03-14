@@ -33,19 +33,15 @@ void GraphicsSystem::Initialize()
 	cout << "\n\n";
 
 	glEnable(GL_DEPTH_TEST);
-	glDisable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 
 	SDL_GL_SetSwapInterval(0);
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     glClearColor(0.0f, 0.0f, 0.0, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-
-	ShaderProgram *shader_program= ShaderProgram::Retrieve("photo.program");
-	shader_program->Use();
-
-	shader_program->SetAttribute("position", 3, sizeof(float)* 3, 0);
-	shader_program->SetUniformInt("photo", 0);
 }
 
 void GraphicsSystem::Terminate()
@@ -55,29 +51,18 @@ void GraphicsSystem::Terminate()
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
-int GraphicsSystem::GetScreenWidth()
+Vec2i GraphicsSystem::GetScreenSize()
 {
-	return screen_width;
+	return Vec2i(screen_width, screen_height);
 }
 
-int GraphicsSystem::GetScreenHeight()
+void GraphicsSystem::Display(Drawable *drawable)
 {
-	return screen_height;
-}
+	Framebuffer::GetDefaultFramebuffer().PrepareForDrawing();
 
-void GraphicsSystem::Display(Photo photo)
-{
-	Framebuffer::GetDefault().Bind();
-	glViewport(0, 0, screen_width* 2, screen_height* 2);
+	drawable->Draw();
 
-	photo.GetTexture().BindToIndex(0);
-	ShaderProgram::Retrieve("photo.program")->Use();
-
-	RasterizeFullScreenQuad();
 	SDL_GL_SwapWindow(System::graphics.window);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	photo.Free();
 
 	frame_count++;
 }

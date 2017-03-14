@@ -3,6 +3,7 @@
 
 #include "Math.h"
 
+
 class HasPosition
 {
 public:

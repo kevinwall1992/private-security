@@ -1,10 +1,18 @@
 #include "InputSystem.h"
+#include "GraphicsSystem.h"
 #include "Gizmo.h"
 
 #include <SDL.h>
 
 
-ButtonEvent::Button::Enum InputSystem::SDLKToButton(int sdlk_value)
+Vec2f InputSystem::GetNormalizedMousePosition(Vec2i mouse_position)
+{
+	mouse_position.y= System::graphics.GetScreenSize().y- mouse_position.y;
+
+	return ((Vec2f)mouse_position)/ (float)System::graphics.GetScreenSize().x;
+}
+
+ButtonEvent::Button InputSystem::SDLKToButton(int sdlk_value)
 {
 	switch(sdlk_value)
 	{
@@ -50,7 +58,7 @@ ButtonEvent::Button::Enum InputSystem::SDLKToButton(int sdlk_value)
 	}
 }
 
-ButtonEvent::Button::Enum InputSystem::SDL_ScancodeToButton(int sdl_scancode)
+ButtonEvent::Button InputSystem::SDL_ScancodeToButton(int sdl_scancode)
 {
 	switch(sdl_scancode)
 	{
@@ -96,25 +104,25 @@ ButtonEvent::Button::Enum InputSystem::SDL_ScancodeToButton(int sdl_scancode)
 	}
 }
 
-MouseEvent::MouseButton::Enum InputSystem::SDLMouseButtonToButton(int sdl_mouse_button_value)
+MouseEvent::MouseButton InputSystem::SDLMouseButtonToButton(int sdl_mouse_button_value)
 {
 	switch(sdl_mouse_button_value)
 	{
-	case SDL_BUTTON_LEFT: return MouseEvent::MouseButton::MouseLeft;
-	case SDL_BUTTON_MIDDLE: return MouseEvent::MouseButton::MouseMiddle;
-	case SDL_BUTTON_RIGHT: return MouseEvent::MouseButton::MouseRight;
+	case SDL_BUTTON_LEFT: return MouseEvent::MouseButton::Left;
+	case SDL_BUTTON_MIDDLE: return MouseEvent::MouseButton::Middle;
+	case SDL_BUTTON_RIGHT: return MouseEvent::MouseButton::Right;
 	default: return MouseEvent::MouseButton::None;
 	}
 }
 
-vector<MouseEvent::MouseButton::Enum> InputSystem::GetDownMouseButtons(unsigned int state)
+vector<MouseEvent::MouseButton> InputSystem::GetDownMouseButtons(unsigned int state)
 {
-	vector<MouseEvent::MouseButton::Enum> down_mouse_buttons;
+	vector<MouseEvent::MouseButton> down_mouse_buttons;
 
 	for(int i= SDL_BUTTON_LEFT; i< SDL_BUTTON_RIGHT; i++)
 		if(state& SDL_BUTTON(i))
 		{
-			MouseEvent::MouseButton::Enum button= SDLMouseButtonToButton(i);
+			MouseEvent::MouseButton button= SDLMouseButtonToButton(i);
 			if(button!= MouseEvent::MouseButton::None)
 				down_mouse_buttons.push_back(button);
 		}
@@ -144,7 +152,11 @@ bool InputSystem::HandleInput()
 
 	Vec2i mouse_position;
 	Uint32 mouse_state= SDL_GetMouseState(&mouse_position.c[0], &mouse_position.c[1]);
-	Vec2i mouse_displacement= last_mouse_position- mouse_position;
+	Vec2f normalized_mouse_position= GetNormalizedMousePosition(mouse_position);
+	Vec2f mouse_displacement= normalized_mouse_position- GetNormalizedMousePosition(last_mouse_position);
+
+	int foo= mouse_position.y;
+	int bar= last_mouse_position.y;
 
 	SDL_Event sdl_event;
 	while(SDL_PollEvent(&sdl_event))
@@ -152,27 +164,31 @@ bool InputSystem::HandleInput()
 		if(sdl_event.type== SDL_QUIT)
 			return false;
 		
-		vector<MouseEvent::MouseButton::Enum> down_mouse_buttons;
+		vector<MouseEvent::MouseButton> down_mouse_buttons;
 
 		switch(sdl_event.type)
 		{
+		case SDL_MOUSEWHEEL:
+			BroadcastEvent(new MouseScrollEvent(elapsed_seconds, normalized_mouse_position, sdl_event.wheel.y));
+			break;
+
 		case SDL_MOUSEBUTTONUP:
 		case SDL_MOUSEBUTTONDOWN:
 			BroadcastEvent(new MouseButtonEvent(elapsed_seconds, 
 												SDLMouseButtonToButton(sdl_event.button.button), 
 												sdl_event.button.type== SDL_MOUSEBUTTONUP ? MouseButtonEvent::Type::Up : MouseButtonEvent::Type::Down, 
-												mouse_position));
+												normalized_mouse_position));
 			break;
 
 		case SDL_MOUSEMOTION:
 			BroadcastEvent(new MouseMotionEvent(elapsed_seconds, 
-												mouse_position, 
+												normalized_mouse_position, 
 												mouse_displacement));
 
 			down_mouse_buttons= GetDownMouseButtons(sdl_event.motion.state);
 			for(unsigned int i= 0; i< down_mouse_buttons.size(); i++)
 				BroadcastEvent(new MouseDragEvent(elapsed_seconds, 
-												  mouse_position,
+												  normalized_mouse_position,
 												  mouse_displacement,
 												  down_mouse_buttons[i]));
 			break;
@@ -189,12 +205,12 @@ bool InputSystem::HandleInput()
 	}
 
 
-	vector<MouseEvent::MouseButton::Enum> down_mouse_buttons= GetDownMouseButtons(mouse_state);
+	vector<MouseEvent::MouseButton> down_mouse_buttons= GetDownMouseButtons(mouse_state);
 	for(unsigned int i= 0; i< down_mouse_buttons.size(); i++)
 		BroadcastEvent(new MouseButtonEvent(elapsed_seconds, 
 											down_mouse_buttons[i], 
 											MouseButtonEvent::Type::Hold, 
-											mouse_position));
+											normalized_mouse_position));
 
 	int key_count;
 	const Uint8 *keys= SDL_GetKeyboardState(&key_count);
@@ -203,7 +219,7 @@ bool InputSystem::HandleInput()
 	{
 		if(keys[i])
 		{
-			ButtonEvent::Button::Enum button= SDL_ScancodeToButton(i);
+			ButtonEvent::Button button= SDL_ScancodeToButton(i);
 			if(button!= ButtonEvent::Button::None)
 				BroadcastEvent(new ButtonEvent(elapsed_seconds, 
 					                           button, 

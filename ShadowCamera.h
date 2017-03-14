@@ -13,14 +13,14 @@ class ShadowCamera : public Camera
 
 	bool initialized;
 
-	void Initialize(int width, int height);
-	void ResizeResizables(int width, int height);
+	void Initialize(Vec2i size);
+	void ResizeResizables(Vec2i size);
 
 public:
 	ShadowCamera(float fov_in_degrees, Vec3f position, Vec3f look_at_position);
 	ShadowCamera(float fov_in_degrees, Vec3f position);
 
-	virtual Photo TakePhoto(Scene &scene, int width, int height);
+	virtual PhotoBook TakePhotos(Scene &scene, Vec2i size, Photo::Type types);
 };
 
 #endif

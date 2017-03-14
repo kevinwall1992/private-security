@@ -2,16 +2,24 @@
 #define EBR_IMAGE
 
 #include "Sized.h"
+#include "GraphicsLibraries.h"
+#include "Common.h"
 
 
-struct Pixel
+struct RGBAPixel
 {
-	unsigned char b, g, r, a;
+	unsigned char r, g, b, a;
 
-	Pixel(unsigned char r, unsigned char b, unsigned char g, unsigned char a);
-	Pixel();
+	RGBAPixel(unsigned char r, unsigned char b, unsigned char g, unsigned char a);
+	RGBAPixel();
 
-	static Pixel black;
+	static RGBAPixel black;
+};
+typedef RGBAPixel Pixel;
+
+struct BGRPixel
+{
+	unsigned char b, g, r;
 };
 
 template<class T>
@@ -33,9 +41,29 @@ protected:
 
 public:
 
-	Image(int width, int height)
+	//Image takes owership of pixels
+	Image(int width, int height, T *pixels_= nullptr)
 	{
-		Resize(width, height);
+		Vec2i size= Vec2i(width, height);
+
+		if(pixels_!= nullptr)
+		{
+			Sized::Resize(size);
+			pixels= pixels_;
+		}
+		else
+			Resize(size);
+	}
+
+	Image(Vec2i size, T *pixels_= nullptr)
+	{
+		if(pixels_!= nullptr)
+		{
+			Sized::Resize(size);
+			pixels= pixels_;
+		}
+		else
+			Resize(size);
 	}
 
 	Image()
@@ -45,7 +73,8 @@ public:
 
 	Image & operator=(const Image &other)
 	{
-		Sized::Resize(other.Width, other.Height);
+		Sized::Resize(other.GetSize());
+		
 		pixels= other.pixels;
 
 		return *this;
@@ -61,10 +90,6 @@ public:
 		return pixels;
 	}
 
-	//This seems to imply a general copy operation,
-	//When in fact, its just a blit (that requires size compatibility).
-	//Would be nice to come up with different name,
-	//But the direction of blit has to be clear.
 	void BecomeCopyOf(Image<T> other)
 	{
 		assert((Width== other.Width && Height== other.Height) && "Image::BecomeCopyOf(): mismatched image sizes");

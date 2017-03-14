@@ -24,7 +24,7 @@ GLuint CreateRawShader(GLenum shader_type, const char *shader_source, const char
 		delete[] info_log;
 	}
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 
 	return shader;
 }
@@ -52,11 +52,9 @@ GLuint CreateRawShaderProgram(GLuint vertex_shader, GLuint fragment_shader)
 	}
 
 	glDetachShader(shader_program, vertex_shader);
-	glDeleteShader(vertex_shader);
 	glDetachShader(shader_program, fragment_shader);
-	glDeleteShader(fragment_shader);
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 
 	return shader_program;
 }
@@ -69,7 +67,7 @@ VertexShader::VertexShader(string filepath)
 
 vector<VertexShader *> VertexShader::Parse(string filename)
 {
-	return MakeVector(new VertexShader(MakeFilepath(filename)));
+	return Utility::MakeVector(new VertexShader(MakeFilepath(filename)));
 }
 
 FragmentShader::FragmentShader(string filepath)
@@ -80,7 +78,7 @@ FragmentShader::FragmentShader(string filepath)
 
 vector<FragmentShader *> FragmentShader::Parse(string filename)
 {
-	return MakeVector(new FragmentShader(MakeFilepath(filename)));
+	return Utility::MakeVector(new FragmentShader(MakeFilepath(filename)));
 }
 
 
@@ -145,21 +143,6 @@ void ShaderProgram::SetUniformMatrix4x4f(string uniform_name, Transform transfor
 	SetUniformMatrix4x4f(uniform_name, transform.GetMatrix());
 }
 
-//The reinterpret cast may not work, currently have no offset
-void ShaderProgram::SetAttribute(string attribute_name, int size, int stride, int offset_)
-{
-	size_t offset= offset_;
-
-	GLint attribute_handle= GetAttributeLocation(attribute_name);
-
-	//Should this break? What about when shaders don't use "normal" attribute?
-	if(attribute_handle>= 0)
-	{
-		glVertexAttribPointer(attribute_handle, size, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void *>(offset));
-		glEnableVertexAttribArray(attribute_handle);
-	}
-}
-
 void ShaderProgram::Use()
 {
 	glUseProgram(shader_program_handle);
@@ -189,5 +172,5 @@ vector<ShaderProgram*> ShaderProgram::Parse(string filename)
 	vertex_shader= VertexShader::Retrieve(shaders_element->FirstChildElement("vertex")->GetText());
 	fragment_shader= FragmentShader::Retrieve(shaders_element->FirstChildElement("fragment")->GetText());
 
-	return MakeVector(new ShaderProgram(filepath, vertex_shader, fragment_shader));
+	return Utility::MakeVector(new ShaderProgram(filepath, vertex_shader, fragment_shader));
 }

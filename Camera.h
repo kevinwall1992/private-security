@@ -4,14 +4,30 @@
 #include "Film.h"
 #include "Shutter.h"
 #include "Math.h"
-#include "Ray.h"
 #include "Transform.h"
 #include "Property.h"
 #include "PropertySpecializations.h"
 
+#include <map>
 
+
+//Consider having static texture handle lying around***
+//For use in uploading image to GPU. At least as fast
+//As the current method, plus no blocking commands
+
+//Or, rewrite to be less hand-wavey; just allow it to be
+//created with an image or texture, then provide methods
+//that inform caller what the underlying type is. 
 class Photo
 {
+public:
+	enum Type { FullColor= 1, 
+		        DiffuseColor= 2, 
+				SpecularColor= 4, 
+				Depth= 8, 
+				Normal= 16 };
+
+private:
 	ColorImage image;
 	DepthImage depth_image;
 	Texture texture;
@@ -20,6 +36,8 @@ class Photo
 	bool image_was_first;
 	bool image_is_empty;
 	bool texture_is_empty;
+
+	Type type;
 
 public:
 	Photo(ColorImage image);
@@ -31,12 +49,14 @@ public:
 
 	Photo & operator=(const Photo &other);
 
+	Type GetType();
+
 	ColorImage GetImage();
 	Texture GetTexture();
 
 	void Free();
 };
-
+typedef std::map<Photo::Type, Photo> PhotoBook;
 
 class Camera : public Updatable
 {
@@ -65,9 +85,10 @@ public:
 	void AssumeOrientation(Camera &other);
 
 	Transform GetTransform();
-	Transform GetProjectedTransform(int width, int height);
+	Transform GetProjectedTransform(float aspect_ratio);
 	
-	virtual Photo TakePhoto(Scene &scene, int width, int height)= 0;
+	Photo TakePhoto(Scene &scene, Vec2i size, Photo::Type type=Photo::Type::FullColor);
+	virtual PhotoBook TakePhotos(Scene &scene, Vec2i size, Photo::Type types)= 0;
 };
 
 

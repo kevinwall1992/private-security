@@ -14,12 +14,12 @@ GLuint CreateTexture(int width, int height, GLenum interpolation_mode, bool is_d
 	if(is_depth)
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, pixels);
 	else
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, interpolation_mode);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, interpolation_mode);
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 
 	return texture_handle;
 }
@@ -36,14 +36,21 @@ void Texture::Free_Sized()
 
 Texture::Texture(int width, int height, int index)
 {
-	Sized::Resize(width, height);
+	Sized::Resize(Vec2i(width, height));
+
+	handle= CreateTexture(Width, Height, GL_LINEAR, false, nullptr, index);
+}
+
+Texture::Texture(Vec2i size, int index)
+{
+	Sized::Resize(size);
 
 	handle= CreateTexture(Width, Height, GL_LINEAR, false, nullptr, index);
 }
 
 Texture::Texture(ColorImage image, int index)
 {
-	Sized::Resize(image.Width, image.Height);
+	Sized::Resize(image.GetSize());
 
 	handle= CreateTexture(Width, Height, GL_LINEAR, false, image.GetPixels(), index);
 }
@@ -55,7 +62,7 @@ Texture::Texture()
 
 Texture & Texture::operator=(const Texture &other)
 {
-	Sized::Resize(other.Width, other.Height);
+	Sized::Resize(other.GetSize());
 
 	handle= other.handle;
 
@@ -67,7 +74,7 @@ void Texture::UploadImage(ColorImage image)
 	BindToIndex(0);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image.Width, image.Height, GL_BGRA, GL_UNSIGNED_BYTE, image.GetPixels());
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 }
 
 GLuint Texture::GetHandle()
@@ -93,16 +100,30 @@ void DepthTexture::UploadImage(ColorImage image)
 
 DepthTexture::DepthTexture(int width, int height, int index)
 {
-	Sized::Resize(width, height);
+	Sized::Resize(Vec2i(width, height));
+
+	handle= CreateTexture(Width, Height, GL_LINEAR, true, 0, index);
+}
+
+DepthTexture::DepthTexture(Vec2i size, int index)
+{
+	Sized::Resize(size);
 
 	handle= CreateTexture(Width, Height, GL_LINEAR, true, 0, index);
 }
 
 DepthTexture::DepthTexture(DepthImage image, int index)
 {
-	Sized::Resize(image.Width, image.Height);
+	Sized::Resize(image.GetSize());
 
 	handle= CreateTexture(Width, Height, GL_LINEAR, true, image.GetPixels(), index);
+}
+
+DepthTexture::DepthTexture(Texture texture)
+{
+	Sized::Resize(texture.GetSize());
+
+	handle= texture.GetHandle();
 }
 
 DepthTexture::DepthTexture()
@@ -116,5 +137,5 @@ void DepthTexture::UploadImage(DepthImage image)
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, Width, Height, GL_DEPTH_COMPONENT, GL_FLOAT, image.GetPixels());
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GetWidth(), GetHeight(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, image);
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 }

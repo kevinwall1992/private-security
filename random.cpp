@@ -14,7 +14,7 @@ RandomIterator::RandomIterator(int prime_, int seed_primitive_root, int count_, 
 	int max_exponent= (int)(log(std::numeric_limits<int>::max())/ log(seed_primitive_root));
 	for(int i= 0; i< max_exponent; i++)
 	{
-		int congruent= IntegerPow(seed_primitive_root, i)% prime;
+		int congruent= Math::Pow(seed_primitive_root, i)% prime;
 
 		bool already_present= false;
 		for(unsigned j= 0; j< primitive_roots.size(); j++)
@@ -23,7 +23,7 @@ RandomIterator::RandomIterator(int prime_, int seed_primitive_root, int count_, 
 		if(already_present)
 			continue;
 
-		if(GCD(i, prime- 1) == 1)
+		if(Math::GCD(i, prime- 1) == 1)
 			primitive_roots.push_back(congruent);
 	}
       

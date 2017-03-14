@@ -1,10 +1,11 @@
 #ifndef EBR_GRAPHICS_SYSTEM
 #define EBR_GRAPHICS_SYSTEM
 
-#include "GraphicsHeaders.h"
+#include "GraphicsLibraries.h"
 
 #include "System.h"
 #include "Image.h"
+#include "Interface.h"
 
 
 class Photo;
@@ -25,11 +26,9 @@ protected:
 	void Terminate();
 
 public:
-	int GetScreenWidth();
-	int GetScreenHeight();
+	Vec2i GetScreenSize();
 	
-
-	void Display(Photo photo);
+	void Display(Drawable *drawable);
 
 	int GetFrameCount();
 

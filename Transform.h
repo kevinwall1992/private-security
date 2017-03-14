@@ -3,7 +3,7 @@
 
 #include "Matrix.h"
 
-//Consider MergeRight();
+
 class Transform
 {
 	Mat4x4f matrix;
@@ -37,11 +37,12 @@ public:
 
 	virtual Transform & Scale(float scale, bool reverse_order= false);
 	virtual Transform Scaled(float scale, bool reverse_order= false);
+	virtual Transform & Scale(Vec3f scale, bool reverse_order= false);
+	virtual Transform Scaled(Vec3f scale, bool reverse_order= false);
 
 	virtual Transform & Translate(Vec3f displacement, bool reverse_order= false);
 	virtual Transform Translated(Vec3f displacement, bool reverse_order= false);
 
-	//Should this just be two methods?
 	Vec3f Apply(Vec3f vector_, bool is_direction= false);
 
 	static Transform MakeProjectionTransform(float fov, float aspect_ratio);

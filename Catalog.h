@@ -64,7 +64,7 @@ private:
 		if(block_index== 0)
 			return first_block_size;
 
-		return first_block_size* IntegerPow(2, block_index);
+		return first_block_size* Math::Pow(2, block_index);
 	}
 
 	int GetBlockIndex(int global_index)
@@ -87,7 +87,7 @@ private:
 		if(block_count== 0)
 			return 0;
 
-		return first_block_size* (IntegerPow(2, block_count)- 1);
+		return first_block_size* (Math::Pow(2, block_count)- 1);
 	}
 
 	int GetElementIndex(int global_index)

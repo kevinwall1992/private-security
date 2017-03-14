@@ -72,6 +72,14 @@ public:
 
 		return *value;
 	}
+
+	virtual T & operator*=(const T &other)
+	{
+		*value*= other;
+		Touch();
+
+		return *value;
+	}
 };
 
 typedef Property<int> IntProperty;

@@ -1,7 +1,7 @@
 #ifndef PS_SHADER
 #define PS_SHADER
 
-#include "OpenGLUtility.h"
+#include "GraphicsLibraries.h"
 #include "FileResource.h"
 #include "Transform.h"
 
@@ -18,7 +18,7 @@ protected:
 	Shader(string filepath, GLenum shader_type)
 		: FileResource<T>(filepath)
 	{
-		shader_handle= CreateRawShader(shader_type, TextFileToString(filepath).c_str());
+		shader_handle= CreateRawShader(shader_type, Utility::TextFileToString(filepath).c_str());
 	}
 
 public:
@@ -77,8 +77,6 @@ public:
 	void SetUniformVector3f(string uniform_name, Vec3f vector_);
 	void SetUniformMatrix4x4f(string uniform_name, Mat4x4f matrix);
 	void SetUniformMatrix4x4f(string uniform_name, Transform transform);
-	
-	void SetAttribute(string attribute_name, int size, int stride, int offset);
 
 	void Use();
 

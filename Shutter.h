@@ -7,7 +7,7 @@ using std::queue;
 
 #include "Common.h"
 #include "Threading.h"
-#include "Ray.h"
+#include "EBRRay.h"
 #include "Film.h"
 #include "Scene.h"
 #include "ISPCInterop.h"
@@ -96,7 +96,7 @@ struct BlockState{enum Enum {Empty, Partial, Full};};
 
 struct RayBlock
 {
-	Ray rays[RAY_BLOCK_SIZE];
+	EBRRay rays[RAY_BLOCK_SIZE];
 	int front_index;
 
 	BlockState::Enum state;
@@ -109,12 +109,12 @@ struct RayBlock
 
 	void Empty();
 
-	Ray * GetFront();
+	EBRRay * GetFront();
 };
 
 struct RayPacketBlock
 {
-	RayPacket ray_packets[RAY_PACKET_BLOCK_SIZE];
+	EBRRayPacket ray_packets[RAY_PACKET_BLOCK_SIZE];
 	int front_index;
 
 	BlockState::Enum state;
@@ -127,7 +127,7 @@ struct RayPacketBlock
 
 	void Empty();
 
-	RayPacket * GetFront();
+	EBRRayPacket * GetFront();
 };
 
 struct TaskType{enum Enum {None, Refill, Shade, Develop, Cancel};};

@@ -6,18 +6,18 @@
 
 class CompositingCamera : public RayCameraBase
 {
-	ColorImage diffuse_map;
+	ColorImage diffuse_color_map;
 	ColorImage glossiness_map;
 	ColorImage normal_map;
 	DepthImage depth_map;
 
 	bool initialized= false;
 
-	void Initialize(int width, int height);
-	void ResizeResizables(int width, int height);
+	void Initialize(Vec2i size);
+	void ResizeResizables(Vec2i size);
 	void Update();
 
-	void GenerateMaps(Scene &scene, int width, int height);
+	void GenerateMaps(Scene &scene, Vec2i size);
 
 public:
 	CompositingCamera(float fov, Vec3f position);
@@ -27,7 +27,7 @@ public:
 	ColorImage GetNormalMap();
 	DepthImage GetDepthMap();
 
-	virtual Photo TakePhoto(Scene &scene, int width, int height);
+	virtual PhotoBook TakePhotos(Scene &scene, Vec2i size, Photo::Type types);
 };
 
 #endif

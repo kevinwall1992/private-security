@@ -12,7 +12,12 @@
 
 Film::Film(int width, int height)
 {
-	Resize(width, height);
+	Resize(Vec2i(width, height));
+}
+
+Film::Film(Vec2i size)
+{
+	Resize(size);
 }
 
 Film::Film()
@@ -29,11 +34,11 @@ Film::~Film()
 	image.Free();
 }
 
-void Film::Resize(int width, int height)
+void Film::Resize(Vec2i size)
 {
-	Resizable::Resize(width, height);
+	Resizable::Resize(size);
 
-	image.Resize(width, height);
+	image.Resize(size);
 }
 
 void Film::Clear()

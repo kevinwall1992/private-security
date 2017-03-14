@@ -22,6 +22,13 @@ RayCameraBase::RayCameraBase(float fov, Vec3f position)
 
 }
 
+Ray RayCameraBase::GetRay(float x, float y)
+{
+	Vec3f forward= GetForward();
+
+	return Ray(Position, Vec3f(forward.x+ view_plane_u.x* x+ view_plane_v.x* y, forward.y+ view_plane_u.y* x+ view_plane_v.y* y, forward.z+ view_plane_u.z* x+ view_plane_v.z* y));
+}
+
 void RayCameraBase::Update()
 {
 	ComputeViewPlane();
@@ -164,11 +171,11 @@ void RayCamera::LookAt(Vec3f look_at_position)
 	Vec3f up= GetUp();
 }
 
-Photo RayCamera::TakePhoto(Scene &scene, int width, int height)
+PhotoBook RayCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 {
-	if(film.Width!= width || film.Height!= height)
+	if(film.Width!= size.x || film.Height!= size.y)
 	{
-		film.Resize(width, height);
+		film.Resize(size);
 		film_was_resized= true;
 	}
 	CatchUp();
@@ -179,10 +186,27 @@ Photo RayCamera::TakePhoto(Scene &scene, int width, int height)
 	frame_count++;
 #endif
 
-	return Photo(film.image);
+
+	PhotoBook photo_book;
+
+	vector<Photo::Type> all_types= { Photo::Type::FullColor };
+	for(Photo::Type type : all_types)
+		if((type & types)== type)
+			switch(type)
+			{
+			case Photo::Type::FullColor: photo_book[type]= film.image; break;
+
+			case Photo::Type::DiffuseColor:
+			case Photo::Type::SpecularColor: 
+			case Photo::Type::Depth: 
+			case Photo::Type::Normal:
+			default: break;
+			}
+
+	return photo_book;
 }
 
-bool RayCamera::GetRayPackets(RayPacket *ray_packets, int tile_index, int *indices, int index_count)
+bool RayCamera::GetRayPackets(EBRRayPacket *ray_packets, int tile_index, int *indices, int index_count)
 {
 	//if(tile_index> 963)
 	//	return false;
@@ -295,7 +319,7 @@ bool RayCamera::GetRayPackets(RayPacket *ray_packets, int tile_index, int *indic
 	return true;
 }
 
-bool RayCamera::GetRays(Ray *rays, int tile_index, int *indices)
+bool RayCamera::GetRays(EBRRay *rays, int tile_index, int *indices)
 {
 	if(tile_index>= ((film.Width/ CAMERA_TILE_WIDTH)* (film.Height/ CAMERA_TILE_HEIGHT)))
 		return false;
@@ -303,29 +327,11 @@ bool RayCamera::GetRays(Ray *rays, int tile_index, int *indices)
 #if ISPC_GET_RAYS
 	//This has not been tested
 
-	/*float position_[3]; SetFloat3(position_, position);
-	float forward_[3]; SetFloat3(forward_, forward);
-	float view_plane_u_[3]; SetFloat3(view_plane_u_, view_plane_u);
-	float view_plane_v_[3]; SetFloat3(view_plane_v_, view_plane_v);*/
-
 	int tile_count_x= film.Width/ CAMERA_TILE_WIDTH;
 	int tile_x= tile_index% tile_count_x;
 	int tile_y= tile_index/ tile_count_x;
 	int x_offset= tile_x* CAMERA_TILE_WIDTH;
 	int y_offset= tile_y* CAMERA_TILE_HEIGHT;
-
-	float *pos= new float[4]; SetFloat3(pos, Position);
-	float *forw= new float[4]; SetFloat3(forw, GetForward());
-	float *u= new float[4]; SetFloat3(u, view_plane_u);
-	float *v= new float[4]; SetFloat3(v, view_plane_v);
-
-	/*ispc::GetRayDirections(x_offset, y_offset,
-							pos, forw, 
-							u, v,
-							film->width, film->height, 
-							reinterpret_cast<ispc::Ray *>(first_ray.ray));
-							*/
-	delete pos, forw, u, v;
 
 	int ray_count= 0;
 	for(int j= 0; j< CAMERA_TILE_HEIGHT; j++)

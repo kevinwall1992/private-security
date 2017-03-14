@@ -3,11 +3,18 @@
 
 #include "Mutable.h"
 #include "Property.h"
+#include "Vector.h"
 
 
+//Think Sized may need to go, or somehow be changed to be more generic***
+//It even has a Resize method, despite Resizable's existance...
+//Problem is that Properties are really nice, but I can't restrict 
+//or enable mutation of Width and Height, either of which is a requirement for
+//some subclasses and not others. 
+//Complete redesign of these classes needed. 
 class Sized : public Updatable
 {
-	int width= -1, height= -1;
+	Vec2i size= Vec2i(-1, -1);
 
 public:
 	ImmutableProperty<int> Width;
@@ -15,12 +22,13 @@ public:
 
 	Sized();
 
+	Vec2i GetSize() const;
 	float GetAspectRatio();
 
-	virtual void Resize(int width, int height);
+	virtual void Resize(Vec2i size);
 };
 
-//Need changes to width and height to result in Resize
+//Need changes to width and height to result in Resize***
 class Resizable : public Sized
 {
 protected:
@@ -28,7 +36,7 @@ protected:
 	virtual void Free_Sized()= 0;
 
 public:
-	virtual void Resize(int width, int height);
+	virtual void Resize(Vec2i size);
 };
 
 #endif

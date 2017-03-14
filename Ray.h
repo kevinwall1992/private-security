@@ -1,49 +1,14 @@
-#ifndef EBR_RAY
-#define EBR_RAY
+#ifndef PS_RAY
+#define PS_RAY
 
-#include "Common.h"
-#include "EmbreeSystem.h"
-#include "Color.h"
-#include "Surface.h"
-#include "Medium.h"
+#include "Vector.h"
 
-
-#define VisibilityRay RTCRay
-
-//need to test compile time packet sizes vs run time packet sizes
-#if STREAM_MODE
-#define VisibilityRayPacket RTCRayNt<PACKET_SIZE>
-#else
-#define VisibilityRayPacket JOIN(RTCRay, PACKET_SIZE)
-#endif
-
-
-struct RayType{enum Enum {Primary, PrimaryReflection, PrimaryRefraction, Reflection, Refraction, Diffuse};};
-
-struct Ray : public VisibilityRay
+struct Ray
 {
-	float x, y;
-	Color absorption;
-	int bounce_count;
-	RayType::Enum type;
+	Vec3f tail;
+	Vec3f direction;
 
-	Surface surface;
-	Medium medium;
-
-	float *light_coefficients;
-};
-
-struct RayPacket : public VisibilityRayPacket
-{
-	float x[PACKET_SIZE], y[PACKET_SIZE];
-	float absorption_r[PACKET_SIZE], absorption_g[PACKET_SIZE], absorption_b[PACKET_SIZE];
-	int bounce_count[PACKET_SIZE];
-	RayType::Enum type[PACKET_SIZE];
-
-	SurfacePacket surface;
-	MediumPacket medium;
-
-	float *light_coefficients;
+	Ray(Vec3f tail, Vec3f direction);
 };
 
 #endif

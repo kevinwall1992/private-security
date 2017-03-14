@@ -35,7 +35,7 @@ string Entity::EntityData::MakeFilepath(string filename)
 
 vector<Entity::EntityData *> Entity::EntityData::Parse(string filename)
 {
-	return MakeVector(new Entity::EntityData(MakeFilepath(filename)));
+	return Utility::MakeVector(new Entity::EntityData(MakeFilepath(filename)));
 }
 
 Entity::EntityData::EntityData(string filepath)
@@ -73,10 +73,7 @@ MeshProp * Entity::GetMeshProp()
 	if(mesh_prop== nullptr)
 		mesh_prop= new MeshProp(GetEntityData()->animations["default"]->GetMesh());
 
-	//hack
-	Vec3f space_position= GetPosition();
-	Vec3f world_position(space_position.x, space_position.z, space_position.y);
-	mesh_prop->SetDisplacement(world_position);
+	mesh_prop->SetDisplacement(GetPosition());
 
 	return mesh_prop;
 }
@@ -86,7 +83,6 @@ Entity::Entity()
 	
 }
 
-//Raytracing and Rasterization methods very similar; might want to abstract their implementations
 vector<RaytracingPrimitive *> Entity::GetRaytracingPrimitives()
 {
 	return GetMeshProp()->GetRaytracingPrimitives();

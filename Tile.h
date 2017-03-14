@@ -12,9 +12,6 @@
 
 class Tile : public MovementEnabler, public MovementBlocker, public PerceptibleContainer, public HasPosition, public Chronal
 {
-	//for debugging purposes
-	Vec3i space_position= Vec3i(-1, -1, -1);
-
 	vector<Furniture *> furnitures;
 
 	Actor *actor= nullptr;
@@ -27,6 +24,9 @@ public:
 	
 	Actor * RemoveActor();
 	Item * RemoveItem(Item *item= nullptr);
+
+	Actor * GetActor();
+	vector<Item *> GetItems();
 
 	vector<Move *> GetPotentialMoves(Tile *source= nullptr);
 	bool DoesBlock(Move *move);

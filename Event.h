@@ -4,7 +4,7 @@
 #include "Vector.h"
 #include "Common.h"
 
-//Not sure I like elapsed seconds being a member variable of Event...
+
 class Event : public Polymorphic
 {
 	float elapsed_seconds;
@@ -19,61 +19,71 @@ public:
 class ButtonEvent : public virtual Event
 {
 public:
-	struct Button { enum Enum { None, 
-								MouseLeft, MouseMiddle, MouseRight, 
-								A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, 
-								Shift, Ctrl, Alt, Tab, Esc, Space, Del}; };
+	enum Button { None, 
+				  MouseLeft, MouseMiddle, MouseRight, 
+				  A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, 
+				  Shift, Ctrl, Alt, Tab, Esc, Space, Del };
 
-	struct Type { enum Enum { None, Down, Up, Hold, DoubleClick }; };
+	enum Type { Down= 1, Up, Hold, DoubleClick };
 
 private:
-	Button::Enum button;
-	Type::Enum type;
+	Button button;
+	Type type;
 
 public:
-	ButtonEvent(float elapsed_seconds, Button::Enum button, Type::Enum type);
+	ButtonEvent(float elapsed_seconds, Button button, Type type);
 
-	Button::Enum GetButton();
-	Type::Enum GetType();
+	Button GetButton();
+	Type GetType();
 };
 
 class MouseEvent : public virtual Event
 {
 public:
-	struct MouseButton { enum Enum { None, MouseLeft, MouseMiddle, MouseRight }; };
+	enum MouseButton { None, Left, Middle, Right };
 
 protected:
-	MouseButton::Enum button;
-	Vec2i mouse_position;
+	MouseButton button;
+	Vec2f mouse_position;
 
 public:
-	MouseEvent(float elapsed_seconds, MouseButton::Enum button, Vec2i mouse_position);
+	MouseEvent(float elapsed_seconds, MouseButton button, Vec2f mouse_position);
 
-	MouseButton::Enum GetMouseButton();
-	Vec2i GetMousePosition();
+	MouseButton GetMouseButton();
+	Vec2f GetMousePosition();
+};
+
+class MouseScrollEvent : public MouseEvent
+{
+	int scroll_amount;
+
+public:
+	MouseScrollEvent(float elapsed_seconds, Vec2f mouse_position, int scroll_amount);
+
+	int GetScrollAmount();
 };
 
 class MouseButtonEvent : public ButtonEvent, public MouseEvent
 {
 public:
-	MouseButtonEvent(float elapsed_seconds, MouseButton::Enum button, Type::Enum type, Vec2i mouse_position);
+	MouseButtonEvent(float elapsed_seconds, MouseButton button, Type type, Vec2f mouse_position);
 };
 
 class MouseMotionEvent : public MouseEvent
 {
 protected:
-	Vec2i mouse_displacement;
+	Vec2f mouse_displacement;
 
 public:
-	MouseMotionEvent(float elapsed_seconds, Vec2i mouse_position, Vec2i mouse_displacement);
+	MouseMotionEvent(float elapsed_seconds, Vec2f mouse_position, Vec2f mouse_displacement);
 
-	Vec2i GetMouseDisplacement();
+	Vec2f GetMouseDisplacement();
 };
 
 class MouseDragEvent : public MouseMotionEvent
 {
 public:
-	MouseDragEvent(float elapsed_seconds, Vec2i mouse_position, Vec2i mouse_displacement, MouseButton::Enum button);
+	MouseDragEvent(float elapsed_seconds, Vec2f mouse_position, Vec2f mouse_displacement, MouseButton button);
 };
 
 #endif

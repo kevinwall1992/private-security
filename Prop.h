@@ -7,24 +7,25 @@
 #include "GraphicsSystem.h"
 #include "Raytraceable.h"
 #include "Rasterizable.h"
+#include "VAO.h"
 
 
 class Prop : public Raytraceable, public Rasterizable
 {
 public:
-	struct DrawFlags { enum Enum { None= 0, RasterizeGbuffers= 1 }; };
+	enum DrawFlags { None= 0, RasterizeGbuffers= 1 };
 
 protected:
-	DrawFlags::Enum draw_flags= DrawFlags::None;
+	DrawFlags draw_flags= DrawFlags::None;
 
 public:
 	Prop();
 
-	void AddDrawFlags(DrawFlags::Enum draw_flags);
-	void RemoveDrawFlags(DrawFlags::Enum draw_flags);
-	bool AreDrawFlagsActive(DrawFlags::Enum draw_flags);//This is an "any", not "all"
+	void AddDrawFlags(DrawFlags draw_flags);
+	void RemoveDrawFlags(DrawFlags draw_flags);
+	bool AreDrawFlagsActive(DrawFlags draw_flags);//This is an "any", not "all"
 
-	virtual void RasterizeConditionally(DrawFlags::Enum draw_flags);//Same
+	virtual void RasterizeConditionally(DrawFlags draw_flags);//Same
 };
 
 class PropContainer : public Prop
@@ -35,7 +36,7 @@ public:
 public:
 	virtual vector<RaytracingPrimitive *> GetRaytracingPrimitives();
 	virtual void Rasterize();
-	virtual void RasterizeConditionally(DrawFlags::Enum draw_flags);
+	virtual void RasterizeConditionally(DrawFlags draw_flags);
 };
 
 class BasicPropContainer : public PropContainer
@@ -55,7 +56,7 @@ class MeshProp : public Prop
 	Vec3f displacement= Vec3f(0.0f, 0.0f, 0.0f);
 	float rotation= 0.0f;
 
-	GLuint vao_handle;
+	VAO vao;
 	GLuint element_buffer_handle;
 
 	bool is_initialized= false;

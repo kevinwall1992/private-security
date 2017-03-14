@@ -29,7 +29,7 @@ vector<Material *> Material::Parse(string filename)
 	{
 		string line;
 		getline(input_stream, line);
-		vector<string> tokens = TokenizeOverSpaces(line);
+		vector<string> tokens = Utility::TokenizeOverSpaces(line);
 
 		if(tokens.size()== 0)
 			continue;

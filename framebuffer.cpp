@@ -1,16 +1,19 @@
 #include "Framebuffer.h"
 #include "Common.h"
 #include "OpenGLUtility.h"
+#include "GraphicsSystem.h"
+#include "Viewport.h"
 
-GLuint Framebuffer::currently_bound_framebuffer_handle= 0;
-Framebuffer Framebuffer::default_(true);
+Framebuffer Framebuffer::default_framebuffer(true);
+Framebuffer Framebuffer::current_read_framebuffer= Framebuffer::default_framebuffer;
+Framebuffer Framebuffer::current_draw_framebuffer= Framebuffer::default_framebuffer;
 
 Framebuffer::Framebuffer(bool is_default)
 {
-	if(!is_default)
-		assert("false" && "Private Framebuffer constructor only for default framebuffer");
-
 	handle= 0;
+
+	if(!is_default)
+		handle= -1;
 }
 
 void Framebuffer::UpdateDrawBuffers()
@@ -21,23 +24,56 @@ void Framebuffer::UpdateDrawBuffers()
 
 	glDrawBuffers((GLsizei)(draw_buffers.size()), &draw_buffers[0]);
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 }
 
 Framebuffer::Framebuffer()
 {
-	glGenFramebuffers(1, &handle);
+	handle= -1;
+}
+
+bool Framebuffer::IsDefault()
+{
+	return handle== 0;
+}
+
+void Framebuffer::Clear()
+{
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void Framebuffer::BindAsReadFramebuffer()
+{
+	if(handle== -1)
+		glGenFramebuffers(1, &handle);
+
+	if(current_read_framebuffer.GetHandle()== handle)
+		return;
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, handle);
+	current_read_framebuffer= *this;
+
+	HandleOpenGLErrors();
+}
+
+void Framebuffer::BindAsDrawFramebuffer()
+{
+	if(handle== -1)
+		glGenFramebuffers(1, &handle);
+
+	if(current_draw_framebuffer.GetHandle()== handle)
+		return;
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, handle);
+	current_draw_framebuffer= *this;
+
+	HandleOpenGLErrors();
 }
 
 void Framebuffer::Bind()
 {
-	if(currently_bound_framebuffer_handle== handle)
-		return;
-
-	glBindFramebuffer(GL_FRAMEBUFFER, handle);
-	currently_bound_framebuffer_handle= handle;
-
-	HandleGLErrors();
+	BindAsDrawFramebuffer();
+	BindAsReadFramebuffer();
 }
 
 void Framebuffer::ActivateDefaultDrawBuffers()
@@ -45,13 +81,62 @@ void Framebuffer::ActivateDefaultDrawBuffers()
 	UpdateDrawBuffers();
 }
 
+void Framebuffer::SetViewport()
+{
+	if(IsDefault())
+		Viewport::Set(0, 0, System::graphics.GetScreenSize().x, System::graphics.GetScreenSize().y);
+	else
+		Viewport::Set(0, 0, depth_texture.Width, depth_texture.Height);
+}
+
+void Framebuffer::PrepareForDrawing(bool clear)
+{
+	Bind();
+	SetViewport();
+
+	if(clear)
+		Clear();
+
+	HandleOpenGLErrors();
+}
+
+void Framebuffer::SetReadAttachment(int attachment_index)
+{
+	glReadBuffer(GL_COLOR_ATTACHMENT0+ attachment_index);
+}
+
+void Framebuffer::SetDrawAttachment(int attachment_index)
+{
+	glDrawBuffer(GL_COLOR_ATTACHMENT0+ attachment_index);
+}
+
+void Framebuffer::SetReadAndDrawAttachment(int attachment_index)
+{
+	SetReadAttachment(attachment_index);
+	SetDrawAttachment(attachment_index);
+}
+
+void Framebuffer::BlitOnto(Framebuffer draw_frame_buffer, bool blit_color, bool blit_depth, Vec2i draw_offset, Vec2i draw_size)
+{
+	if(draw_size.x== 0)
+		draw_size= draw_frame_buffer.GetSize();
+	Vec2i read_size= GetSize();
+
+	BindAsReadFramebuffer();
+	draw_frame_buffer.BindAsDrawFramebuffer();
+
+	GLbitfield mask= (blit_color ? GL_COLOR_BUFFER_BIT : 0) | (blit_depth ? GL_DEPTH_BUFFER_BIT : 0);
+	glBlitFramebuffer(0, 0, read_size.x, read_size.y, draw_offset.x, draw_offset.y, draw_offset.x+ draw_size.x, draw_offset.y+ draw_size.y, mask, GL_NEAREST);
+}
+
 void Framebuffer::AttachColorTexture(Texture texture, int attachment_index)
 {
 	Bind();
 
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0+ attachment_index, texture.GetHandle(), 0);
+	color_textures.push_back(texture);
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 
 	ActivateColorAttachment(attachment_index);
 }
@@ -61,8 +146,9 @@ void Framebuffer::AttachDepthTexture(DepthTexture texture)
 	Bind();
 
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, texture.GetHandle(), 0);
+	depth_texture= texture;
 
-	HandleGLErrors();
+	HandleOpenGLErrors();
 }
 
 void Framebuffer::ActivateColorAttachment(int attachment_index)
@@ -113,12 +199,40 @@ void Framebuffer::CheckCompleteness()
 	assert(IsComplete() && "Framebuffer is not complete!");
 }
 
+void Framebuffer::Free()
+{
+	glDeleteFramebuffers(1, &handle);
+}
+
 GLuint Framebuffer::GetHandle()
 {
 	return handle;
 }
 
-Framebuffer Framebuffer::GetDefault()
+Vec2i Framebuffer::GetSize()
 {
-	return default_;
+	if(IsDefault())
+		return System::graphics.GetScreenSize();
+	else
+		return depth_texture.GetSize();
+}
+
+Framebuffer Framebuffer::GetDefaultFramebuffer()
+{
+	return default_framebuffer;
+}
+
+Framebuffer Framebuffer::GetCurrentReadFramebuffer()
+{
+	return current_read_framebuffer;
+}
+
+Framebuffer Framebuffer::GetCurrentDrawFramebuffer()
+{
+	return current_draw_framebuffer;
+}
+
+Framebuffer Framebuffer::GetCurrentFramebuffer()
+{
+	return GetCurrentDrawFramebuffer();
 }

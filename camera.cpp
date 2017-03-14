@@ -58,6 +58,11 @@ Photo & Photo::operator=(const Photo &other)
 	return *this;
 }
 
+Photo::Type Photo::GetType()
+{
+	return type;
+}
+
 ColorImage Photo::GetImage()
 {
 	if(!image_is_empty)
@@ -109,7 +114,7 @@ void Photo::Free()
 
 Transform Camera::GetDirectionTransform()
 {
-	return Transform().RotateAboutZ(Roll).RotateAboutX(Pitch).RotateAboutY(Yaw);
+	return Transform().RotateAboutZ(Roll).RotateAboutX(Pitch).RotateAboutY(-Yaw);
 }
 
 Camera::Camera(float fov_, Vec3f position_)
@@ -150,6 +155,9 @@ void Camera::LookAt(Vec3f look_at_position)
 	if(direction.x< 0)
 		Yaw= -Yaw;
 
+	//This is flipped to to support "lower yaw -> turn left"
+	Yaw= -Yaw;
+
 	Roll= 0;
 }
 
@@ -173,10 +181,15 @@ void Camera::AssumeOrientation(Camera & other)
 
 Transform Camera::GetTransform()
 {
-	return Transform().RotateAboutX(pitch).RotateAboutY(yaw).Translate(position).Invert();
+	return Transform().RotateAboutX(pitch).RotateAboutY(-yaw).Translate(position).Invert();
 }
 
-Transform Camera::GetProjectedTransform(int width, int height)
+Transform Camera::GetProjectedTransform(float aspect_ratio)
 {
-	return GetTransform().Merge(Transform::MakeProjectionTransform(fov, GetAspectRatio(width, height)));
+	return GetTransform().Merge(Transform::MakeProjectionTransform(fov, aspect_ratio));
+}
+
+Photo Camera::TakePhoto(Scene & scene, Vec2i size, Photo::Type type)
+{
+	return TakePhotos(scene, size, type)[type];
 }

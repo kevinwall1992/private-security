@@ -10,7 +10,7 @@ string DictionaryFile::MakeFilepath(string filename)
 
 vector<DictionaryFile*> DictionaryFile::Parse(string filename)
 {
-	return MakeVector(new DictionaryFile(MakeFilepath(filename)));
+	return Utility::MakeVector(new DictionaryFile(MakeFilepath(filename)));
 }
 
 DictionaryFile::DictionaryFile(string filepath)

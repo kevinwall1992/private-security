@@ -12,10 +12,11 @@
 
 #include <thread>
 
+
 class RasterCamera : public Camera
 {
 	Framebuffer gbuffer_framebuffer, compositing_framebuffer;
-	Texture color_buffer, compositing_color_buffer;
+	Texture diffuse_color_buffer, compositing_diffuse_color_buffer;
 	Texture glossiness_buffer, compositing_glossiness_buffer;
 	Texture normal_buffer, compositing_normal_buffer;
 	DepthTexture depth_buffer, compositing_depth_buffer;
@@ -44,18 +45,18 @@ class RasterCamera : public Camera
 	bool initialized= false;
 	
 	
-	void Initialize(int width, int height);
-	void ResizeResizables(int width, int height);
+	void Initialize(Vec2i size);
+	void ResizeResizables(Vec2i size);
 	void Update();
 
-	void GenerateIndirectLightTexture(Scene *scene, int width, int height);
-	void GenerateCompositingBuffers(Scene *scene, int width, int height);
+	void GenerateIndirectLightTexture(Scene *scene, Vec2i size);
+	void GenerateCompositingBuffers(Scene *scene, Vec2i size);
 
 public:
 	RasterCamera(float fov, Vec3f position);
 	~RasterCamera();
 
-	virtual Photo TakePhoto(Scene &scene, int width, int height);
+	virtual PhotoBook TakePhotos(Scene &scene, Vec2i size, Photo::Type types);
 };
 
 #endif

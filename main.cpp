@@ -5,10 +5,13 @@
 #include "RayCamera.h"
 #include "OpenGLUtility.h"
 #include "InputSystem.h"
+#include "Gizmos.h"
 #include "DictionaryFile.h"
 #include "Pathing.h"
 #include "GameSystem.h"
 #include "Actions.h"
+#include "UI.h"
+#include "Drawables.h"
 
 #include "EBRMain.h"
 
@@ -38,13 +41,13 @@ int main(int argument_count, char **arguments)
 #else
 	Actor *actor= new Actor();
 
-	System::game.space.tiles[1][1][0].PutFurniture(new ThickWall());
-	System::game.space.tiles[1][2][0].PutFurniture(new ThickWall());
-	System::game.space.tiles[2][1][0].PutFurniture(new ThickWall());
-	System::game.space.tiles[3][1][1].PutFurniture(new ThickWall());
-	System::game.space.tiles[2][2][0].PutActor(actor);
+	System::game.space.GetTile(1, 1, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(1, 2, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(2, 1, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(3, 1, 1)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(2, 2, 0)->PutActor(actor);
 	
-	Path path= Path::GetPath(new Node(actor, actor->GetTile()), new Node(actor, &System::game.space.tiles[0][0][0]));
+	Path path= Path::GetPath(new Node(actor, actor->GetTile()), new Node(actor, System::game.space.GetTile(0, 0, 0)));
 
 	Edge *edge;
 	while((edge= path.PopEdge())!= nullptr)
@@ -52,21 +55,24 @@ int main(int argument_count, char **arguments)
 
 	Scene scene;
 	scene.AddProp(&System::game.space);
-
-	RasterCamera camera(DegreesToRadians(60), Vec3f(0, 0, 5));
+	
+	RasterCamera camera(Math::DegreesToRadians(60), Vec3f(0, 0, 5));
 	camera.LookAt(Vec3f(-2, 2, 0));
-
+	
 	scene.AddLight(new PointLight(Vec3f(3.3f, 7.0f, 8.0f), Color(0.92f, 0.80f, 0.65f)));
-	scene.Commit();
+	//scene.Commit();
 #endif
 
-	CameraGizmo *camera_gizmo= new CameraGizmo(&camera);
-	System::input.AddGizmo(camera_gizmo);
+	TacticalPane *tactical_pane= new TacticalPane(&camera);
+	tactical_pane->SetScene(&scene);
+	tactical_pane->Size= Vec2f(0.8f, 0.8f);
+	tactical_pane->Offset= Vec2f(0.1f, 0.1f);
+	System::input.AddGizmo(tactical_pane);
 
 	while(System::input.HandleInput())
 	{
 		System::game.Step(10);
-		System::graphics.Display(camera.TakePhoto(scene, System::graphics.GetScreenWidth(), System::graphics.GetScreenHeight()));
+		System::graphics.Display(tactical_pane);
 	}
 
 	System::TerminateSystems();

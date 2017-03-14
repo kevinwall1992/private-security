@@ -63,7 +63,7 @@ public:
 	template<class... Args>
 	static T * Retrieve(string filename, Args... args)
 	{
-		vector<string> element_path= MakeVector<string>(args...);
+		vector<string> element_path= Utility::MakeVector<string>(args...);
 		
 		string filepath= T::MakeFilepath(filename);//This needs improving
 		string name= MakeName(filepath, element_path);

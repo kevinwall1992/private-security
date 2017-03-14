@@ -17,10 +17,11 @@ struct Film : public Resizable
 	int *sample_counts;
 
 	Film(int width, int height);
+	Film(Vec2i size);
 	Film();
 	~Film();
 
-	void Resize(int width, int height);
+	void Resize(Vec2i size);
 
 	void Clear();
 	bool Clear_Parallel(int interval_index);

@@ -147,6 +147,7 @@ Shutter::Shutter(RayCamera *camera_)
 	: team(THREAD_COUNT)
 #endif
 {
+#if 0
 	camera= camera_;
 
 #if PACKET_MODE
@@ -165,7 +166,7 @@ Shutter::Shutter(RayCamera *camera_)
 
 #if BAKE_DISC_SAMPLES
 	//This is a hack. Need to make Shutter resizable and have deferred sized initialization
-	int pixel_count= System::graphics.GetScreenWidth()* System::graphics.GetScreenHeight();
+	int pixel_count= System::graphics.GetScreenSize().x* System::graphics.GetScreenSize().y;
 	int buffer_factor= 2;
 	int reuse_factor= 1;
 	int disc_sample_count= (pixel_count* buffer_factor* PACKET_SIZE)/ reuse_factor;
@@ -214,6 +215,7 @@ Shutter::Shutter(RayCamera *camera_)
 		float floop= HaltonSequence(5, i+ 20);//try changing this back to 2/3
 		interval_samples[i]= floop;
 	}
+#endif
 }
 
 Shutter::~Shutter()
@@ -296,7 +298,7 @@ void Shutter::Refill(RayBlock *primary_ray_block)
 	ReturnRayBlock(primary_ray_block);
 }
 
-void ShadingKernel(Ray &ray, vector<Light *> &lights, vector<AmbientLight *> &ambient_lights, Film *film, Scene *scene)
+void ShadingKernel(EBRRay &ray, vector<Light *> &lights, vector<AmbientLight *> &ambient_lights, Film *film, Scene *scene)
 {
 	if(ray.geomID== RTC_INVALID_GEOMETRY_ID)
 		return;
@@ -342,7 +344,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 
 	for(int i= 0; i< ray_block->front_index; i++)
 	{
-		Ray *ray= &ray_block->rays[i];
+		EBRRay *ray= &ray_block->rays[i];
 
 		if(ray->geomID== RTC_INVALID_GEOMETRY_ID)
 			continue;
@@ -388,7 +390,7 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 		int shadow_ray_count= 0;
 		for(int i= 0; i< ray_block->front_index; i++)
 		{
-			Ray *ray= &ray_block->rays[i];
+			EBRRay *ray= &ray_block->rays[i];
 
 			if(ray->geomID== RTC_INVALID_GEOMETRY_ID)
 				continue;
@@ -407,8 +409,8 @@ void Shutter::Shade(RayBlock *ray_block, Scene *scene, Film *film)
 			ray_indices[shadow_ray_index]= i;
 			geometry_terms[shadow_ray_index]= geometry_term;
 
-			SetFloat3(shadow_rays[shadow_ray_index].org, ray->surface.position+ ray->surface.normal* 0.01f);
-			SetFloat3(shadow_rays[shadow_ray_index].dir, direction);
+			Math::SetFloat3(shadow_rays[shadow_ray_index].org, ray->surface.position+ ray->surface.normal* 0.01f);
+			Math::SetFloat3(shadow_rays[shadow_ray_index].dir, direction);
 
 			shadow_rays[shadow_ray_index].tnear= 0.0f;
 			shadow_rays[shadow_ray_index].tfar= 1.0f;
@@ -648,7 +650,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 	int *interval_sample_indices= nullptr;
 	for(int i= 0; i< PACKET_SIZE; i++)
 	{
-		RayPacket *ray_packet= &(ray_packet_block->ray_packets[0]);
+		EBRRayPacket *ray_packet= &(ray_packet_block->ray_packets[0]);
 		if(ray_packet->mask[i]== -1)
 		{
 			disc_sample_indices= GetDiscSampleIndices((int)(ray_packet->x[i]), (int)(ray_packet->y[i]), ray_packet->bounce_count[i]);
@@ -686,9 +688,9 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 			int rays_shaded_count= 0;
 			ispc::PacketedShadingKernel_Coherent(
 #if RANDOM_PACKET_ORDER
-				reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets),
+				reinterpret_cast<ispc::RayPacket  *>(ray_packet_block->ray_packets),
 #else
-				reinterpret_cast<ispc::RayPacket *>(ray_packet_block->ray_packets+ total_rays_shaded_count),
+				reinterpret_cast<ispc::RayPacket  *>(ray_packet_block->ray_packets+ total_rays_shaded_count),
 #endif
 										ray_packet_block->front_index- total_rays_shaded_count, 
 										&order, ray_packet_block->front_index- 1,
@@ -698,7 +700,7 @@ void Shutter::PacketedShade(RayPacketBlock *ray_packet_block, Scene *scene, Film
 										lighting, materials, 
 										camera->GetFilteringKernels(), 
 										noisy_receptors, &noisy_receptors_count, 
-										reinterpret_cast<ispc::RayPacket *>(secondary_ray_packet_block->ray_packets), 
+										reinterpret_cast<ispc::RayPacket  *>(secondary_ray_packet_block->ray_packets), 
 										&(secondary_ray_packet_block->front_index),
 										gi_sample_index, 
 										ispc_data,
@@ -948,7 +950,7 @@ void RayBlock::Empty()
 	state= BlockState::Empty;
 }
 
-Ray * RayBlock::GetFront()
+EBRRay * RayBlock::GetFront()
 {
 	return rays+ front_index;
 }
@@ -976,7 +978,7 @@ void RayPacketBlock::Empty()
 	state= BlockState::Empty;
 }
 
-RayPacket * RayPacketBlock::GetFront()
+EBRRayPacket * RayPacketBlock::GetFront()
 {
 	return ray_packets+ front_index;
 }

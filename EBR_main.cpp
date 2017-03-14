@@ -3,10 +3,12 @@
 #include "Common.h"
 #include "GraphicsSystem.h"
 #include "InputSystem.h"
+#include "Gizmos.h"
 #include "Scene.h"
 #include "RayCamera.h"
 #include "Light.h"
 #include "Timer.h"
+#include "Pane.h"
 
 #include "Catalog.h"
 
@@ -49,13 +51,15 @@ int EBR_main(int argument_count, char **arguments)
 		scene.Commit();
 
 #if CORNELL
-		RayCamera camera(DegreesToRadians(38.5), Vec3f(23.8f, 22.8f, -116.5f));
+		RayCamera camera(Math::DegreesToRadians(38.5), Vec3f(23.8f, 22.8f, -116.5f));
 		camera.LookAt(Vec3f(23.8f, 22.8f, 0.0f));
 #else
 		RayCamera camera(DegreesToRadians(60), Vec3f(13.70f, 26.70f, -66.64f));
 		camera.LookAt(Vec3f(27.67f, 5.39f, 0.18f));
 #endif
 		System::input.AddGizmo(new CameraGizmo(&camera));
+
+		CameraPane camera_pane(&camera);
 
 		Timer display_timer;
 		Timer render_timer;
@@ -65,10 +69,10 @@ int EBR_main(int argument_count, char **arguments)
 			display_timer.Start();
 			render_timer.Start();
 
-			Photo photo= camera.TakePhoto(scene, System::graphics.GetScreenWidth(), System::graphics.GetScreenHeight());
+			Photo photo= camera.TakePhoto(scene, System::graphics.GetScreenSize(), Photo::Type::FullColor);
 			render_timer.Pause();
 
-			System::graphics.Display(photo);
+			System::graphics.Display(&camera_pane);
 			display_timer.Pause();
 
 			if ((System::graphics.GetFrameCount() % print_frame_count) == 0)

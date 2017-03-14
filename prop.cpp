@@ -11,22 +11,22 @@ Prop::Prop()
 	AddDrawFlags(DrawFlags::RasterizeGbuffers);
 }
 
-void Prop::AddDrawFlags(DrawFlags::Enum draw_flags_)
+void Prop::AddDrawFlags(DrawFlags draw_flags_)
 {
-	draw_flags= (DrawFlags::Enum)(draw_flags | draw_flags_);
+	draw_flags= (DrawFlags)(draw_flags | draw_flags_);
 }
 
-void Prop::RemoveDrawFlags(DrawFlags::Enum draw_flags_)
+void Prop::RemoveDrawFlags(DrawFlags draw_flags_)
 {
-	draw_flags= (DrawFlags::Enum)(draw_flags ^ (draw_flags & draw_flags_));
+	draw_flags= (DrawFlags)(draw_flags ^ (draw_flags & draw_flags_));
 }
 
-bool Prop::AreDrawFlagsActive(DrawFlags::Enum draw_flags_)
+bool Prop::AreDrawFlagsActive(DrawFlags draw_flags_)
 {
 	return (draw_flags & draw_flags_)== 0 ? false : true;
 }
 
-void Prop::RasterizeConditionally(DrawFlags::Enum draw_flags_)
+void Prop::RasterizeConditionally(DrawFlags draw_flags_)
 {
 	if(AreDrawFlagsActive(draw_flags_))
 		Rasterize();
@@ -41,7 +41,6 @@ vector<RaytracingPrimitive *> PropContainer::GetRaytracingPrimitives()
 	{
 		vector<RaytracingPrimitive *> prop_primitives= props[i]->GetRaytracingPrimitives();
 
-		//Consider writing some vector utility functions, and replacing this
 		primitives.insert(primitives.end(), prop_primitives.begin(), prop_primitives.end()); 
 	}
 
@@ -56,7 +55,7 @@ void PropContainer::Rasterize()
 		props[i]->Rasterize();
 }
 
-void PropContainer::RasterizeConditionally(DrawFlags::Enum draw_flags)
+void PropContainer::RasterizeConditionally(DrawFlags draw_flags)
 {
 	if(!AreDrawFlagsActive(draw_flags))
 		return;
@@ -81,22 +80,19 @@ void BasicPropContainer::AddProp(Prop *prop)
 
 void MeshProp::Initialize()
 {
-	glGenVertexArrays(1, &vao_handle);
-	glBindVertexArray(vao_handle);
-
 	GLuint vertex_buffer_handle;
 	glGenBuffers(1, &vertex_buffer_handle);
 	glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_handle);
 	glBufferData(GL_ARRAY_BUFFER, mesh->GetVertexCount()* 3* sizeof(float), &mesh->positions[0], GL_STATIC_DRAW);
 
-	ShaderProgram::GetCurrentProgram()->SetAttribute("position", 3, sizeof(float)* 3, 0);
+	vao.SetAttributeBinding3f(ShaderProgram::GetCurrentProgram()->GetAttributeLocation("position"));
 
 	GLuint normal_buffer_handle;
 	glGenBuffers(1, &normal_buffer_handle);
 	glBindBuffer(GL_ARRAY_BUFFER, normal_buffer_handle);
 	glBufferData(GL_ARRAY_BUFFER, mesh->GetVertexCount()* 3* sizeof(float), &mesh->normals[0], GL_STATIC_DRAW);
 
-	ShaderProgram::GetCurrentProgram()->SetAttribute("normal", 3, sizeof(float)* 3, 0);
+	vao.SetAttributeBinding3f(ShaderProgram::GetCurrentProgram()->GetAttributeLocation("normal"));
 
 	glGenBuffers(1, &element_buffer_handle);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer_handle);
@@ -127,7 +123,7 @@ void MeshProp::SetRotation(float rotation_)
 
 vector<RaytracingPrimitive *> MeshProp::GetRaytracingPrimitives()
 {
-	return MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, mesh, GetModelTransform()));
+	return Utility::MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, mesh, GetModelTransform()));
 }
 
 void MeshProp::Rasterize()
@@ -135,7 +131,7 @@ void MeshProp::Rasterize()
 	if(!is_initialized)
 		Initialize();
 
-	glBindVertexArray(vao_handle);
+	vao.Bind();
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer_handle);
 
 	PhongMaterial *material= dynamic_cast<PhongMaterial *>(mesh->material);

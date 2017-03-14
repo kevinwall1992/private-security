@@ -18,7 +18,7 @@ uniform vec3 light_intensity;
 
 uniform mat4 shadow_camera_transform;
 
-layout(location= 0) out vec4 final_color;
+out vec4 color;
 
 
 struct Material
@@ -111,7 +111,7 @@ void main()
               surface.shadow;
 	}
 
-  final_color= vec4(diffuse* 1.0+ specular* 1.0+ 0.0* texture(indirect_buffer, normalized_coordinates).xyz, 1);
+  color= vec4(diffuse* 1.0+ specular* 1.0+ 0.0* texture(indirect_buffer, normalized_coordinates).xyz, 1);
   //final_color= vec4(vec3(depth- 0.995)* 200, 1);
   //final_color= vec4(vec3(texture(shadow_map, normalized_coordinates).x- 0.995)* 200, 1);
   //final_color= vec4(highlight ? 1.0f : 0.0f, vec2(texture(shadow_map, shadow_camera_ndc.xy).x- 0.995)* 200, 1);

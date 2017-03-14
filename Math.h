@@ -2,6 +2,7 @@
 #define EBR_MATH
 
 #include "Vector.h"
+#include "Ray.h"
 #include "Matrix.h"
 #include "Transform.h"
 
@@ -12,23 +13,23 @@
 #undef GetObject
 #endif
 
-//Would like to replace this with namespace math constants
-#ifndef M_PI
-#define M_PI    3.14159265358979323846264338327950288
-#endif
+namespace Math
+{
+	#ifndef M_PI
+	#define M_PI    3.14159265358979323846264338327950288
+	#endif
 
+	void SetFloat3(float *destination, const Vec3f &vector);
 
-//Consider namespacing these and Utility.h functions
+	int Pow(int base, int exp);
 
-void SetFloat3(float *destination, const Vec3f &vector);
+	int GCD(int u, int v);
 
-int IntegerPow(int base, int exp);
+	float DegreesToRadians(float degrees);
+	float RadiansToDegrees(float radians);
 
-int GCD(int u, int v);
-
-float DegreesToRadians(float degrees);
-float RadiansToDegrees(float radians);
-
-float GetAspectRatio(int width, int height);
+	float GetAspectRatio(float width, float height);
+	float GetAspectRatio(Vec2f size);
+}
 
 #endif

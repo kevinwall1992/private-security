@@ -6,8 +6,6 @@
 #include "Timer.h"
 
 
-
-
 class InputSystem : public System
 {
 	vector<Gizmo *> gizmos;
@@ -15,17 +13,19 @@ class InputSystem : public System
 	Timer *timer;
 	Vec2i last_mouse_position;
 
-	static ButtonEvent::Button::Enum SDLKToButton(int sdlk_value);
-	static ButtonEvent::Button::Enum SDL_ScancodeToButton(int sdl_scancode);
-	static MouseEvent::MouseButton::Enum SDLMouseButtonToButton(int sdl_mouse_button_value);
-	static vector<MouseEvent::MouseButton::Enum> GetDownMouseButtons(unsigned int state);
+	Vec2f GetNormalizedMousePosition(Vec2i mouse_position);
+
+	static ButtonEvent::Button SDLKToButton(int sdlk_value);
+	static ButtonEvent::Button SDL_ScancodeToButton(int sdl_scancode);
+	static MouseEvent::MouseButton SDLMouseButtonToButton(int sdl_mouse_button_value);
+	static vector<MouseEvent::MouseButton> GetDownMouseButtons(unsigned int state);
 
 	void BroadcastEvent(Event *event);
 
 public:
 	void AddGizmo(Gizmo *gizmo);
 
-	bool HandleInput();//naming
+	bool HandleInput();
 
 	void Initialize();
 	void Terminate();

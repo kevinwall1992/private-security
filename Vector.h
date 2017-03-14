@@ -110,7 +110,7 @@ struct Vector
 	template<class U>
 	operator Vector<d, U>()
 	{
-		return Mutated<U>(*this, [](T a, U b){ return b; });
+		return Mutated<U>([](U b){ return b; });
 	}
 
 	bool operator==(const Vector<d, T> &other)
@@ -127,7 +127,7 @@ struct Vector
 		return !(*this== other);
 	}
 
-	Vector<d+ 1, T> Push(T element)
+	Vector<d+ 1, T> Push(T element= T())
 	{
 		Vector<d+ 1, T> vector;
 		memcpy(vector.c, c, sizeof(T)* d);

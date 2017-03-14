@@ -119,7 +119,7 @@ vector<Mesh *> Mesh::Parse(string filename)
 	{
 		string line;
 		getline(input_stream, line);
-		vector<string> tokens = TokenizeOverSpaces(line);
+		vector<string> tokens = Utility::TokenizeOverSpaces(line);
 
 		if(tokens.size()== 0)
 			continue;
@@ -170,7 +170,7 @@ vector<Mesh *> Mesh::Parse(string filename)
 			for (unsigned int i = 1; i < tokens.size(); i++)
 			{
 				std::replace(tokens[i].begin(), tokens[i].end(), '/', ' ');
-				vector<string> token_tokens = TokenizeOverSpaces(tokens[i]);
+				vector<string> token_tokens = Utility::TokenizeOverSpaces(tokens[i]);
 
 				int token_index= 0;
 

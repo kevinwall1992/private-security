@@ -43,7 +43,7 @@ Direction::Enum Direction::GetOpposite(Direction::Enum direction)
 
 Tile * Direction::GetDestination(Tile *source, Direction::Enum direction)
 {
-	Vec3i source_position= System::game.space.GetTilePosition(source);
+	Vec3i source_position= System::game.space.GetPosition(source);
 	Vec3i offset(0, 0, 0);
 
 	switch(direction)
@@ -57,7 +57,7 @@ Tile * Direction::GetDestination(Tile *source, Direction::Enum direction)
 	case DownSouthwest: 
 	case DownSouth: 
 	case DownSoutheast: 
-		offset+= Vec3i(0, 0, -1);
+		offset+= Vec3i(0, -1, 0);
 		break;
 
 	case Up: 
@@ -69,7 +69,7 @@ Tile * Direction::GetDestination(Tile *source, Direction::Enum direction)
 	case UpSouthwest: 
 	case UpSouth: 
 	case UpSoutheast:
-		offset+= Vec3i(0, 0, 1);
+		offset+= Vec3i(0, 1, 0);
 		break;
 
 	default: break;
@@ -115,7 +115,7 @@ Tile * Direction::GetDestination(Tile *source, Direction::Enum direction)
 	case DownSouthwest: 
 	case DownSouth: 
 	case DownSoutheast: 
-		offset+= Vec3i(0, -1, 0);
+		offset+= Vec3i(0, 0, -1);
 		break;
 
 	case Northeast: 
@@ -127,19 +127,13 @@ Tile * Direction::GetDestination(Tile *source, Direction::Enum direction)
 	case DownNortheast: 
 	case DownNorth: 
 	case DownNorthwest: 
-		offset+= Vec3i(0, 1, 0);
+		offset+= Vec3i(0, 0, 1);
 		break;
 
 	default: break;
 	}
-	
-	Vec3i destination_position= source_position+ offset;
-	if((destination_position.x< 0 || destination_position.x>= System::game.space.Width) || 
-	   (destination_position.y< 0 || destination_position.y>= System::game.space.Height) || 
-	   (destination_position.z< 0 || destination_position.z>= System::game.space.Depth))
-		return nullptr;
 
-	return &System::game.space.tiles[destination_position.x][destination_position.y][destination_position.z];
+	return System::game.space.GetTile(source_position+ offset);
 }
 
 float Direction::GetLength(Direction::Enum direction)

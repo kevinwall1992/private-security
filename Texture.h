@@ -1,7 +1,7 @@
 #ifndef PS_TEXTURE
 #define PS_TEXTURE
 
-#include "GraphicsHeaders.h"
+#include "GraphicsLibraries.h"
 #include "Image.h"
 
 class TextureBase
@@ -23,6 +23,7 @@ protected:
 
 public:
 	Texture(int width, int height, int index= 0);
+	Texture(Vec2i size, int index= 0);
 	Texture(ColorImage image, int index= 0);
 	Texture();
 
@@ -45,7 +46,9 @@ class DepthTexture: public Texture
 
 public:
 	DepthTexture(int width, int height, int index= 0);
+	DepthTexture(Vec2i size, int index= 0);
 	DepthTexture(DepthImage image, int index= 0);
+	DepthTexture(Texture texture);
 	DepthTexture();
 
 	void UploadImage(DepthImage image);

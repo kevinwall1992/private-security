@@ -48,6 +48,16 @@ Item * Tile::RemoveItem(Item *item)
 	return item;
 }
 
+Actor * Tile::GetActor()
+{
+	return actor;
+}
+
+vector<Item*> Tile::GetItems()
+{
+	return items;
+}
+
 vector<Move *> Tile::GetPotentialMoves(Tile *source)
 {
 	//This is another reason for parameterizing Moves with source tiles later
@@ -116,9 +126,7 @@ bool Tile::Contains(Object *object)
 
 Vec3f Tile::GetPosition()
 {
-	space_position= System::game.space.GetTilePosition(this);
-
-	return space_position;
+	return System::game.space.GetPosition(this);
 }
 
 vector<Perceptible *> Tile::GetPerceptibles()

@@ -1,7 +1,8 @@
 #ifndef PS_RASTERIZABLE
 #define PS_RASTERIZABLE
 
-#include "GraphicsHeaders.h"
+#include "GraphicsLibraries.h"
+#include "VAO.h"
 
 
 class Rasterizable
@@ -24,7 +25,7 @@ public:
 class FullScreenQuad : public Rasterizable
 {
 	static float vertices[18];
-	static GLuint vao_handle;
+	static VAO vao;
 
 	static FullScreenQuad instance;
 

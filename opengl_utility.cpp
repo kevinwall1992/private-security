@@ -1,4 +1,4 @@
-#include "OpenGLUtility.h"
+/*#include "OpenGLUtility.h"
 #include "Common.h"
 
 string TranslateGLError(GLenum error)
@@ -15,7 +15,7 @@ string TranslateGLError(GLenum error)
 	}
 }
 
-void HandleGLErrors()
+void HandleOpenGLErrors()
 {
 	GLenum error= glGetError();
 	
@@ -24,4 +24,4 @@ void HandleGLErrors()
 
 	cout << "OpenGL Error: " << TranslateGLError(error) << endl;
 	assert(false && "OpenGL Error!");
-}
+}*/

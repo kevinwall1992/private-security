@@ -7,76 +7,26 @@
 #include "Chronon.h"
 
 
-//Need to seriously consider whether space should
-//use an xz plane with levels represented by y
-//This makes positions interchangeable between logic and visualization
-
-template<int width, int height, int depth>
 class Space: public PerceptibleContainer, public Chronal
 {
-	Tile * GetFlatTileArray()
-	{
-		return (Tile *)tiles;
-	}
+	Tile *tiles;
+	int column_count, row_count, level_count;
 
-	Vec3i IndexToPosition(int index)
-	{
-		int x= index/ (height* depth);
-		int y= (index/ depth)% height;
-		int z= index% depth;
-
-		return Vec3i(x, y, z);
-	}
-
-	int GetTileCount()
-	{
-		return width* height* depth;
-	}
+	Vec3i IndexToPosition(int index);
+	int GetTileCount();
 
 public:
-	Tile tiles[width][height][depth];
+	Space(int column_count, int row_count, int level_count);
 
-	const int Width, Height, Depth;
+	Tile * GetTile(int column, int row, int level);
+	Tile * GetTile(Vec3i position);
 
-	Space()
-		: Width(width), Height(height), Depth(depth)
-	{
+	Vec3i GetPosition(Tile *tile);
+	Vec3i GetPosition(Object *object);
 
-	}
+	virtual vector<Perceptible *> GetPerceptibles();
 
-	Vec3i GetTilePosition(Tile *tile)
-	{	
-		for(int i= 0; i< GetTileCount(); i++)
-			if(&GetFlatTileArray()[i]== tile)
-				return IndexToPosition(i);
-
-		return Vec3i(-1, -1, -1);
-	}
-
-	Vec3i GetObjectPosition(Object *object)
-	{
-		for(int i= 0; i< GetTileCount(); i++)
-			if(GetFlatTileArray()[i].Contains(object))
-				return IndexToPosition(i);
-
-		return Vec3i(-1, -1, -1);
-	}
-
-	virtual vector<Perceptible *> GetPerceptibles()
-	{
-		vector<Perceptible *> perceptibles;
-
-		for(int i= 0; i< GetTileCount(); i++)
-			perceptibles.push_back(&GetFlatTileArray()[i]);
-
-		return perceptibles;
-	}
-
-	void Step(Chronons chronons)
-	{
-		for(int i= 0; i< GetTileCount(); i++)
-			GetFlatTileArray()[i].Step(chronons);
-	}
+	void Step(Chronons chronons);
 };
 
 #endif

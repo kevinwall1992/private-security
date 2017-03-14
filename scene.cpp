@@ -27,17 +27,17 @@ void Scene::BuildISPCLighting()
 	for(unsigned int i= 0; i< lights.size(); i++)
 	{
 		Vec3f position= lights[i]->GetPosition();
-		SetFloat3(ispc_lighting.point_lights[i].position, position);
+		Math::SetFloat3(ispc_lighting.point_lights[i].position, position);
 
 		Color intensity= lights[i]->GetIntensity();
-		SetFloat3(ispc_lighting.point_lights[i].intensity, intensity);
+		Math::SetFloat3(ispc_lighting.point_lights[i].intensity, intensity);
 	}
 	ispc_lighting.point_light_count= (int)lights.size();
 
 	Vec3f ambient(0.0f, 0.0f, 0.0f);
 	for(unsigned int i= 0; i< ambient_lights.size(); i++)
 		ambient+= ambient_lights[i]->GetIntensity();
-	SetFloat3(ispc_lighting.ambient, ambient);
+	Math::SetFloat3(ispc_lighting.ambient, ambient);
 }
 
 void Scene::BuildISPCMeshes()
@@ -54,8 +54,8 @@ void Scene::BuildISPCMaterials()
 		ISPCMaterial ispc_material;
 		PhongMaterial *material= dynamic_cast<PhongMaterial *>(materials[i]);
 
-		SetFloat3(ispc_material.diffuse, material->diffuse);
-		SetFloat3(ispc_material.specular, material->specular);
+		Math::SetFloat3(ispc_material.diffuse, material->diffuse);
+		Math::SetFloat3(ispc_material.specular, material->specular);
 		ispc_material.glossiness= material->glossiness;
 		ispc_material.reflectivity= material->reflectivity;
 		ispc_material.refractive_index= material->refractive_index;
@@ -220,22 +220,22 @@ void Scene::Commit()
 	commited= true;
 }
 
-void Scene::Intersect(Ray &ray)
+void Scene::Intersect(EBRRay &ray)
 {
 	rtcIntersect(embree_scene, ray);
 }
 
-void Scene::Intersect(Ray *rays, int count, bool is_coherent)
+void Scene::Intersect(EBRRay *rays, int count, bool is_coherent)
 {
 	RTCIntersectContext context;
 	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
 	context.userRayExt= nullptr;
 
-	rtcIntersect1M(embree_scene, &context, rays, count, sizeof(Ray));
+	rtcIntersect1M(embree_scene, &context, rays, count, sizeof(EBRRay));
 }
 
 #define rtcIntersectPacket JOIN(rtcIntersect, PACKET_SIZE)
-void Scene::Intersect(RayPacket &ray_packet)
+void Scene::Intersect(EBRRayPacket &ray_packet)
 {
 #if STREAM_MODE
 	assert(false && "Attempted to intersect single packet in stream mode.");
@@ -248,13 +248,13 @@ void Scene::Intersect(RayPacket &ray_packet)
 #endif
 }
 
-void Scene::Intersect(RayPacket *ray_packets, int count, bool is_coherent)
+void Scene::Intersect(EBRRayPacket *ray_packets, int count, bool is_coherent)
 {
 	RTCIntersectContext context;
 	context.flags= is_coherent ? RTC_INTERSECT_COHERENT : RTC_INTERSECT_INCOHERENT;
 	context.userRayExt= nullptr;
 
-	rtcIntersectNM(embree_scene, &context, reinterpret_cast<RTCRayN *>(ray_packets), PACKET_SIZE, count, sizeof(RayPacket));
+	rtcIntersectNM(embree_scene, &context, reinterpret_cast<RTCRayN *>(ray_packets), PACKET_SIZE, count, sizeof(EBRRayPacket));
 }
 
 void Scene::Intersect_Visibility(VisibilityRay *rays, int count, bool is_coherent)
@@ -283,7 +283,7 @@ void Scene::Intersect_Visibility(VisibilityRayPacket &ray_packet)
 #endif
 }
 
-void Scene::Interpolate(RayPacket &ray_packet)
+void Scene::Interpolate(EBRRayPacket &ray_packet)
 {
 	int32_t activity_mask[PACKET_SIZE];
 	bool active= false;
