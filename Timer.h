@@ -10,11 +10,14 @@ class Timer
 	bool is_paused= false;
 	bool is_stopped= true;
 
+	void AddTime();
+
 public:
 	void Start();
 	float Pause();
 	float Stop();
 
+	unsigned int GetElapsedMilliseconds();
 	float GetElapsedSeconds();
 
 	static Timer get_rays_timer;

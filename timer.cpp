@@ -11,6 +11,13 @@ Timer Timer::develop_timer;
 Timer Timer::pre_shading_timer;
 Timer Timer::shadow_timer;
 
+void Timer::AddTime()
+{
+	unsigned int ticks= SDL_GetTicks();
+	elapsed_milliseconds+= ticks- last_ticks;
+	last_ticks= ticks;
+}
+
 void Timer::Start()
 {
 	if(is_stopped || is_paused)
@@ -32,19 +39,17 @@ float Timer::Pause()
 	if(is_paused || is_stopped)
 		return 0.0f;
 
-	unsigned int ticks= SDL_GetTicks();
-	int difference= ticks- last_ticks;
-	elapsed_milliseconds+= difference;
+	AddTime();
 
 	is_paused= true;
 
-	return difference/ 1000.0f;
+	return GetElapsedSeconds();
 }
 
 float Timer::Stop()
 {
 	if(!is_paused && !is_stopped)
-		elapsed_milliseconds+= SDL_GetTicks()- last_ticks;
+		AddTime();
 
 	is_stopped= true;
 	is_paused= false;
@@ -52,8 +57,15 @@ float Timer::Stop()
 	return GetElapsedSeconds();
 }
 
-//this should probably add time if you aren't paused or stopped
+unsigned int Timer::GetElapsedMilliseconds()
+{
+	if(!is_paused && !is_stopped)
+		AddTime();
+
+	return elapsed_milliseconds;
+}
+
 float Timer::GetElapsedSeconds()
 {
-	return elapsed_milliseconds / 1000.0f;
+	return GetElapsedMilliseconds()/ 1000.0f;
 }

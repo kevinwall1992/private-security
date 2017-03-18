@@ -17,7 +17,7 @@ void MoveAction::Finish()
 }
 
 MoveAction::MoveAction(Actor *actor, Move *move_)
-	: IntervalAction(actor, SecondsToChronons(move_->GetCost()* 50))
+	: IntervalAction(actor, SecondsToChronons(move_->GetCost()* 4))
 {
 	move= move_;
 }

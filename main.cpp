@@ -69,9 +69,20 @@ int main(int argument_count, char **arguments)
 	tactical_pane->Offset= Vec2f(0.1f, 0.1f);
 	System::input.AddGizmo(tactical_pane);
 
+
+	Timer timer;
+	int last_ms= 0;
+	timer.Start();
+
 	while(System::input.HandleInput())
 	{
-		System::game.Step(10);
+		int ms= timer.GetElapsedMilliseconds();
+		int difference= ms- last_ms;
+		last_ms= ms;
+
+		if(difference> 0)
+			System::game.Step(difference);
+
 		System::graphics.Display(tactical_pane);
 	}
 
