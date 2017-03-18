@@ -27,18 +27,6 @@ class Image : public Resizable
 {
 	T *pixels= nullptr;
 
-protected:
-	void Initialize_Sized()
-	{
-		pixels= new T[Width* Height];
-	}
-
-	void Free_Sized()
-	{
-		if(pixels!= nullptr)
-			delete pixels;
-	}
-
 public:
 
 	//Image takes owership of pixels
@@ -48,7 +36,7 @@ public:
 
 		if(pixels_!= nullptr)
 		{
-			Sized::Resize(size);
+			SetSize(size);
 			pixels= pixels_;
 		}
 		else
@@ -59,11 +47,16 @@ public:
 	{
 		if(pixels_!= nullptr)
 		{
-			Sized::Resize(size);
+			SetSize(size);
 			pixels= pixels_;
 		}
 		else
 			Resize(size);
+	}
+
+	Image(const Image &other)
+	{
+		this->operator=(other);
 	}
 
 	Image()
@@ -73,8 +66,11 @@ public:
 
 	Image & operator=(const Image &other)
 	{
-		Sized::Resize(other.GetSize());
+		SetSize(other.Size);
 		
+		if(pixels!= nullptr)
+			delete pixels;
+
 		pixels= other.pixels;
 
 		return *this;
@@ -82,7 +78,8 @@ public:
 
 	void Free()
 	{
-		Free_Sized();
+		if(pixels!= nullptr)
+			delete pixels;
 	}
 
 	T * GetPixels()
@@ -100,6 +97,17 @@ public:
 	{
 		for(int i= 0; i< Width* Height; i++)
 			pixels[i]= clear_value;
+	}
+
+	virtual void Resize(Vec2i size)
+	{
+		if(size== Size)
+			return;
+		SetSize(size);
+
+		Free();
+
+		pixels= new T[Width* Height];
 	}
 };
 

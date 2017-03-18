@@ -214,7 +214,7 @@ Vec2i Framebuffer::GetSize()
 	if(IsDefault())
 		return System::graphics.GetScreenSize();
 	else
-		return depth_texture.GetSize();
+		return depth_texture.Size;
 }
 
 Framebuffer Framebuffer::GetDefaultFramebuffer()

@@ -32,8 +32,7 @@ struct Film : public Resizable
 	bool Develop_Parallel(float factor, int interval_index);
 
 private:
-	void Initialize_Sized();
-	void Free_Sized();
+	void Free();
 };
 
 #endif

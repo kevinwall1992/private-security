@@ -73,20 +73,20 @@ void RasterCamera::Initialize(Vec2i size)
 
 void RasterCamera::ResizeResizables(Vec2i size)
 {
-	diffuse_color_buffer.Resize(size);
-	glossiness_buffer.Resize(size);
-	normal_buffer.Resize(size);
-	depth_buffer.Resize(size);
+	diffuse_color_buffer.Size= size;
+	glossiness_buffer.Size= size;
+	normal_buffer.Size= size;
+	depth_buffer.Size= size;
 	
-	compositing_diffuse_color_buffer.Resize(size);
-	compositing_glossiness_buffer.Resize(size);
-	compositing_normal_buffer.Resize(size);
-	compositing_depth_buffer.Resize(size);
+	compositing_diffuse_color_buffer.Size= size;
+	compositing_glossiness_buffer.Size= size;
+	compositing_normal_buffer.Size= size;
+	compositing_depth_buffer.Size= size;
 
-	phong_color_buffer.Resize(size);
-	phong_depth_buffer.Resize(size);
+	phong_color_buffer.Size= size;
+	phong_depth_buffer.Size= size;
 	
-	indirect_light_texture.Resize(size);
+	indirect_light_texture.Size= size;
 }
 
 void RasterCamera::Update()

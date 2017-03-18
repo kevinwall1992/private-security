@@ -18,13 +18,11 @@ class Texture : public TextureBase, public Resizable
 protected:
 	GLuint handle;
 
-	virtual void Initialize_Sized();
-	virtual void Free_Sized();
-
 public:
 	Texture(int width, int height, int index= 0);
 	Texture(Vec2i size, int index= 0);
 	Texture(ColorImage image, int index= 0);
+	Texture(const Texture &other);
 	Texture();
 
 	Texture & operator=(const Texture &other);
@@ -38,6 +36,8 @@ public:
 	void BindToIndex(GLuint index);
 
 	void Free();
+
+	virtual void Resize(Vec2i size);
 };
 
 class DepthTexture: public Texture
@@ -49,9 +49,14 @@ public:
 	DepthTexture(Vec2i size, int index= 0);
 	DepthTexture(DepthImage image, int index= 0);
 	DepthTexture(Texture texture);
+	DepthTexture(const DepthTexture &other);
 	DepthTexture();
 
+	using Texture::operator=;
+
 	void UploadImage(DepthImage image);
+
+	virtual void Resize(Vec2i size);
 };
 
 #endif

@@ -21,8 +21,8 @@ void ShadowCamera::Initialize(Vec2i size)
 
 void ShadowCamera::ResizeResizables(Vec2i size)
 {
-	color_texture.Resize(size);
-	depth_texture.Resize(size);
+	color_texture.Size= size;
+	depth_texture.Size= size;
 }
 
 ShadowCamera::ShadowCamera(float fov_in_degrees, Vec3f position, Vec3f look_at_position)

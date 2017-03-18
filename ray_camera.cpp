@@ -175,7 +175,7 @@ PhotoBook RayCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 {
 	if(film.Width!= size.x || film.Height!= size.y)
 	{
-		film.Resize(size);
+		film.Size= size;
 		film_was_resized= true;
 	}
 	CatchUp();

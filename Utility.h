@@ -2,6 +2,7 @@
 #define EBR_UTILITY
 
 #include "Common.h"
+#include "Promote.h"
 
 
 template<class Type, class RequiredType> 

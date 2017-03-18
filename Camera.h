@@ -7,6 +7,7 @@
 #include "Transform.h"
 #include "Property.h"
 #include "PropertySpecializations.h"
+#include "Mutable.h"
 
 #include <map>
 
@@ -72,9 +73,9 @@ protected:
 public:
 	Camera(float fov, Vec3f position);
 
-	Vec3fProperty Position;
-	FloatProperty Pitch, Yaw, Roll;
-	FloatProperty FOV;
+	Vec3fSensorProperty Position;
+	FloatSensorProperty Pitch, Yaw, Roll;
+	FloatSensorProperty FOV;
 
 	Vec3f GetForward();
 	Vec3f GetRight();

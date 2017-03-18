@@ -1,36 +1,44 @@
 #include "Sized.h"
 
 
-Vec2i Sized::GetSize() const
-{
-	return Vec2i(Width, Height);
-}
-
 float Sized::GetAspectRatio()
 {
 	return Width/ (float)Height;
 }
 
-void Sized::Resize(Vec2i size_)
+Sized::Sized(Vec2i size_)
+	: Size(&size), Width(size.c+ 0), Height(size.c+ 1)
 {
 	size= size_;
 }
 
 Sized::Sized()
-	: Width(size.c+ 0), Height(size.c+ 1)
+	: Size(&size), Width(size.c+ 0), Height(size.c+ 1)
 {
 	
 }
 
 
+void Resizable::SetSize(Vec2i size_)
+{
+	size= size_;
+}
+
+Resizable::Resizable(Vec2i size_)
+	: Sized(size_), Size(&size, this), Width(this, 0), Height(this, 1)
+{
+	
+}
+
+Resizable::Resizable()
+	: Sized(), Size(&size, this), Width(this, 0), Height(this, 1)
+{
+}
+
 void Resizable::Resize(Vec2i size)
 {
-	if(Width== size.x && Height== size.y)
+	if(size== Size)
 		return;
 
-	Free_Sized();
-
-	Sized::Resize(size);
-
-	Initialize_Sized();
+	SetSize(size);
 }

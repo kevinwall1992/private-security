@@ -30,15 +30,25 @@ Film::Film()
 
 Film::~Film()
 {
-	Free_Sized();
+	Free();
 	image.Free();
 }
 
 void Film::Resize(Vec2i size)
 {
-	Resizable::Resize(size);
+	if(size== Size)
+		return;
 
-	image.Resize(size);
+	Free();
+
+	receptors_r= new float[Width* Height];
+	receptors_g= new float[Width* Height];
+	receptors_b= new float[Width* Height];
+	sample_counts= new int[Width* Height];
+
+	Clear();
+
+	image.Size= size;
 }
 
 void Film::Clear()
@@ -148,17 +158,7 @@ bool Film::Develop_Parallel(float factor, int interval_index)
 	return true;
 }
 
-void Film::Initialize_Sized()
-{
-	receptors_r= new float[Width* Height];
-	receptors_g= new float[Width* Height];
-	receptors_b= new float[Width* Height];
-	sample_counts= new int[Width* Height];
-
-	Clear();
-}
-
-void Film::Free_Sized()
+void Film::Free()
 {
 	if(receptors_r== nullptr)
 		return;

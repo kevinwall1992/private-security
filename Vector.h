@@ -330,7 +330,7 @@ struct Vector3: public Vector<3, T>
 		memcpy(c, components, sizeof(T)* 3);
 	}
 
-	Vector3(const Vector3<T>& other)
+	Vector3(const Vector3<T> &other)
 		: PROPERTY_CONSTRUCTORS
 	{
 		memcpy(c, other.c, sizeof(T)* 3);
@@ -358,9 +358,29 @@ struct Vector3: public Vector<3, T>
 		return *this;
 	}
 
+	template<class U>
+	Vector3<T> & operator=(const Vector<3, U> &other)
+	{
+		x= (T)other.c[0];
+		y= (T)other.c[1];
+		y= (T)other.c[2];
+
+		return *this;
+	}
+
 	Vector3<T> & operator=(const Vector3<T> &other)
 	{
 		memcpy(this->c, other.c, sizeof(T)* 3);
+
+		return *this;
+	}
+
+	template<class U>
+	Vector3<T> & operator=(const Vector3<U> &other)
+	{
+		x= (T)other.c[0];
+		y= (T)other.c[1];
+		y= (T)other.c[2];
 
 		return *this;
 	}
@@ -394,14 +414,14 @@ struct Vector2: public Vector<2, T>
 		memcpy(c, components, sizeof(T)* 2);
 	}
 
-	Vector2(const Vector2<T>& other)
+	Vector2(const Vector2<T> &other)
 		: PROPERTY_CONSTRUCTORS
 	{
 		memcpy(c, other.c, sizeof(T)* 2);
 	}
 
 	template<class U>
-	Vector2<T>(const Vector<2, U> &other)
+	Vector2(const Vector<2, U> &other)
 		: PROPERTY_CONSTRUCTORS
 	{
 		x= (T)other.c[0];
@@ -411,7 +431,14 @@ struct Vector2: public Vector<2, T>
 	Vector2()
 		: PROPERTY_CONSTRUCTORS
 	{
+		
+	}
 
+	Vector2<T> & operator=(const Vector<2, T> &other)
+	{
+		memcpy(this->c, other.c, sizeof(T)* 2);
+
+		return *this;
 	}
 
 	template<class U>
@@ -423,9 +450,20 @@ struct Vector2: public Vector<2, T>
 		return *this;
 	}
 
-	Vector2<T> Cross(Vector2<T> &other)
+	Vector2<T> & operator=(const Vector2<T> &other)
 	{
-		
+		memcpy(this->c, other.c, sizeof(T)* 2);
+
+		return *this;
+	}
+
+	template<class U>
+	Vector2<T> & operator=(const Vector2<U> &other)
+	{
+		x= (T)other.c[0];
+		y= (T)other.c[1];
+
+		return *this;
 	}
 };
 
@@ -440,5 +478,8 @@ typedef Vector3<int> Vec3i;
 
 typedef Vector2<float> Vec2f;
 typedef Vector2<int> Vec2i;
+
+
+#include "PropertySpecializations.h"
 
 #endif

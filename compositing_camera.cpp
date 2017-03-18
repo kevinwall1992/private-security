@@ -16,10 +16,10 @@ void CompositingCamera::Initialize(Vec2i size)
 
 void CompositingCamera::ResizeResizables(Vec2i size)
 {
-	diffuse_color_map.Resize(size);
-	glossiness_map.Resize(size);
-	normal_map.Resize(size);
-	depth_map.Resize(size);
+	diffuse_color_map.Size= size;
+	glossiness_map.Size= size;
+	normal_map.Size= size;
+	depth_map.Size= size;
 
 	Touch();
 }

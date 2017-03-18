@@ -73,7 +73,9 @@ ColorImage Photo::GetImage()
 			return image;
 	}
 
-	assert(false && "Photo: Texture to Image not implemented");
+	image.Size= texture.Size;
+	texture.BindToIndex(0);
+	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.GetPixels());
 
 	return image;
 }
