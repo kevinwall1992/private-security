@@ -11,11 +11,17 @@
 #include "Gizmos.h"
 #include "Frame.h"
 #include "Viewport.h"
+#include "Drawables.h"
 
 
 class Pane : public Interface, public TreeFrame
 {
 protected:
+
+	virtual void AddComponent(Pane *pane);
+	virtual void AddComponent(Interface *interface_);
+	virtual void AddComponent(Drawable *drawable);
+	virtual void AddComponent(Gizmo *gizmo);
 
 	//Pixel measure is always in screen space
 	Vec2i LocalPositionToPixelPosition(Vec2f position);
@@ -105,6 +111,20 @@ public:
 	CameraPane(Camera *camera);
 
 	void SetScene(Scene *scene);
+};
+
+
+class TextPane : public Pane
+{
+	TextDrawable *text_drawable= nullptr;
+
+public:
+	TextPane(string text, int font_size, Color color);
+	TextPane();
+
+	void SetText(string text, int font_size, Color color);
+
+	virtual void Draw();
 };
 
 #endif

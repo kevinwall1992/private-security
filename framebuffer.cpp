@@ -1,6 +1,5 @@
 #include "Framebuffer.h"
 #include "Common.h"
-#include "OpenGLUtility.h"
 #include "GraphicsSystem.h"
 #include "Viewport.h"
 
@@ -24,7 +23,7 @@ void Framebuffer::UpdateDrawBuffers()
 
 	glDrawBuffers((GLsizei)(draw_buffers.size()), &draw_buffers[0]);
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 }
 
 Framebuffer::Framebuffer()
@@ -53,7 +52,7 @@ void Framebuffer::BindAsReadFramebuffer()
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, handle);
 	current_read_framebuffer= *this;
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 }
 
 void Framebuffer::BindAsDrawFramebuffer()
@@ -67,7 +66,7 @@ void Framebuffer::BindAsDrawFramebuffer()
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, handle);
 	current_draw_framebuffer= *this;
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 }
 
 void Framebuffer::Bind()
@@ -97,7 +96,7 @@ void Framebuffer::PrepareForDrawing(bool clear)
 	if(clear)
 		Clear();
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 }
 
 void Framebuffer::SetReadAttachment(int attachment_index)
@@ -136,7 +135,7 @@ void Framebuffer::AttachColorTexture(Texture texture, int attachment_index)
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0+ attachment_index, texture.GetHandle(), 0);
 	color_textures.push_back(texture);
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 
 	ActivateColorAttachment(attachment_index);
 }
@@ -148,7 +147,7 @@ void Framebuffer::AttachDepthTexture(DepthTexture texture)
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, texture.GetHandle(), 0);
 	depth_texture= texture;
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 }
 
 void Framebuffer::ActivateColorAttachment(int attachment_index)

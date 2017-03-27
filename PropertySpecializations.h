@@ -77,8 +77,15 @@ class Property<Vector3<U>> : public PropertyBase<Vector3<U>>
 {
 	Vector3<U> *value_pointer;
 
+	
+
 public:
 	Subproperty<Vector3<U>> x, y, z;
+
+	Property(const Property &other)
+	{
+		operator=(other);
+	}
 
 	Property(Vector3<U> *value_pointer)
 		: x(this, 0), y(this, 1), z(this, 2)
@@ -86,7 +93,14 @@ public:
 		this->value_pointer= value_pointer;
 	}
 
-	using PropertyBase<Vector3<U>>::operator=;
+	using PropertyBase::operator=;
+
+	Property & operator=(const Property &other)
+	{
+		Set(other.Get());
+
+		return *this;
+	}
 
 	virtual Vector3<U> Get() const
 	{
@@ -111,13 +125,25 @@ class Property<Vector2<U>> : public PropertyBase<Vector2<U>>
 public:
 	Subproperty<Vector2<U>> x, y;
 
+	Property(const Property &other)
+	{
+		operator=(other);
+	}
+
 	Property(Vector2<U> *value_pointer)
 		: x(this, 0), y(this, 1)
 	{
 		this->value_pointer= value_pointer;
 	}
 
-	using PropertyBase<Vector2<U>>::operator=;
+	using PropertyBase::operator=;
+
+	Property & operator=(const Property &other)
+	{
+		Set(other.Get());
+
+		return *this;
+	}
 
 	virtual Vector2<U> Get() const
 	{
@@ -161,8 +187,15 @@ public:
 template<class U>
 class Getter<Vector3<U>> : private Property<Vector3<U>>
 {
+	Getter & operator=(const Getter &getter);
+
 public:
 	GetterSubproperty<Vector3<U>> x, y, z;
+
+	Getter(const Getter &other)
+	{
+		operator=(other);
+	}
 
 	Getter(Vector3<U> *value_pointer)
 		: Property<Vector3<U>>(value_pointer), x(this, 0), y(this, 1), z(this, 2)
@@ -191,8 +224,15 @@ typedef Getter<Vec3i> Vec3iGetter;
 template<class U>
 class Getter<Vector2<U>> : private Property<Vector2<U>>
 {
+	Getter & operator=(const Getter &getter);
+
 public:
 	GetterSubproperty<Vector2<U>> x, y;
+
+	Getter(const Getter &other)
+	{
+		operator=(other);
+	}
 
 	Getter(Vector2<U> *value_pointer)
 		: Property<Vector2<U>>(value_pointer), x(this, 0), y(this, 1)

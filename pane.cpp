@@ -3,6 +3,28 @@
 #include "Viewport.h"
 
 
+void Pane::AddComponent(Pane * pane)
+{
+	Interface::AddComponent(pane);
+
+	pane->SetParent(this);
+}
+
+void Pane::AddComponent(Interface *interface_)
+{
+	Interface::AddComponent(interface_);
+}
+
+void Pane::AddComponent(Drawable *drawable)
+{
+	Interface::AddComponent(drawable);
+}
+
+void Pane::AddComponent(Gizmo *gizmo)
+{
+	Interface::AddComponent(gizmo);
+}
+
 Vec2i Pane::LocalPositionToPixelPosition(Vec2f position)
 {
 	return LocalPositionToGlobalPosition(position)* System::graphics.GetScreenSize();
@@ -253,4 +275,35 @@ CameraPane::CameraPane(Camera *camera_)
 void CameraPane::SetScene(Scene *scene_)
 {
 	scene= scene_;
+}
+
+TextPane::TextPane(string text, int font_size, Color color)
+{
+	SetText(text, font_size, color);
+}
+
+TextPane::TextPane()
+{
+}
+
+void TextPane::SetText(string text, int font_size, Color color)
+{
+	if(text_drawable== nullptr)
+		delete text_drawable;
+
+	text_drawable= new TextDrawable(text, font_size, color);
+}
+
+void TextPane::Draw()
+{
+	Vec2f text_screen_size= (Vec2f)text_drawable->GetTextureSize()/ System::graphics.GetScreenSize();
+	Vec2f pane_screen_size= LocalSizeToScreenSize(GetLocalSize());
+	Vec2f pane_screen_offset= LocalPositionToScreenPosition(GetLocalOffset());
+	Vec2f sceen_center_offset= pane_screen_offset+ (pane_screen_size/ 2)- (text_screen_size/ 2);
+
+	Vec2f text_global_size= LocalSizeToGlobalSize(ScreenSizeToLocalSize(text_screen_size));
+	Vec2f text_global_offset= LocalPositionToGlobalPosition(ScreenPositionToLocalPosition(sceen_center_offset));
+
+	text_drawable->SetTransform(Transform().Translate(Vec3f(1, 1, 0)).Scale(0.5f).Scale(text_global_size.Push()).Translate(text_global_offset.Push()).Scale(2).Translate(Vec3f(-1, -1, 0)));
+	text_drawable->Draw();
 }

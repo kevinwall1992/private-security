@@ -24,7 +24,7 @@ GLuint CreateRawShader(GLenum shader_type, const char *shader_source, const char
 		delete[] info_log;
 	}
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 
 	return shader;
 }
@@ -54,7 +54,7 @@ GLuint CreateRawShaderProgram(GLuint vertex_shader, GLuint fragment_shader)
 	glDetachShader(shader_program, vertex_shader);
 	glDetachShader(shader_program, fragment_shader);
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 
 	return shader_program;
 }
@@ -116,26 +116,31 @@ GLuint ShaderProgram::GetUniformLocation(string uniform_name)
 void ShaderProgram::SetUniformFloat(string uniform_name, float value)
 {
 	glUniform1f(GetUniformLocation(uniform_name), value);
+	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformInt(string uniform_name, int value)
 {
 	glUniform1i(GetUniformLocation(uniform_name), value);
+	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformVector2f(string uniform_name, Vec2f vector_)
 {
 	glUniform2f(GetUniformLocation(uniform_name), vector_.x, vector_.y);
+	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformVector3f(string uniform_name, Vec3f vector_)
 {
 	glUniform3f(GetUniformLocation(uniform_name), vector_.x, vector_.y, vector_.z);
+	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformMatrix4x4f(string uniform_name, Mat4x4f matrix)
 {
 	glUniformMatrix4fv(GetUniformLocation(uniform_name), 1, GL_TRUE, matrix.c);
+	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformMatrix4x4f(string uniform_name, Transform transform)
@@ -147,6 +152,8 @@ void ShaderProgram::Use()
 {
 	glUseProgram(shader_program_handle);
 	current_shader_program= this;
+
+	Utility::HandleOpenGLErrors();
 }
 
 ShaderProgram * ShaderProgram::GetCurrentProgram()

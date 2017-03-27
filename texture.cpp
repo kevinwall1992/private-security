@@ -1,6 +1,5 @@
 #include "Texture.h"
 #include "Common.h"
-#include "OpenGLUtility.h"
 
 
 GLuint CreateTexture(int width, int height, GLenum interpolation_mode, bool is_depth, void *pixels, int index)
@@ -19,7 +18,7 @@ GLuint CreateTexture(int width, int height, GLenum interpolation_mode, bool is_d
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, interpolation_mode);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, interpolation_mode);
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 
 	return texture_handle;
 }
@@ -52,7 +51,7 @@ Texture::Texture(const Texture &other)
 
 Texture::Texture()
 {
-
+	handle= -1;
 }
 
 Texture & Texture::operator=(const Texture &other)
@@ -69,7 +68,7 @@ void Texture::UploadImage(ColorImage image)
 	BindToIndex(0);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image.Width, image.Height, GL_RGBA, GL_UNSIGNED_BYTE, image.GetPixels());
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 }
 
 GLuint Texture::GetHandle()
@@ -144,7 +143,7 @@ DepthTexture::DepthTexture(const DepthTexture &other)
 
 DepthTexture::DepthTexture()
 {
-
+	handle= -1;
 }
 
 void DepthTexture::UploadImage(DepthImage image)
@@ -153,7 +152,7 @@ void DepthTexture::UploadImage(DepthImage image)
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, Width, Height, GL_DEPTH_COMPONENT, GL_FLOAT, image.GetPixels());
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GetWidth(), GetHeight(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, image);
 
-	HandleOpenGLErrors();
+	Utility::HandleOpenGLErrors();
 }
 
 void DepthTexture::Resize(Vec2i size)

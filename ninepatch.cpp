@@ -2,8 +2,10 @@
 #include "ImageFile.h"
 
 
-void Ninepatch::SetRoundness(Roundness roundness)
+float Ninepatch::GetCornerSize()
 {
+	float corner_size;
+
 	switch(roundness)
 	{
 	case Roundness::Sharp: corner_size= 0.0045f; break;
@@ -12,29 +14,36 @@ void Ninepatch::SetRoundness(Roundness roundness)
 	default: corner_size= 0.0065f; break;
 	}
 
-	corner_size*= (System::graphics.GetScreenSize().x/ 1024.0f);
+	return corner_size* (System::graphics.GetScreenSize().x/ 1024.0f);
 }
 
-Ninepatch::Ninepatch(Texture texture_, Vec2f offset, Vec2f size, Roundness roundness)
+Ninepatch::Ninepatch(Texture texture_, Vec2f offset, Vec2f size, Roundness roundness_)
 	: Pane(offset, size)
 {
 	texture= texture_;
 
-	SetRoundness(roundness);
+	roundness= roundness_;
 }
 
-Ninepatch::Ninepatch(string image_filename, Roundness roundness)
+Ninepatch::Ninepatch(string image_filename, Roundness roundness_)
 {
-	texture= Texture(ImageFile::Retrieve(image_filename)->MakeImage());
+	image= ImageFile::Retrieve(image_filename)->MakeImage();
 
-	SetRoundness(roundness);
+	roundness= roundness_;
 }
 
 void Ninepatch::Draw()
 {
+	if(IsHidden())
+		return;
+
+	if(texture.GetHandle()== -1)
+		texture= image;
+
 	Vec2f global_offset= LocalPositionToGlobalPosition(GetLocalOffset());
 	Vec2f global_size= LocalSizeToGlobalSize(GetLocalSize());
 
+	float corner_size= GetCornerSize();
 	Vec2f corner_scale= Vec2f(corner_size, corner_size)/ global_size;
 	Vec2f edge_scale= (Vec2f(1, 1)- (corner_scale* 2));
 
@@ -96,4 +105,6 @@ void Ninepatch::Draw()
 	}
 
 	glEnable(GL_DEPTH_TEST);
+
+	Pane::Draw();
 }

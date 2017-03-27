@@ -13,6 +13,9 @@ class InputSystem : public System
 	Timer *timer;
 	Vec2i last_mouse_position;
 
+	bool quit_requested= false;
+
+
 	Vec2f GetNormalizedMousePosition(Vec2i mouse_position);
 
 	static ButtonEvent::Button SDLKToButton(int sdlk_value);
@@ -26,6 +29,9 @@ public:
 	void AddGizmo(Gizmo *gizmo);
 
 	bool HandleInput();
+
+	//This is a stopgap, need to consider how exiting should be handled***
+	void Quit();
 
 	void Initialize();
 	void Terminate();

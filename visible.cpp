@@ -1,6 +1,5 @@
 #include "Visible.h"
 #include "GraphicsSystem.h"
-#include "OpenGLUtility.h"
 #include "Transform.h"
 
 /*MeshVisible::MeshVisible(Mesh *mesh_)

@@ -90,7 +90,7 @@ inline void ResizeProperty<Vec2i>::Set(const Vec2i & value)
 
 inline int ResizeProperty<int>::Get() const
 {
-	return resizable->Size.x;
+	return resizable->Size.Get().c[element_index];
 }
 
 inline void ResizeProperty<int>::Set(const int & value)

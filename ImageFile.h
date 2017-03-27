@@ -8,17 +8,11 @@
 
 class ImageFile : public FileResource<ImageFile>
 {
-public:
-	enum Type { Unknown, BGR, RBGA };
-
-private:
 	SDL_Surface *surface;	
-	Type type;
 
 	ImageFile(string filepath);
 
 public:
-	Type GetType();
 	Vec2i GetSize();
 
 	ColorImage MakeImage();

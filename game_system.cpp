@@ -42,3 +42,13 @@ void GameSystem::Step(Chronons chronons)
 
 	space.Step(chronons);
 }
+
+void GameSystem::Save(string filename)
+{
+
+}
+
+void GameSystem::Load(string filename)
+{
+
+}

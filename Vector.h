@@ -127,7 +127,7 @@ struct Vector
 		return !(*this== other);
 	}
 
-	Vector<d+ 1, T> Push(T element= T())
+	Vector<d+ 1, T> Push(T element= T()) const
 	{
 		Vector<d+ 1, T> vector;
 		memcpy(vector.c, c, sizeof(T)* d);
@@ -136,7 +136,7 @@ struct Vector
 		return vector;
 	}
 
-	Vector<d- 1, T> Pop()
+	Vector<d- 1, T> Pop() const
 	{
 		Vector<d- 1, T> vector;
 		memcpy(vector.c, c, sizeof(T)* (d- 1));
@@ -237,7 +237,7 @@ struct Vector
 };
 
 
-#define PROPERTY_CONSTRUCTORS x(c+ 0), y(c+ 1), z(c+ 2)
+#define PROPERTY_CONSTRUCTORS x(c+ 0), y(c+ 1), z(c+ 2), w(c+ 3)
 
 template<class T>
 struct Vector4: public Vector<4, T>
@@ -259,27 +259,14 @@ struct Vector4: public Vector<4, T>
 		memcpy(c, components, sizeof(T)* 4);
 	}
 
-	Vector4(const Vector4<T>& other)
+	Vector4(const Vector4<T> &other)
 		: PROPERTY_CONSTRUCTORS
 	{
 		memcpy(c, other.c, sizeof(T)* 4);
 	}
 
-	Vector4(Vector4<float> vector, bool translatable= true)
-		: PROPERTY_CONSTRUCTORS
-	{
-		x= vector.x;
-		y= vector.y;
-		z= vector.z;
-
-		if(translatable)
-			w= 1;
-		else
-			w= 0;
-	}
-
 	template<class U>
-	Vector4<T>(const Vector<4, U> &other)
+	Vector4(const Vector<4, U> &other)
 		: PROPERTY_CONSTRUCTORS
 	{
 		x= (T)other.c[0];
@@ -291,11 +278,36 @@ struct Vector4: public Vector<4, T>
 	Vector4()
 		: PROPERTY_CONSTRUCTORS
 	{
+		
+	}
 
+	Vector4<T> & operator=(const Vector<4, T> &other)
+	{
+		memcpy(this->c, other.c, sizeof(T)* 4);
+
+		return *this;
 	}
 
 	template<class U>
 	Vector4<T> & operator=(const Vector<4, U> &other)
+	{
+		x= (T)other.c[0];
+		y= (T)other.c[1];
+		z= (T)other.c[2];
+		w= (T)other.c[3];
+
+		return *this;
+	}
+
+	Vector4<T> & operator=(const Vector4<T> &other)
+	{
+		memcpy(this->c, other.c, sizeof(T)* 4);
+
+		return *this;
+	}
+
+	template<class U>
+	Vector4<T> & operator=(const Vector4<U> &other)
 	{
 		x= (T)other.c[0];
 		y= (T)other.c[1];
@@ -363,7 +375,7 @@ struct Vector3: public Vector<3, T>
 	{
 		x= (T)other.c[0];
 		y= (T)other.c[1];
-		y= (T)other.c[2];
+		z= (T)other.c[2];
 
 		return *this;
 	}
@@ -380,7 +392,7 @@ struct Vector3: public Vector<3, T>
 	{
 		x= (T)other.c[0];
 		y= (T)other.c[1];
-		y= (T)other.c[2];
+		z= (T)other.c[2];
 
 		return *this;
 	}

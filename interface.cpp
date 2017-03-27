@@ -1,13 +1,109 @@
 #include "Interface.h"
 
 
-void Interface::HandleEvent(Event * event_)
+void Interface::ClearInteractionState()
 {
-	if(!DoesSkip(event_))
+	is_hovered= false;
+	is_pressed= false;
+
+	for(Gizmo *gizmo : gizmo_components)
 	{
-		Gizmo::HandleEvent(event_);
+		Interface *interface_= dynamic_cast<Interface *>(gizmo);
+
+		if(interface_!= nullptr)
+			interface_->ClearInteractionState();
 	}
-		
+}
+
+void Interface::AddComponent(Interface *interface_)
+{
+	drawable_components.push_back(interface_);
+	gizmo_components.push_back(interface_);
+}
+
+void Interface::AddComponent(Drawable *drawable)
+{
+	drawable_components.push_back(drawable);
+}
+
+void Interface::AddComponent(Gizmo *gizmo)
+{
+	gizmo_components.push_back(gizmo);
+}
+
+void Interface::RemoveComponent(Interface *interface_)
+{
+	Utility::RemoveElement<Drawable *>(drawable_components, interface_);
+	Utility::RemoveElement<Gizmo *>(gizmo_components, interface_);
+}
+
+void Interface::RemoveComponent(Drawable *drawable)
+{
+	Utility::RemoveElement(drawable_components, drawable);
+}
+
+void Interface::RemoveComponent(Gizmo *gizmo)
+{
+	Utility::RemoveElement(gizmo_components, gizmo);
+}
+
+void Interface::ReplaceComponent(Interface *interface_, Interface *replacement_interface)
+{
+	Utility::ReplaceElement<Drawable *>(drawable_components, interface_, replacement_interface);
+	Utility::ReplaceElement<Gizmo *>(gizmo_components, interface_, replacement_interface);
+}
+
+void Interface::ReplaceComponent(Drawable *drawable, Drawable *replacement_drawable)
+{
+	Utility::ReplaceElement(drawable_components, drawable, replacement_drawable);
+}
+
+void Interface::ReplaceComponent(Gizmo *gizmo, Gizmo *replacement_gizmo)
+{
+	Utility::ReplaceElement(gizmo_components, gizmo, replacement_gizmo);
+}
+
+void Interface::Draw_Components()
+{
+	if(IsHidden())
+		return;
+
+	for(Drawable *drawable : drawable_components)
+		drawable->Draw();
+}
+
+void Interface::HandleEvent_Components(Event *event_)
+{
+	if(!IsActive())
+		return;
+
+	for(Gizmo *gizmo : gizmo_components)
+		gizmo->HandleEvent(event_);
+}
+
+void Interface::HandleMouseButtonEvent(MouseButtonEvent *mouse_button_event)
+{
+	if(IsInside(mouse_button_event->GetMousePosition()))
+	{
+		switch(mouse_button_event->GetType())
+		{
+		case EventType::Down:
+			if(mouse_button_event->GetButton()== MouseButtonType::Left)
+				is_pressed= true;
+			break;
+
+		case EventType::Up:
+			switch(mouse_button_event->GetButton())
+			{
+			case MouseButtonType::Left: MouseLeftClick(); is_pressed= false; break;
+			case MouseButtonType::Middle: MouseMiddleClick(); break;
+			case MouseButtonType::Right: MouseRightClick(); break;
+			}
+			break;
+		}
+	}
+
+	Gizmo::HandleMouseButtonEvent(mouse_button_event);
 }
 
 void Interface::HandleMouseMotionEvent(MouseMotionEvent *mouse_motion_event)
@@ -21,10 +117,12 @@ void Interface::HandleMouseMotionEvent(MouseMotionEvent *mouse_motion_event)
 			MouseIn();
 
 		MouseHover(mouse_position);
+		is_hovered= true;
 	}
 	else if(IsInside(previous_mouse_position))
 	{
 		MouseOut();
+		is_hovered= false;
 	}
 
 	Gizmo::HandleMouseMotionEvent(mouse_motion_event);
@@ -44,87 +142,90 @@ void Interface::MouseHover(Vec2f mouse_position) { }
 void Interface::MouseIn() { }
 void Interface::MouseOut() { }
 
-void Interface::Focus()
+void Interface::MouseLeftClick()
+{
+}
+
+void Interface::MouseMiddleClick()
+{
+}
+
+void Interface::MouseRightClick()
+{
+}
+
+bool Interface::IsHovered()
+{
+	return is_hovered;
+}
+
+bool Interface::IsPressed()
+{
+	return is_pressed;
+}
+
+void Interface::Activate()
+{
+	Gizmo::Activate();
+}
+
+void Interface::Deactivate()
+{
+	Gizmo::Deactivate();
+
+	ClearInteractionState();
+}
+
+/*void Interface::Activate()
 {
 	is_focused= true;
 }
 
-void Interface::Defocus()
+void Interface::Deactivate()
 {
 	is_focused= false;
+	is_hovered= false;
+	is_pressed= false;
 }
 
-bool Interface::IsFocused()
+bool Interface::IsActivateed()
 {
 	return is_focused;
+}*/
+
+void Interface::Show()
+{
+	Drawable::Show();
+
+	activate_on_draw= true;
 }
 
-void InterfaceContainer::HandleEvent(Event *event_)
+void Interface::Hide()
 {
-	Interface::HandleEvent(event_);
+	Drawable::Hide();
 
-	for(Interface *interface_ : interfaces)
-	{
-		interface_->HandleEvent(event_);
-		if(DoesConsume(event_))
-			break;
-	}
+	Deactivate();
 }
 
-bool InterfaceContainer::IsInside(Vec2f point)
+void Interface::Draw()
 {
-	for(Interface *interface_ : interfaces)
-		if(interface_->IsInside(point))
-			return true;
-
-	return false;
-}
-
-void InterfaceContainer::SendToFront(Interface * interface_)
-{
-	int index= -1;
-	for(unsigned int i= 0; i< interfaces.size(); i++)
-	{
-		if(interfaces[i]== interface_)
-		{
-			index= i;
-			break;
-		}
-	}
-
-	if(index== -1)
-	{
-		assert(false && "InteraceContainer::SendToFront: Interface not found");
+	if(IsHidden())
 		return;
+
+	Draw_Components();
+
+	if(activate_on_draw)
+	{
+		Activate();
+		activate_on_draw= false;
 	}
-
-	interfaces.erase(interfaces.begin()+ index);
-	interfaces.insert(interfaces.begin(), interface_);
 }
 
-Interface * InterfaceContainer::GetInterface(Vec2f point)
+void Interface::HandleEvent(Event * event_)
 {
-	for(Interface *interface_ : interfaces)
-		if(interface_->IsInside(point))
-			return interface_;
-
-	return nullptr;
-}
-
-void InterfaceContainer::AddInterface(Interface * interface_)
-{
-	interfaces.push_back(interface_);
-}
-
-void InterfaceContainer::Draw()
-{
-	for(Interface *interface_ : interfaces)
-		interface_->Draw();
-}
-
-void WindowContainer::MouseLeftUp(Vec2f mouse_position)
-{
-	Interface *interface_= GetInterface(mouse_position);
-	interface_->Focus();
-	SendToFront(interface_);
+	if(!DoesSkip(event_))
+	{
+		Gizmo::HandleEvent(event_);
+		HandleEvent_Components(event_);
+	}
 }

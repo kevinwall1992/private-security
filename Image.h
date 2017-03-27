@@ -13,13 +13,18 @@ struct RGBAPixel
 	RGBAPixel(unsigned char r, unsigned char b, unsigned char g, unsigned char a);
 	RGBAPixel();
 
-	static RGBAPixel black;
+	static RGBAPixel Black;
 };
 typedef RGBAPixel Pixel;
 
 struct BGRPixel
 {
 	unsigned char b, g, r;
+};
+
+struct BGRAPixel
+{
+	unsigned char b, g, r, a;
 };
 
 template<class T>
@@ -113,5 +118,10 @@ public:
 
 typedef Image<Pixel> ColorImage;
 typedef Image<float> DepthImage;
+
+namespace Utility
+{
+	ColorImage MakeColorImageFromSDL_Surface(SDL_Surface *surface);
+}
 
 #endif

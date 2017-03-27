@@ -8,7 +8,7 @@ class Treelike
 
 public:
 
-	void SetParent(T *parent)
+	virtual void SetParent(T *parent)
 	{
 		this->parent= parent;
 	}

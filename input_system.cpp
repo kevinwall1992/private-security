@@ -145,6 +145,9 @@ void InputSystem::AddGizmo(Gizmo *gizmo)
 
 bool InputSystem::HandleInput()
 {
+	if(quit_requested)
+		return false;
+
 	float elapsed_seconds= timer->Stop();
 	timer->Start();
 
@@ -231,6 +234,11 @@ bool InputSystem::HandleInput()
 	last_mouse_position= mouse_position;
 
 	return true;
+}
+
+void InputSystem::Quit()
+{
+	quit_requested= true;
 }
 
 void InputSystem::Initialize()

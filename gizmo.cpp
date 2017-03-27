@@ -124,8 +124,26 @@ void Gizmo::MouseDragLeft(Vec2f mouse_position, Vec2f mouse_displacement) {}
 void Gizmo::MouseDragMiddle(Vec2f mouse_position, Vec2f mouse_displacement) {}
 void Gizmo::MouseDragRight(Vec2f mouse_position, Vec2f mouse_displacement) {}
 
+void Gizmo::Activate()
+{
+	is_active= true;
+}
+
+void Gizmo::Deactivate()
+{
+	is_active= false;
+}
+
+bool Gizmo::IsActive()
+{
+	return is_active;
+}
+
 void Gizmo::HandleEvent(Event *event_)
 {
+	if(!IsActive())
+		return;
+
 	//Some dynamic_cast helpers would be nice (also further up)***
 	MouseEvent *mouse_event= dynamic_cast<MouseEvent *>(event_);
 	if(mouse_event!= nullptr)

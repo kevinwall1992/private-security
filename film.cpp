@@ -115,11 +115,6 @@ void Film::Develop(float factor)
 #endif
 }
 
-struct BGRAPixel
-{
-	unsigned char b, g, r, a;
-};
-
 bool Film::Develop_Parallel(float factor, int interval_index)
 {
 	if(interval_index>= (Width* Height)/ FILM_INTERVAL_SIZE)

@@ -10,6 +10,16 @@ template<class T>
 class PropertyBase
 {
 public:
+	PropertyBase(const PropertyBase &other)
+	{
+		operator=(other);
+	}
+
+	PropertyBase()
+	{
+		
+	}
+
 	virtual T Get() const= 0;
 	virtual void Set(const T &value)= 0;
 
@@ -18,18 +28,18 @@ public:
 		return Get();
 	}
 
-	virtual T operator=(const T &other)
+	virtual PropertyBase & operator=(const T &value)
 	{
-		Set(other);
+		Set(value);
 		
-		return Get();
+		return *this;
 	}
 
-	virtual T operator=(const PropertyBase<T> &other)
+	virtual PropertyBase & operator=(const PropertyBase &other)
 	{
 		Set(other.Get());
 
-		return Get();
+		return *this;
 	}
 
 	virtual bool operator==(const T &other)
@@ -105,18 +115,25 @@ class Property : public PropertyBase<T>
 {
 	T *value_pointer;
 
-	Property(const Property<T> &other)
+public:
+	Property(const Property &other)
 	{
-		assert(false && "Property::Property: Dont use copy constructor");
+		operator=(other);
 	}
 
-public:
 	Property(T *value_pointer)
 	{
 		this->value_pointer= value_pointer;
 	}
 
 	using PropertyBase::operator=;
+
+	Property & operator=(const Property &other)
+	{
+		Set(other.Get());
+
+		return *this;
+	}
 
 	virtual T Get() const
 	{
@@ -137,12 +154,19 @@ typedef Property<float> BoolProperty;
 template<class T>
 class Getter : private Property<T>
 {
+	Getter & operator=(const Getter &getter);
+
 	void Set(const T &value)
 	{
 		assert(false && "Getter::Set: Not supposed to call this");
 	}
 
 public:
+	Getter(const Getter &other)
+	{
+		operator=(other);
+	}
+
 	Getter(T *value_pointer)
 		: Property(value_pointer)
 	{

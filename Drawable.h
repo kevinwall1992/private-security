@@ -12,7 +12,14 @@
 
 class Drawable
 {
+	bool is_hidden= false;
+
 public:
+
+	virtual void Show();
+	virtual void Hide();
+	bool IsHidden();
+
 	virtual void Draw()= 0;
 };
 

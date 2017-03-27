@@ -3,7 +3,6 @@
 #include "Space.h"
 #include "RasterCamera.h"
 #include "RayCamera.h"
-#include "OpenGLUtility.h"
 #include "InputSystem.h"
 #include "Gizmos.h"
 #include "DictionaryFile.h"
@@ -63,11 +62,11 @@ int main(int argument_count, char **arguments)
 	//scene.Commit();
 #endif
 
-	TacticalPane *tactical_pane= new TacticalPane(&camera);
-	tactical_pane->SetScene(&scene);
-	tactical_pane->Size= Vec2f(0.8f, 0.8f);
-	tactical_pane->Offset= Vec2f(0.1f, 0.1f);
-	System::input.AddGizmo(tactical_pane);
+	TacticalInterface *tactical_interface= new TacticalInterface(&camera);
+	tactical_interface->SetScene(&scene);
+	tactical_interface->Size= Vec2f(1.0f, 1.0f);
+	tactical_interface->Offset= Vec2f(0.0f, 0.0f);
+	System::input.AddGizmo(tactical_interface);
 
 
 	Timer timer;
@@ -83,7 +82,7 @@ int main(int argument_count, char **arguments)
 		if(difference> 0)
 			System::game.Step(difference);
 
-		System::graphics.Display(tactical_pane);
+		System::graphics.Display(tactical_interface);
 	}
 
 	System::TerminateSystems();

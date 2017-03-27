@@ -6,9 +6,9 @@
 
 class Gizmo : public EventHandler
 {
+	bool is_active= true;
 
 protected:
-
 	typedef ButtonEvent::Button ButtonType;
 	typedef ButtonEvent::Type EventType;
 	typedef MouseEvent::MouseButton MouseButtonType;
@@ -47,6 +47,9 @@ protected:
 	virtual void MouseDragRight(Vec2f mouse_position, Vec2f mouse_displacement);
 
 public:
+	virtual void Activate();
+	virtual void Deactivate();
+	virtual bool IsActive();
 	
 	virtual void HandleEvent(Event *event_);
 };

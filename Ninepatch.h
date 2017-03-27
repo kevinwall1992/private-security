@@ -3,16 +3,18 @@
 
 #include "Pane.h"
 
+//Consider making Ninepatch a type of Resource
 class Ninepatch : public Pane
 {
 public:
 	enum Roundness { Sharp, Normal, Soft };
 
 private:
+	ColorImage image;
 	Texture texture;
-	float corner_size;
+	Roundness roundness;
 
-	void SetRoundness(Roundness roundness);
+	float GetCornerSize();
 
 public:
 	Ninepatch(Texture texture, Vec2f offset, Vec2f size, Roundness roundness);

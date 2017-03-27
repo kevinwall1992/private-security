@@ -26,6 +26,9 @@ public:
 
 	void Step(Chronons chronons);
 
+	void Save(string filename);
+	void Load(string filename);
+
 	friend System;
 };
 

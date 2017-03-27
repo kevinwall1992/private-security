@@ -1,6 +1,5 @@
 #include "GraphicsSystem.h"
 #include "Common.h"
-#include "OpenGLUtility.h"
 #include "Shader.h"
 #include "Camera.h"
 #include "Shader.h"
