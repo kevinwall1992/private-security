@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<shaders>
+  <vertex>quad.vert</vertex>
+  <fragment>tinted_quad.frag</fragment>
+</shaders>

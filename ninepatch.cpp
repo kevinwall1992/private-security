@@ -47,8 +47,12 @@ void Ninepatch::Draw()
 	Vec2f corner_scale= Vec2f(corner_size, corner_size)/ global_size;
 	Vec2f edge_scale= (Vec2f(1, 1)- (corner_scale* 2));
 
-	ShaderProgram *shader_program= ShaderProgram::Retrieve("quad.program");
+	ShaderProgram *shader_program= ShaderProgram::Retrieve("tinted_quad.program");
 	shader_program->Use();
+	if(IsHovered())
+		shader_program->SetUniformVector3f("tint", Color(1, 1, 0.8f));
+	else
+		shader_program->SetUniformVector3f("tint", Color::White);
 	texture.BindToIndex(0);
 
 	glDisable(GL_DEPTH_TEST);
