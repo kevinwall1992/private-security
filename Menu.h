@@ -41,7 +41,7 @@ class OpenButton : public TextButton
 	Menu *menu;
 
 public:
-	OpenButton(string ninepatch_filename, string text, int text_size, Color text_color, Menu *menu, Roundness roundness= Roundness::Normal);
+	OpenButton(string ninepatch_filename, string text, Color text_color, Menu *menu, Roundness roundness= Roundness::Normal);
 
 	virtual void MouseLeftClick();
 };
@@ -50,7 +50,7 @@ public:
 class BackButton : public TextButton
 {
 public:
-	BackButton(string ninepatch_filename, string text, int text_size, Color text_color, Roundness roundness= Roundness::Normal);
+	BackButton(string ninepatch_filename, string text, Color text_color, Roundness roundness= Roundness::Normal);
 
 	virtual void MouseLeftClick();
 };

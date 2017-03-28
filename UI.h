@@ -65,6 +65,8 @@ class PauseMenu : public Menu
 	SaveButton save_button;
 	LoadButton load_button;
 
+	TextPane::Group button_group;
+
 public:
 	PauseMenu();
 };

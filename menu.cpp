@@ -64,8 +64,8 @@ void Menu::HandleEvent_Menus(Event *event_)
 }
 
 
-OpenButton::OpenButton(string ninepatch_filename, string text, int text_size, Color text_color, Menu *menu_, Roundness roundness)
-	: TextButton(ninepatch_filename, text, text_size, text_color, roundness)
+OpenButton::OpenButton(string ninepatch_filename, string text, Color text_color, Menu *menu_, Roundness roundness)
+	: TextButton(ninepatch_filename, text, text_color, roundness)
 {
 	menu= menu_;
 }
@@ -76,8 +76,8 @@ void OpenButton::MouseLeftClick()
 }
 
 
-BackButton::BackButton(string ninepatch_filename, string text, int text_size, Color text_color, Roundness roundness)
-	: TextButton(ninepatch_filename, text, text_size, text_color, roundness)
+BackButton::BackButton(string ninepatch_filename, string text, Color text_color, Roundness roundness)
+	: TextButton(ninepatch_filename, text, text_color, roundness)
 {
 	
 }

@@ -3,20 +3,12 @@
 #include "Rasterizable.h"
 
 
-//TTF_Fonts should be wrapped in a FileResource subclass
 void TextDrawable::GenerateTextTexture()
 {
-	if(!TTF_WasInit())
-		TTF_Init();
- 
-	TTF_Font *font= TTF_OpenFont("data/assets/graphical/fonts/Roboto-Regular.ttf", font_size);
-
-	SDL_Surface *surface= TTF_RenderText_Blended(font, text.c_str(), color.ToSDLColor());
-	text_texture= Texture(Utility::MakeColorImageFromSDL_Surface(surface));
-	SDL_FreeSurface(surface);
-	
-
-	TTF_CloseFont(font);
+	//Should make mechanism to go directly from surface to texture***
+	ColorImage image= font->RenderLine(text, font_size, color);
+	text_texture= image;
+	image.Free();
 }
 
 TextDrawable::TextDrawable(string text_, int font_size_, Color color_)
@@ -24,11 +16,13 @@ TextDrawable::TextDrawable(string text_, int font_size_, Color color_)
 	text= text_;
 	font_size= font_size_;
 	color= color_;
+
+	font= Font::Default;
 }
 
 Vec2i TextDrawable::GetTextureSize()
 {
-	return text_texture.Size;
+	return font->GetTextSize(text, font_size);
 }
 
 float TextDrawable::GetAspectRatio()
@@ -49,7 +43,7 @@ void TextDrawable::Draw()
 	ShaderProgram *shader_program= ShaderProgram::Retrieve("quad.program");
 	shader_program->Use();
 	shader_program->SetUniformMatrix4x4f("transform", transform);
-	shader_program->SetUniformMatrix4x4f("texture_transform", Transform().Scale(Vec3f(1, -1, 0)));;
+	shader_program->SetUniformMatrix4x4f("texture_transform", Transform().Scale(Vec3f(1, -1, 0)).Translate(Vec3f(0, 1, 0)));;
 
 	text_texture.BindToIndex(0);
 

@@ -5,20 +5,20 @@
 
 
 AboutDialog::AboutDialog()
-	: Dialog("nine.png", "Private Security, version 0.1.x.x")
+	: Dialog("nine.png", "Private Security\nv"+ Utility::TextFileToString("data/other/version.txt"))
 {
 	Size= Vec2f(0.3f, 0.2f);
 	Offset= Vec2f(0.35f, 0.4f);
 }
 
 AboutButton::AboutButton()
-	: OpenButton("nine.png", "About", 24, Color::Black, Menu::about_dialog)
+	: OpenButton("nine.png", "About", Color::Black, Menu::about_dialog)
 {
 	
 }
 
 QuitButton::QuitButton()
-	: TextButton("nine.png", "Quit", 24, Color::Black)
+	: TextButton("nine.png", "Quit", Color::Black)
 {
 
 }
@@ -29,13 +29,13 @@ void QuitButton::MouseLeftClick()
 }
 
 ResumeButton::ResumeButton()
-	: BackButton("nine.png", "Resume", 24, Color::Black)
+	: BackButton("nine.png", "Resume", Color::Black)
 {
 
 }
 
 SaveButton::SaveButton()
-	: TextButton("nine.png", "Save", 24, Color::Black)
+	: TextButton("nine.png", "Save", Color::Black)
 {
 }
 
@@ -45,7 +45,7 @@ void SaveButton::MouseLeftClick()
 }
 
 LoadButton::LoadButton()
-	: TextButton("nine.png", "Load", 24, Color::Black)
+	: TextButton("nine.png", "Load", Color::Black)
 {
 	
 }
@@ -69,6 +69,12 @@ PauseMenu::PauseMenu()
 
 	Size= Vec2f(0.25f, 0.4f);
 	Offset= Vec2f(0.375f, 0.45f);
+
+	button_group.AddTextPane(about_button.GetTextPane());
+	button_group.AddTextPane(save_button.GetTextPane());
+	button_group.AddTextPane(load_button.GetTextPane());
+	button_group.AddTextPane(resume_button.GetTextPane());
+	button_group.AddTextPane(quit_button.GetTextPane());
 }
 
 

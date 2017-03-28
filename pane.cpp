@@ -277,33 +277,143 @@ void CameraPane::SetScene(Scene *scene_)
 	scene= scene_;
 }
 
-TextPane::TextPane(string text, int font_size, Color color)
+
+int TextPane::Group::GetMaximumFontSize()
 {
-	SetText(text, font_size, color);
+	if(text_panes.size()== 0)
+		return 0;
+
+	int maximum_font_size= text_panes[0]->GetLocalMaximumFontSize();
+	for(unsigned int i= 1; i< text_panes.size(); i++)
+	{
+		int local_maximum_font_size= text_panes[i]->GetLocalMaximumFontSize();
+
+		if(local_maximum_font_size< maximum_font_size)
+			maximum_font_size= local_maximum_font_size;
+	}
+
+	return maximum_font_size;
+}
+
+void TextPane::Group::AddTextPane(TextPane *text_pane)
+{
+	text_panes.push_back(text_pane);
+	text_pane->SetGroup(this);
+}
+
+void TextPane::GenerateTextDrawables()
+{
+	for(TextDrawable *text_drawable : text_drawables)
+		delete text_drawable;
+
+	if(!IsFontSizeLocked())
+		font_size= GetMaximumFontSize();
+
+	vector<string> lines= Utility::SplitString(text);
+	for(string line : lines)
+		text_drawables.push_back(new TextDrawable(line, font_size, color));
+}
+
+int TextPane::GetLocalMaximumFontSize()
+{
+	if(IsFontSizeLocked())
+		return font_size;
+	else
+		return Font::Default->GetMaximumFontSize(text, GetPixelSize());
+}
+
+int TextPane::GetMaximumFontSize()
+{
+	return group== nullptr ? GetLocalMaximumFontSize() : group->GetMaximumFontSize();
+}
+
+void TextPane::SetGroup(Group *group_)
+{
+	group= group_;
+}
+
+TextPane::TextPane(string text, Color color, Align align)
+{
+	SetText(text, color, align);
 }
 
 TextPane::TextPane()
 {
+	text= "";
 }
 
-void TextPane::SetText(string text, int font_size, Color color)
+void TextPane::SetFontSize(int font_size_)
 {
-	if(text_drawable== nullptr)
-		delete text_drawable;
+	font_size= font_size_;
 
-	text_drawable= new TextDrawable(text, font_size, color);
+	LockFontSize();
+}
+
+void TextPane::LockFontSize()
+{
+	font_size_locked= true;
+}
+
+void TextPane::UnlockFontSize()
+{
+	font_size_locked= false;
+}
+
+bool TextPane::IsFontSizeLocked()
+{
+	return font_size_locked && font_size!= -1;
+}
+
+void TextPane::SetText(string text_, Color color_, Align align_)
+{
+	text= text_;
+	color= color_;
+	align= align_;
 }
 
 void TextPane::Draw()
 {
-	Vec2f text_screen_size= (Vec2f)text_drawable->GetTextureSize()/ System::graphics.GetScreenSize();
-	Vec2f pane_screen_size= LocalSizeToScreenSize(GetLocalSize());
-	Vec2f pane_screen_offset= LocalPositionToScreenPosition(GetLocalOffset());
-	Vec2f sceen_center_offset= pane_screen_offset+ (pane_screen_size/ 2)- (text_screen_size/ 2);
+	if(font_size!= GetMaximumFontSize() || text_drawables.size()== 0)
+	{
+		if(text== "")
+			return;
 
-	Vec2f text_global_size= LocalSizeToGlobalSize(ScreenSizeToLocalSize(text_screen_size));
-	Vec2f text_global_offset= LocalPositionToGlobalPosition(ScreenPositionToLocalPosition(sceen_center_offset));
+		GenerateTextDrawables();
+	}
 
-	text_drawable->SetTransform(Transform().Translate(Vec3f(1, 1, 0)).Scale(0.5f).Scale(text_global_size.Push()).Translate(text_global_offset.Push()).Scale(2).Translate(Vec3f(-1, -1, 0)));
-	text_drawable->Draw();
+
+	Vec2i pane_pixel_size= LocalSizeToPixelSize(GetLocalSize());
+	Vec2i pane_pixel_offset= LocalPositionToPixelPosition(GetLocalOffset());
+
+	for(unsigned int i= 0; i< text_drawables.size(); i++)
+	{
+		Vec2i line_pixel_size= text_drawables[i]->GetTextureSize();
+		Vec2i line_pixel_offset;
+
+		switch(align)
+		{
+		case TopLeft:
+			line_pixel_offset= pane_pixel_offset+ Vec2i(0, LocalPositionToPixelPosition(GetLocalOffset()).y- (i+ 1)* font_size);
+			break;
+
+		case TopCenter:
+			line_pixel_offset= pane_pixel_offset+ Vec2i((pane_pixel_size.x- line_pixel_size.x)/ 2, LocalSizeToPixelSize(Vec2f(1, 1)).y- (i+ 1)* font_size);
+			break;
+
+		case Center:
+			line_pixel_offset= pane_pixel_offset+ (pane_pixel_size- line_pixel_size)/ 2;
+			break;
+
+		default:
+			assert(false && "TextPane::Draw(): Unsupported Align");
+			break;
+		}
+
+	
+		Vec2f text_global_size= (Vec2f)line_pixel_size/ System::graphics.GetScreenSize();
+		Vec2f text_global_offset= (Vec2f)line_pixel_offset/ System::graphics.GetScreenSize();
+
+		text_drawables[i]->SetTransform(Transform().Translate(Vec3f(1, 1, 0)).Scale(0.5f).Scale(text_global_size.Push()).Translate(text_global_offset.Push()).Scale(2).Translate(Vec3f(-1, -1, 0)));
+		text_drawables[i]->Draw();
+	}
 }

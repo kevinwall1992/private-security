@@ -48,9 +48,9 @@ protected:
 	}
 
 public:
-	string GetFilePath()
+	string GetFilepath()
 	{
-		return file_path;
+		return filepath;
 	}
 
 	vector<string> GetElementPath()

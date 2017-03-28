@@ -6,14 +6,17 @@
 #include "Texture.h"
 #include "Common.h"
 #include "Color.h"
+#include "Font.h"
 
 
 class TextDrawable : public Drawable
 {
+	Font *font;
+	Transform transform;
+
 	string text;
 	int font_size;
 	Color color;
-	Transform transform;
 
 	Texture text_texture;
 

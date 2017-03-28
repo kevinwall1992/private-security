@@ -41,7 +41,7 @@ namespace Utility
 
 	bool FileExists(string filepath);
 
-	vector<string> SplitString(string string_, char delimiter);
+	vector<string> SplitString(string string_, char delimiter= '\n');
 
 	string TextFileToString(string filepath);
 

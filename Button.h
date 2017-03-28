@@ -22,10 +22,16 @@ public:
 
 class TextButton : public Button
 {
+	TextPane text_pane;
+
 	using Button::SetContent;
 
 public:
-	TextButton(string ninepatch_filename, string text, int font_size, Color font_color, Roundness roundness= Roundness::Normal);
+	TextPane * GetTextPane();
+
+	TextButton(string ninepatch_filename, string text, Color font_color, Roundness roundness= Roundness::Normal);
+
+	virtual void Draw();
 };
 
 
@@ -34,7 +40,7 @@ class VisibilityToggleButton : public TextButton
 	Drawable *drawable;
 
 public:
-	VisibilityToggleButton(string ninepatch_filename, string text, int text_size, Color text_color, Drawable *drawable, Roundness roundness= Roundness::Normal);
+	VisibilityToggleButton(string ninepatch_filename, string text, Color text_color, Drawable *drawable, Roundness roundness= Roundness::Normal);
 
 	virtual void MouseLeftClick();
 };
@@ -45,7 +51,7 @@ class ShowButton : public TextButton
 	Drawable *drawable;
 
 public:
-	ShowButton(string ninepatch_filename, string text, int text_size, Color text_color, Drawable *drawable, Roundness roundness= Roundness::Normal);
+	ShowButton(string ninepatch_filename, string text, Color text_color, Drawable *drawable, Roundness roundness= Roundness::Normal);
 
 	virtual void MouseLeftClick();
 };
@@ -56,7 +62,7 @@ class HideButton : public TextButton
 	Drawable *drawable;
 
 public:
-	HideButton(string ninepatch_filename, string text, int text_size, Color text_color, Drawable *drawable, Roundness roundness= Roundness::Normal);
+	HideButton(string ninepatch_filename, string text, Color text_color, Drawable *drawable, Roundness roundness= Roundness::Normal);
 
 	virtual void MouseLeftClick();
 };

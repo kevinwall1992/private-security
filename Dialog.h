@@ -13,7 +13,11 @@ class Dialog : public Menu
 	BackButton close_button;
 
 public:
-	Dialog(string ninepatch_filename, string text, int text_size= 12, Color text_color= Color::Black, Ninepatch::Roundness roundness= Ninepatch::Roundness::Sharp);
+	Dialog(string ninepatch_filename, string text, Color text_color= Color::Black, Ninepatch::Roundness roundness= Ninepatch::Roundness::Sharp);
+
+	TextPane * GetTextPane();
+
+	virtual void Draw();
 };
 
 #endif

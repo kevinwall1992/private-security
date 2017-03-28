@@ -116,13 +116,50 @@ public:
 
 class TextPane : public Pane
 {
-	TextDrawable *text_drawable= nullptr;
+public:
+	class Group
+	{
+		vector<TextPane *> text_panes;
+
+	public:
+		int GetMaximumFontSize();
+
+		void AddTextPane(TextPane *text_pane);
+	};
+
+	enum Align { TopLeft, TopCenter, TopRight, CenterLeft, Center, CenterRight, BottomLeft, BottomCenter, BottomRight };
+
+private:
+
+	Group *group= nullptr;
+	vector<TextDrawable *> text_drawables;
+	Align align;
+
+	string text;
+	Color color;
+
+	int font_size= -1;
+	bool font_size_locked= false;
+
+	void GenerateTextDrawables();
+
+protected:
+	int GetLocalMaximumFontSize();
+	int GetMaximumFontSize();
+
+	void SetGroup(Group *group);
 
 public:
-	TextPane(string text, int font_size, Color color);
+	TextPane(string text, Color color, Align align= Align::Center);
 	TextPane();
 
-	void SetText(string text, int font_size, Color color);
+	void SetFontSize(int font_size);
+
+	void LockFontSize();
+	void UnlockFontSize();
+	bool IsFontSizeLocked();
+
+	void SetText(string text, Color color, Align align= Align::Center);
 
 	virtual void Draw();
 };

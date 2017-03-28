@@ -28,8 +28,8 @@ public:
 	SDL_Color ToSDLColor();
 
 	static Color Black, White, Red, Blue, 
-		         Green, Yellow, Purple, Orange, 
-		         Pink, Gray, Cornflower;
+				 Green, Yellow, Purple, Orange, 
+				 Pink, Gray, Cornflower;
 };
 
 #endif

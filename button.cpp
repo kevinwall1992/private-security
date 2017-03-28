@@ -17,8 +17,8 @@ void Button::SetContent(Pane *content_)
 		RemoveComponent(content);
 
 	content= content_;
-	content->Offset= Vec2f(0.05f, 0.05f);
-	content->Size= Vec2f(0.9f, 0.9f);
+	content->Offset= Vec2f(0.25f, 0.25f);
+	content->Size= Vec2f(0.5f, 0.5f);
 	AddComponent(content);
 }
 
@@ -38,15 +38,27 @@ void Button::Draw()
 	Offset= offset;
 }
 
-TextButton::TextButton(string ninepatch_filename, string text, int font_size, Color font_color, Roundness roundness)
-	: Button(ninepatch_filename, roundness, new TextPane(text, font_size, font_color))
+TextPane * TextButton::GetTextPane()
 {
+	return &text_pane;
+}
 
+TextButton::TextButton(string ninepatch_filename, string text, Color font_color, Roundness roundness)
+	: text_pane(text, font_color), Button(ninepatch_filename, roundness)
+{
+	SetContent(&text_pane);
+}
+
+void TextButton::Draw()
+{
+	text_pane.LockFontSize();
+	Button::Draw();
+	text_pane.UnlockFontSize();
 }
 
 
-VisibilityToggleButton::VisibilityToggleButton(string ninepatch_filename, string text, int text_size, Color text_color, Drawable *drawable_, Roundness roundness)
-	: TextButton(ninepatch_filename, text, text_size, text_color, roundness)
+VisibilityToggleButton::VisibilityToggleButton(string ninepatch_filename, string text, Color text_color, Drawable *drawable_, Roundness roundness)
+	: TextButton(ninepatch_filename, text, text_color, roundness)
 {
 	drawable= drawable_;
 }
@@ -59,8 +71,8 @@ void VisibilityToggleButton::MouseLeftClick()
 		drawable->Hide();
 }
 
-ShowButton::ShowButton(string ninepatch_filename, string text, int text_size, Color text_color, Drawable *drawable_, Roundness roundness)
-	: TextButton(ninepatch_filename, text, text_size, text_color, roundness)
+ShowButton::ShowButton(string ninepatch_filename, string text, Color text_color, Drawable *drawable_, Roundness roundness)
+	: TextButton(ninepatch_filename, text, text_color, roundness)
 {
 	drawable= drawable_;
 }
@@ -70,8 +82,8 @@ void ShowButton::MouseLeftClick()
 	drawable->Show();
 }
 
-HideButton::HideButton(string ninepatch_filename, string text, int text_size, Color text_color, Drawable *drawable_, Roundness roundness)
-	: TextButton(ninepatch_filename, text, text_size, text_color, roundness)
+HideButton::HideButton(string ninepatch_filename, string text, Color text_color, Drawable *drawable_, Roundness roundness)
+	: TextButton(ninepatch_filename, text, text_color, roundness)
 {
 	drawable= drawable_;
 }
