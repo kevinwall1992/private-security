@@ -122,6 +122,7 @@ typedef Image<float> DepthImage;
 namespace Utility
 {
 	ColorImage MakeColorImageFromSDL_Surface(SDL_Surface *surface);
+	void SaveColorImageToFile(ColorImage image, string filename);
 }
 
 #endif

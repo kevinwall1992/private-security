@@ -3,7 +3,7 @@
 #include "Viewport.h"
 
 
-void Pane::AddComponent(Pane * pane)
+void Pane::AddComponent(Pane *pane)
 {
 	Interface::AddComponent(pane);
 
@@ -134,12 +134,31 @@ Transform QuadPane::GetQuadTransform(bool snap_to_pixel)
 	return Transform().Translate(Vec3f(1, 1, 0)).Scale(screen_size.Push()/ 2).Translate(screen_offset.Push()).Scale(2).Translate(Vec3f(-1, -1, 0));
 }
 
+void QuadPane::UseDepth()
+{
+	use_depth= true;
+}
+
+void QuadPane::DontUseDepth()
+{
+	use_depth= false;
+}
+
 void QuadPane::Draw()
 {
 	GetShaderProgram()->Use();
 	UploadShaderUniforms();
 
-	RasterizeFullScreenQuad();
+	if(!use_depth)
+	{
+		glDisable(GL_DEPTH_TEST);
+		RasterizeFullScreenQuad();
+		glEnable(GL_DEPTH_TEST);
+	}
+	else
+		RasterizeFullScreenQuad();
+
+	Pane::Draw();
 }
 
 

@@ -26,6 +26,8 @@ public:
 	void SetVisualLength(int visual_length);
 
 	void AddPane(Pane *pane);
+
+	virtual void Draw();
 };
 
 class ButtonListPane : public ListPane

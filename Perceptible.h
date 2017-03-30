@@ -71,6 +71,10 @@ public:
 
 	Entity();
 
+	//This is just quick and dirty. Will expand Icon functionality 
+	//(and Perceptible querying in general) later ***
+	Mesh * GetIconMesh();
+
 	virtual string GetEntityDataFilename()= 0;
 	virtual string GetEntityDataFolderName()= 0;
 

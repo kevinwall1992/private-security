@@ -7,8 +7,17 @@ std::stack<Menu *> Menu::menu_stack;
 TreeFrame Menu::default_frame= TreeFrame(Vec2f(0.1f, 0.1f), Vec2f(0.8f, 0.8f));
 Interface * Menu::host= nullptr;
 
-AboutDialog * Menu::about_dialog= new AboutDialog();
-PauseMenu * Menu::pause_menu= new PauseMenu();
+AboutDialog * Menu::about_dialog= nullptr;//new AboutDialog();
+PauseMenu * Menu::pause_menu= nullptr;//new PauseMenu();
+
+void Menu::InitializeMenus()
+{
+	if(pause_menu!= nullptr)
+		return;
+
+	about_dialog= new AboutDialog();
+	pause_menu= new PauseMenu();
+}
 
 void Menu::Show()
 {

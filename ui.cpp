@@ -78,6 +78,83 @@ PauseMenu::PauseMenu()
 }
 
 
+IconCamera * IconPane::icon_camera= nullptr;
+
+IconPane::IconPane(Mesh *mesh_)
+{
+	scene.AddLight(new PointLight(Vec3f(3.0f, 10.0f, 5.0f), Color::White));
+	scene.AddProp(new MeshProp(mesh_));
+}
+
+Texture IconPane::GetTexture()
+{
+	if(icon_camera== nullptr)
+		icon_camera= new IconCamera(Math::DegreesToRadians(35), Vec3f(3, 3, 5), Vec3f(0, 1, 0));
+
+	Viewport::Push();
+	Framebuffer framebuffer= Framebuffer::GetCurrentFramebuffer();
+
+	int width= System::graphics.GetScreenSize().x/ 5;
+	Texture texture= icon_camera->TakePhoto(scene, Vec2i(width, width), Photo::Type::FullColor).GetTexture();
+
+	framebuffer.Bind();
+	Viewport::Pop();
+
+	return texture;
+}
+
+ToolbeltSlot::ToolbeltSlot()
+	: Button("nine.png")
+{
+	
+}
+
+void ToolbeltSlot::SetItem(Item *item_)
+{
+	if(item_== item || item_== nullptr)
+		return;
+
+	item= item_;
+
+	SetContent(new IconPane(item->GetIconMesh()));
+	GetContent()->Size= Vec2f(0.9f, 0.9f);
+	GetContent()->Offset= Vec2f(0.05f, 0.05f);
+}
+
+Item * ToolbeltSlot::GetItem()
+{
+	return item;
+}
+
+Toolbelt::Toolbelt()
+	: ButtonListPane(Direction::LeftToRight, 10)
+{
+	for(unsigned int i= 0; i< 10; i++)
+		AddButton(slots+ i);
+
+	Size= Vec2f(0.8f, 0.08f);
+	Offset= Vec2f(0.1f, 0.1f);
+}
+
+void Toolbelt::SetActor(Actor *actor_)
+{
+	actor= actor_;
+}
+
+void Toolbelt::Draw()
+{
+	if(actor!= nullptr)
+	{
+		Inventory inventory= actor->GetInventory();
+
+		for(unsigned int i= 0; i< inventory.size(); i++)
+			slots[i].SetItem(inventory[i]);
+	}
+
+	ButtonListPane::Draw();
+}
+
+
 float TacticalInterface::tile_frame_vertices[24* 3]= { -0.5f, 0.0f, -0.5f,  +0.5f, 0.0f, -0.5f, 
 												  +0.5f, 0.0f, -0.5f,  +0.5f, 0.0f, +0.5f, 
 												  +0.5f, 0.0f, +0.5f,  -0.5f, 0.0f, +0.5f, 
@@ -121,6 +198,8 @@ TacticalInterface::TacticalInterface(Camera *camera)
 	camera_gizmo= new CameraGizmo(camera);
 	AddComponent(camera_gizmo);
 
+	AddComponent(&toolbelt);
+
 	Menu::SetHost(this);
 }
 
@@ -134,7 +213,10 @@ void TacticalInterface::MouseLeftUpRay(Ray ray)
 {
 	Tile *tile= GetTile(ray);
 	if(tile!= nullptr && tile->GetActor()!= nullptr)
+	{
 		selected_actor= tile->GetActor();
+		toolbelt.SetActor(selected_actor);
+	}
 }
 
 void TacticalInterface::MouseMotionRay(Ray ray, Ray last_ray)

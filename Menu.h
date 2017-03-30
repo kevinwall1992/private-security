@@ -15,6 +15,10 @@ class Menu : public Pane
 	static TreeFrame default_frame;
 	static Interface *host;
 
+	//Consider changing AboutDialog and PauseMenu's constructors now that they aren't 
+	//intialized at program start anymore. ****
+	static void InitializeMenus();
+
 protected:
 	virtual void Show();
 

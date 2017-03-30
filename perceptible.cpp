@@ -83,6 +83,11 @@ Entity::Entity()
 	
 }
 
+Mesh * Entity::GetIconMesh()
+{
+	return GetEntityData()->animations["default"]->GetMesh();
+}
+
 vector<RaytracingPrimitive *> Entity::GetRaytracingPrimitives()
 {
 	return GetMeshProp()->GetRaytracingPrimitives();

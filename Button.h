@@ -9,6 +9,9 @@ class Button : public Ninepatch
 {
 	Pane *content= nullptr;
 
+protected:
+	Pane * GetContent();
+
 public:
 	//Ninepatch feature needs better interface, passing in a image filename is not very good.
 	//Leaving as is for now because Styles will probably fix this issue.***

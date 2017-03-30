@@ -158,9 +158,6 @@ bool InputSystem::HandleInput()
 	Vec2f normalized_mouse_position= GetNormalizedMousePosition(mouse_position);
 	Vec2f mouse_displacement= normalized_mouse_position- GetNormalizedMousePosition(last_mouse_position);
 
-	int foo= mouse_position.y;
-	int bar= last_mouse_position.y;
-
 	SDL_Event sdl_event;
 	while(SDL_PollEvent(&sdl_event))
 	{

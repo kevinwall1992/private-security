@@ -86,3 +86,18 @@ ColorImage Utility::MakeColorImageFromSDL_Surface(SDL_Surface *surface)
 
 	return ColorImage(surface->w, surface->h, image_pixels);
 }
+
+void Utility::SaveColorImageToFile(ColorImage image, string filename)
+{
+	SDL_Surface *surface= SDL_CreateRGBSurfaceFrom(image.GetPixels(), 
+		                                           image.Width, 
+												   image.Height, 
+												   32, 
+												   4* image.Width, 
+												   0x000000ff, 
+												   0x0000ff00, 
+												   0x00ff0000, 
+												   0xff000000);
+
+	SDL_SaveBMP(surface, filename.c_str());
+}

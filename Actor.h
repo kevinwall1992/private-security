@@ -9,14 +9,20 @@
 #include "Physical.h"
 
 
+typedef vector<Item *> Inventory;
+
 class Actor : public Object, public Mover, public Physical
 {
+	Inventory inventory;
 	Item *item = new Gun();
 
 public:
 	Actor();
 
 	Vec3f GetPosition();
+
+	
+	Inventory GetInventory();
 
 	void PerformMove(Move *move);
 

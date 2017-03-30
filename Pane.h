@@ -50,11 +50,16 @@ public:
 
 class QuadPane : public Pane
 {
+	bool use_depth= false;
+
 protected:
 	Transform GetQuadTransform(bool snap_to_pixel);
 
 	virtual ShaderProgram * GetShaderProgram()= 0;
 	virtual void UploadShaderUniforms()= 0;
+
+	void UseDepth();
+	void DontUseDepth();
 	
 public:
 	virtual void Draw();

@@ -28,17 +28,17 @@ class Interface : public Drawable, public Gizmo
 protected:
 	void ClearInteractionState();
 
-	void AddComponent(Interface *interface_);
-	void AddComponent(Drawable *drawable);
-	void AddComponent(Gizmo *gizmo);
+	virtual void AddComponent(Interface *interface_);
+	virtual void AddComponent(Drawable *drawable);
+	virtual void AddComponent(Gizmo *gizmo);
 
-	void RemoveComponent(Interface *interface_);
-	void RemoveComponent(Drawable *drawable);
-	void RemoveComponent(Gizmo *gizmo);
+	virtual void RemoveComponent(Interface *interface_);
+	virtual void RemoveComponent(Drawable *drawable);
+	virtual void RemoveComponent(Gizmo *gizmo);
 
-	void ReplaceComponent(Interface *interface_, Interface *replacement_interface);
-	void ReplaceComponent(Drawable *drawable, Drawable *replacement_drawable);
-	void ReplaceComponent(Gizmo *gizmo, Gizmo *replacement_gizmo);
+	virtual void ReplaceComponent(Interface *interface_, Interface *replacement_interface);
+	virtual void ReplaceComponent(Drawable *drawable, Drawable *replacement_drawable);
+	virtual void ReplaceComponent(Gizmo *gizmo, Gizmo *replacement_gizmo);
 
 	virtual void Draw_Components();
 	virtual void HandleEvent_Components(Event *event_);

@@ -2,7 +2,8 @@
 
 void ListPane::PositionPanes()
 {
-	float pane_size_in_list_direction= 1.0f/ visual_length;
+	float pane_size_in_list_direction= 1.0f/ visual_length- margin/ visual_length;
+	float orthogonal_margin= margin* GetAspectRatio();
 	
 	for(unsigned int i= 0; i< panes.size(); i++)
 	{
@@ -13,12 +14,12 @@ void ListPane::PositionPanes()
 		{
 		case LeftToRight: 
 		case BottomToTop: 
-			pane_offset_in_list_direction= i* pane_size_in_list_direction+ margin* (1+ i); 
+			pane_offset_in_list_direction= i* pane_size_in_list_direction+ margin; 
 			break;
 
 		case RightToLeft:
 		case TopToBottom: 
-			pane_offset_in_list_direction= (panes.size()- (i+ 1))* pane_size_in_list_direction- margin* (1+ i); 
+			pane_offset_in_list_direction= (panes.size()- (i+ 1))* pane_size_in_list_direction- margin; 
 			break;
 
 		default: break;
@@ -29,13 +30,19 @@ void ListPane::PositionPanes()
 		case LeftToRight: 
 		case RightToLeft: 
 			pane->Size.x= pane_size_in_list_direction- margin;
+			pane->Size.y= 1- (orthogonal_margin+ orthogonal_margin/ visual_length);
+
 			pane->Offset.x= pane_offset_in_list_direction;
+			pane->Offset.y= (orthogonal_margin+ orthogonal_margin/ visual_length)/ 2;
 			break;
 
 		case TopToBottom: 
 		case BottomToTop: 
 			pane->Size.y= pane_size_in_list_direction- margin;
+			pane->Size.x= 1- (orthogonal_margin+ orthogonal_margin/ visual_length);
+
 			pane->Offset.y= pane_offset_in_list_direction;
+			pane->Offset.x= (orthogonal_margin+ orthogonal_margin/ visual_length)/ 2;
 			break;
 
 		default: break;
@@ -58,15 +65,19 @@ ListPane::ListPane()
 void ListPane::SetVisualLength(int visual_length_)
 {
 	visual_length= visual_length_;
-	PositionPanes();
 }
 
 void ListPane::AddPane(Pane *pane)
 {
 	panes.push_back(pane);
-	PositionPanes();
 
 	AddComponent(pane);
+}
+
+void ListPane::Draw()
+{
+	PositionPanes();
+	Pane::Draw();
 }
 
 ButtonListPane::ButtonListPane(Direction direction, int visual_length)

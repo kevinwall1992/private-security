@@ -7,6 +7,7 @@
 #include "Menu.h"
 #include "Dialog.h"
 #include "ListPane.h"
+#include "IconCamera.h"
 
 
 //High level user interface objects
@@ -71,10 +72,47 @@ public:
 	PauseMenu();
 };
 
+class IconPane : public TexturePane
+{
+	static IconCamera *icon_camera;
+
+	Scene scene;
+
+public:
+	IconPane(Mesh *mesh);
+
+	virtual Texture GetTexture();
+};
+
+class ToolbeltSlot : public Button
+{
+	Item *item= nullptr;
+
+public:
+	ToolbeltSlot();
+
+	void SetItem(Item *item);
+	Item * GetItem();
+};
+
+class Toolbelt : public ButtonListPane
+{
+	ToolbeltSlot slots[10];
+	Actor *actor= nullptr;
+
+public:
+	Toolbelt();
+
+	void SetActor(Actor *actor);
+
+	virtual void Draw();
+};
+
 
 class TacticalInterface : public CameraPane
 {
 	CameraGizmo *camera_gizmo;
+	Toolbelt toolbelt;
 	
 	int level= 0;
 

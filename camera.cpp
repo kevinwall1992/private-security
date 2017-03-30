@@ -153,7 +153,7 @@ void Camera::LookAt(Vec3f look_at_position)
 	if(direction.y< 0)
 		Pitch= -Pitch;
 
-	Yaw= acos(Vec2f(direction.x, direction.z).Normalize().Dot(Vec2f(0, -1)));
+	Yaw= -acos(Vec2f(direction.x, direction.z).Normalize().Dot(Vec2f(0, -1)));
 	if(direction.x< 0)
 		Yaw= -Yaw;
 

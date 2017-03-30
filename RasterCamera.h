@@ -54,6 +54,7 @@ class RasterCamera : public Camera
 
 public:
 	RasterCamera(float fov, Vec3f position);
+	RasterCamera(float fov, Vec3f position, Vec3f look_at_position);
 	~RasterCamera();
 
 	virtual PhotoBook TakePhotos(Scene &scene, Vec2i size, Photo::Type types);

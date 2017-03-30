@@ -139,6 +139,7 @@ void ShaderProgram::SetUniformVector3f(string uniform_name, Vec3f vector_)
 
 void ShaderProgram::SetUniformMatrix4x4f(string uniform_name, Mat4x4f matrix)
 {
+	//Should use program for you ****
 	glUniformMatrix4fv(GetUniformLocation(uniform_name), 1, GL_TRUE, matrix.c);
 	Utility::HandleOpenGLErrors();
 }

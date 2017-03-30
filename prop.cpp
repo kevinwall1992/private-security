@@ -87,12 +87,16 @@ void MeshProp::Initialize()
 
 	vao.SetAttributeBinding3f(ShaderProgram::GetCurrentProgram()->GetAttributeLocation("position"));
 
-	GLuint normal_buffer_handle;
-	glGenBuffers(1, &normal_buffer_handle);
-	glBindBuffer(GL_ARRAY_BUFFER, normal_buffer_handle);
-	glBufferData(GL_ARRAY_BUFFER, mesh->GetVertexCount()* 3* sizeof(float), &mesh->normals[0], GL_STATIC_DRAW);
+	GLuint normal_attribute_location= ShaderProgram::GetCurrentProgram()->GetAttributeLocation("normal");
+	if(normal_attribute_location!= -1)
+	{
+		GLuint normal_buffer_handle;
+		glGenBuffers(1, &normal_buffer_handle);
+		glBindBuffer(GL_ARRAY_BUFFER, normal_buffer_handle);
+		glBufferData(GL_ARRAY_BUFFER, mesh->GetVertexCount()* 3* sizeof(float), &mesh->normals[0], GL_STATIC_DRAW);
 
-	vao.SetAttributeBinding3f(ShaderProgram::GetCurrentProgram()->GetAttributeLocation("normal"));
+		vao.SetAttributeBinding3f(normal_attribute_location);
+	}
 
 	glGenBuffers(1, &element_buffer_handle);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer_handle);

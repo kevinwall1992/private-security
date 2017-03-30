@@ -2,6 +2,11 @@
 #include "Drawables.h"
 
 
+Pane * Button::GetContent()
+{
+	return content;
+}
+
 Button::Button(string ninepatch_filename, Roundness roundness, Pane *content)
 	: Ninepatch(ninepatch_filename, roundness)
 {

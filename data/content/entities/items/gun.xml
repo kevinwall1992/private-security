@@ -2,7 +2,7 @@
 <perception>
    <model>
       <name>default</name>
-      <filename>gun.obj</filename>
+      <filename>test_item.obj</filename>
       <element>Cube</element>
    </model>
 </perception>

@@ -4,11 +4,17 @@
 
 Actor::Actor()
 {
+	inventory.push_back(new Gun());
 }
 
 Vec3f Actor::GetPosition()
 {
 	return Physical::GetPosition();
+}
+
+vector<Item*> Actor::GetInventory()
+{
+	return inventory;
 }
 
 void Actor::PerformMove(Move *move)

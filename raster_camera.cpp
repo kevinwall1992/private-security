@@ -124,6 +124,14 @@ RasterCamera::RasterCamera(float fov, Vec3f position)
 	animation_timer.Start();
 }
 
+RasterCamera::RasterCamera(float fov, Vec3f position, Vec3f look_at_position)
+	: Camera(fov, position), ray_camera(fov, position), compositing_camera(fov, position), shadow_camera(Math::DegreesToRadians(70), Vec3f())
+{
+	animation_timer.Start();
+
+	LookAt(look_at_position);
+}
+
 RasterCamera::~RasterCamera()
 {
 #ifndef NO_RAYTRACING

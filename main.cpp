@@ -48,15 +48,15 @@ int main(int argument_count, char **arguments)
 	
 	Path path= Path::GetPath(new Node(actor, actor->GetTile()), new Node(actor, System::game.space.GetTile(0, 0, 0)));
 
-	Edge *edge;
-	while((edge= path.PopEdge())!= nullptr)
-		System::game.SubmitAction(new MoveAction(actor, edge->GetMove()));
+	//Edge *edge;
+	//while((edge= path.PopEdge())!= nullptr)
+	//	System::game.SubmitAction(new MoveAction(actor, edge->GetMove()));
 
 	Scene scene;
 	scene.AddProp(&System::game.space);
 	
-	RasterCamera camera(Math::DegreesToRadians(60), Vec3f(0, 0, 5));
-	camera.LookAt(Vec3f(-2, 2, 0));
+	RasterCamera camera(Math::DegreesToRadians(60), Vec3f(1, 3, 5));
+	camera.LookAt(Vec3f(2, 1, 2));
 	
 	scene.AddLight(new PointLight(Vec3f(3.3f, 7.0f, 8.0f), Color(0.92f, 0.80f, 0.65f)));
 	//scene.Commit();
