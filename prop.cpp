@@ -107,7 +107,7 @@ void MeshProp::Initialize()
 
 Transform MeshProp::GetModelTransform()
 {
-	return Transform().RotateAboutY(0).Translate(displacement);
+	return Transform().RotateAboutY(rotation).Translate(displacement);
 }
 
 MeshProp::MeshProp(Mesh *mesh_)

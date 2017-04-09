@@ -81,15 +81,28 @@ PauseMenu::PauseMenu()
 IconCamera * IconPane::icon_camera= nullptr;
 
 IconPane::IconPane(Mesh *mesh_)
+	: cycle(4.0f, 0.5f)
 {
 	scene.AddLight(new PointLight(Vec3f(3.0f, 10.0f, 5.0f), Color::White));
 	scene.AddProp(new MeshProp(mesh_));
+}
+
+void IconPane::MouseIn()
+{
+	cycle.Start();
+}
+
+void IconPane::MouseOut()
+{
+	cycle.Stop();
 }
 
 Texture IconPane::GetTexture()
 {
 	if(icon_camera== nullptr)
 		icon_camera= new IconCamera(Math::DegreesToRadians(35), Vec3f(3, 3, 5), Vec3f(0, 1, 0));
+
+	dynamic_cast<MeshProp *>(scene.GetProps()[0])->SetRotation((float)(2* M_PI* cycle.GetMoment()));
 
 	Viewport::Push();
 	Framebuffer framebuffer= Framebuffer::GetCurrentFramebuffer();

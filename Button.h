@@ -3,11 +3,13 @@
 
 #include "Pane.h"
 #include "Ninepatch.h"
+#include "Cycle.h"
 
 
 class Button : public Ninepatch
 {
 	Pane *content= nullptr;
+	SmoothCycle cycle;
 
 protected:
 	Pane * GetContent();
@@ -16,6 +18,9 @@ public:
 	//Ninepatch feature needs better interface, passing in a image filename is not very good.
 	//Leaving as is for now because Styles will probably fix this issue.***
 	Button(string ninepatch_filename, Roundness roundness= Roundness::Normal, Pane *content= nullptr);
+
+	virtual void MouseIn();
+	virtual void MouseOut();
 
 	void SetContent(Pane *content);
 

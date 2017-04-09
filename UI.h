@@ -8,6 +8,7 @@
 #include "Dialog.h"
 #include "ListPane.h"
 #include "IconCamera.h"
+#include "Cycle.h"
 
 
 //High level user interface objects
@@ -77,9 +78,13 @@ class IconPane : public TexturePane
 	static IconCamera *icon_camera;
 
 	Scene scene;
+	SmoothCycle cycle;
 
 public:
 	IconPane(Mesh *mesh);
+
+	virtual void MouseIn();
+	virtual void MouseOut();
 
 	virtual Texture GetTexture();
 };

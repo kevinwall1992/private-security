@@ -8,9 +8,23 @@ Pane * Button::GetContent()
 }
 
 Button::Button(string ninepatch_filename, Roundness roundness, Pane *content)
-	: Ninepatch(ninepatch_filename, roundness)
+	: Ninepatch(ninepatch_filename, roundness), cycle(0.25f)
 {
 	SetContent(content);
+}
+
+void Button::MouseIn()
+{
+	cycle.Start();
+
+	Ninepatch::MouseIn();
+}
+
+void Button::MouseOut()
+{
+	cycle.Stop();
+
+	Ninepatch::MouseOut();
 }
 
 void Button::SetContent(Pane *content_)
@@ -31,11 +45,8 @@ void Button::Draw()
 {
 	Vec2f size= Size;
 	Vec2f offset= Offset;
-	if(IsHovered())
-	{
-		Size= size* 1.1f;
-		Offset-= (Size- size)/ 2;
-	}
+	Size= size* (1.0f+ 0.1f* cycle.GetMoment());
+	Offset-= (Size- size)/ 2;
 
 	Ninepatch::Draw();
 
