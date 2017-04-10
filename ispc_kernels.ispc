@@ -441,9 +441,9 @@ export void Develop(uniform float receptors_r[], uniform float receptors_g[], un
 		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ (normalization_term* sample_counts[index]));
 		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ (normalization_term* sample_counts[index]));
 #else
-		image[image_offset+ 0]= (int8)(255* receptors_b[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
+		image[image_offset+ 0]= (int8)(255* receptors_r[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
 		image[image_offset+ 1]= (int8)(255* receptors_g[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
-		image[image_offset+ 2]= (int8)(255* receptors_r[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
+		image[image_offset+ 2]= (int8)(255* receptors_b[index]/ (normalization_term* MIN_SAMPLES_PER_PIXEL));
 #endif
 
 #endif

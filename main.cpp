@@ -59,7 +59,7 @@ int main(int argument_count, char **arguments)
 	camera.LookAt(Vec3f(2, 1, 2));
 	
 	scene.AddLight(new PointLight(Vec3f(3.3f, 7.0f, 8.0f), Color(0.92f, 0.80f, 0.65f)));
-	//scene.Commit();
+	scene.Commit();
 #endif
 
 	TacticalInterface *tactical_interface= new TacticalInterface(&camera);

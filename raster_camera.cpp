@@ -3,9 +3,10 @@
 #include "RayCamera.h"
 #include "CompositingCamera.h"
 #include "ShadowCamera.h"
+#include "Viewport.h"
 
 
-#define NO_RAYTRACING
+//#define NO_RAYTRACING
 
 void RasterCamera::Initialize(Vec2i size)
 {
@@ -169,7 +170,7 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 			indirect_light_texture_was_modified= false;
 		}
 
-		raytracing_thread= new std::thread(&RasterCamera::GenerateIndirectLightTexture, this, &scene, width, height);
+		raytracing_thread= new std::thread(&RasterCamera::GenerateIndirectLightTexture, this, &scene, size);
 	}
 
 	if(compositing_buffers_were_modified || compositing_thread== nullptr)
@@ -183,7 +184,7 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 				compositing_thread= nullptr;
 			}
 
-			compositing_color_buffer.UploadImage(compositing_camera.GetDiffuseMap());
+			compositing_diffuse_color_buffer.UploadImage(compositing_camera.GetDiffuseMap());
 			compositing_glossiness_buffer.UploadImage(compositing_camera.GetGlossinessMap());
 			compositing_normal_buffer.UploadImage(compositing_camera.GetNormalMap());
 			compositing_depth_buffer.UploadImage(compositing_camera.GetDepthMap());
@@ -193,7 +194,7 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 
 		if(compositing_camera_is_invalid)
 		{
-			compositing_thread= new std::thread(&RasterCamera::GenerateCompositingBuffers, this, &scene, width, height);
+			compositing_thread= new std::thread(&RasterCamera::GenerateCompositingBuffers, this, &scene, size);
 
 			compositing_camera_is_invalid= false;
 		}
@@ -206,18 +207,18 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 
 	glReadBuffer(GL_COLOR_ATTACHMENT0);
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
-	glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+	glBlitFramebuffer(0, 0, size.x, size.y, 0, 0, size.x, size.y, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
 	glReadBuffer(GL_COLOR_ATTACHMENT1);
 	glDrawBuffer(GL_COLOR_ATTACHMENT1);
-	glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	glBlitFramebuffer(0, 0, size.x, size.y, 0, 0, size.x, size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 	glReadBuffer(GL_COLOR_ATTACHMENT2);
 	glDrawBuffer(GL_COLOR_ATTACHMENT2);
-	glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	glBlitFramebuffer(0, 0, size.x, size.y, 0, 0, size.x, size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 	gbuffer_framebuffer.ActivateDefaultDrawBuffers();
-	Viewport::Set(Vec2i(), size);
+	gbuffer_framebuffer.PrepareForDrawing();
 
 #else
 	gbuffer_framebuffer.PrepareForDrawing();

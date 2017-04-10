@@ -147,7 +147,7 @@ Shutter::Shutter(RayCamera *camera_)
 	: team(THREAD_COUNT)
 #endif
 {
-#if 0
+#if 1
 	camera= camera_;
 
 #if PACKET_MODE

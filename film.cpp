@@ -41,6 +41,8 @@ void Film::Resize(Vec2i size)
 
 	Free();
 
+	SetSize(size);
+
 	receptors_r= new float[Width* Height];
 	receptors_g= new float[Width* Height];
 	receptors_b= new float[Width* Height];

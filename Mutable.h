@@ -49,6 +49,13 @@ public:
 	using PropertyBase<T>::operator T;
 	using Property<T>::operator=;
 
+	SensorProperty & operator=(const SensorProperty &other)
+	{
+		Set(other.Get());
+
+		return *this;
+	}
+
 	virtual void Set(const T &value)
 	{
 		Property<T>::Set(value);
