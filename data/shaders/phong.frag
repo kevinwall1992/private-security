@@ -11,8 +11,9 @@ uniform sampler2DShadow shadow_map;
 
 uniform mat4 camera_transform;
 uniform mat4 projection_transform;
-
 uniform vec3 camera_position;
+uniform bool camera_is_orthographic;
+
 uniform vec3 light_position;
 uniform vec3 light_intensity;
 
@@ -49,9 +50,17 @@ Surface GetSurface(vec2 normalized_coordinates)
     discard;
   
   vec3 clip_position= vec3((normalized_coordinates.xy* 2)- vec2(1, 1), depth* 2- 1);
-  float w= b/ (clip_position.z+ a);
-  vec4 projected_position= vec4(clip_position* w, w);
+  vec4 projected_position;
+  if(camera_is_orthographic)
+    projected_position= vec4(clip_position, 1);
+  else
+  {  
+    vec3 clip_position= vec3((normalized_coordinates.xy* 2)- vec2(1, 1), depth* 2- 1);
+    float w= b/ (clip_position.z+ a);
+    vec4 projected_position= vec4(clip_position* w, w);
+  }
   surface.position= (inverse(camera_transform)* projected_position).xyz;
+
   surface.normal= texture(normal_buffer, normalized_coordinates).xyz* 2- vec3(1);
 
   surface.material.diffuse= texture(diffuse_buffer, normalized_coordinates).xyz;
@@ -111,13 +120,13 @@ void main()
               surface.shadow;
 	}
 
-  color= vec4(diffuse* 1.0+ specular* 1.0+ 1.0* texture(indirect_buffer, normalized_coordinates).xyz, 1);
+  color= vec4(vec3(1)* 0.0+ diffuse* 1.00+ specular* 1.0+ 1.0* texture(indirect_buffer, normalized_coordinates).xyz, 1);
   //final_color= vec4(vec3(depth- 0.995)* 200, 1);
   //final_color= vec4(vec3(texture(shadow_map, normalized_coordinates).x- 0.995)* 200, 1);
   //final_color= vec4(highlight ? 1.0f : 0.0f, vec2(texture(shadow_map, shadow_camera_ndc.xy).x- 0.995)* 200, 1);
   //final_color= vec4(surface.material.diffuse, 1);
   //final_color= vec4(abs(surface.normal), 1);
-  //final_color= vec4(abs(surface.position)/ 40, 1);
+  //color= vec4(abs(surface.position)/ 5, 1);
   //final_color= vec4(vec3(surface.shadow), 1);
   //final_color= vec4(vec3(surface.material.glossiness/ 100), 1);
 }

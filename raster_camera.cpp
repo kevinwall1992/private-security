@@ -92,6 +92,8 @@ void RasterCamera::ResizeResizables(Vec2i size)
 
 void RasterCamera::Update()
 {
+	Camera::Update();
+
 	ray_camera_is_invalid= true;
 	compositing_camera_is_invalid= true;
 }
@@ -123,6 +125,10 @@ RasterCamera::RasterCamera(float fov, Vec3f position)
 	: Camera(fov, position), ray_camera(fov, position), compositing_camera(fov, position), shadow_camera(Math::DegreesToRadians(70), Vec3f())
 {
 	animation_timer.Start();
+
+	UseOrthographicProjection();
+	ray_camera.UseOrthographicProjection();
+	compositing_camera.UseOrthographicProjection();
 }
 
 RasterCamera::RasterCamera(float fov, Vec3f position, Vec3f look_at_position)
@@ -131,6 +137,10 @@ RasterCamera::RasterCamera(float fov, Vec3f position, Vec3f look_at_position)
 	animation_timer.Start();
 
 	LookAt(look_at_position);
+
+	UseOrthographicProjection();
+	ray_camera.UseOrthographicProjection();
+	compositing_camera.UseOrthographicProjection();
 }
 
 RasterCamera::~RasterCamera()
@@ -251,6 +261,7 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 	phong_shader_program->SetUniformMatrix4x4f("shadow_camera_transform", shadow_camera.GetProjectedTransform(shadow_map.GetAspectRatio()).GetMatrix());
 	phong_shader_program->SetUniformMatrix4x4f("transform", Transform());
 	phong_shader_program->SetUniformMatrix4x4f("texture_transform", Transform());
+	phong_shader_program->SetUniformInt("camera_is_orthographic", IsOrthographic());
 
 	RasterizeFullScreenQuad();
 

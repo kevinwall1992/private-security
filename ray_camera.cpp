@@ -22,15 +22,10 @@ RayCameraBase::RayCameraBase(float fov, Vec3f position)
 
 }
 
-Ray RayCameraBase::GetRay(float x, float y)
-{
-	Vec3f forward= GetForward();
-
-	return Ray(Position, Vec3f(forward.x+ view_plane_u.x* x+ view_plane_v.x* y, forward.y+ view_plane_u.y* x+ view_plane_v.y* y, forward.z+ view_plane_u.z* x+ view_plane_v.z* y));
-}
-
 void RayCameraBase::Update()
 {
+	Camera::Update();
+
 	ComputeViewPlane();
 }
 
@@ -220,44 +215,101 @@ bool RayCamera::GetRayPackets(EBRRayPacket *ray_packets, int tile_index, int *in
 
 	Vec3f forward= GetForward();
 	Vec3f position= Position;
+	Vec3f unit_view_plane_u= view_plane_u.Normalized();
+	Vec3f unit_view_plane_v= view_plane_v.Normalized();
 
 	Timer::get_rays_timer.Start();
 
-#if ISPC_GET_RAYS
-	if(indices== nullptr)
+	if(IsOrthographic())
 	{
 		int tile_count_x= film.Width/ CAMERA_TILE_WIDTH;
 		int tile_x= tile_index% tile_count_x;
 		int tile_y= tile_index/ tile_count_x;
-		int x_offset= tile_x* CAMERA_TILE_WIDTH;
-		int y_offset= tile_y* CAMERA_TILE_HEIGHT;
 
-		ispc::GetRayPackets(x_offset, y_offset,
-							reinterpret_cast<float *>(&position), reinterpret_cast<float *>(&forward), 
-							reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
-							film.Width, film.Height, 
-							reinterpret_cast<ispc::RayPacket *>(ray_packets), 
-							samples_x, samples_y, 
-							RAY_PACKET_BLOCK_SIZE,
-							indices);
+		for(int j= 0; j< CAMERA_TILE_HEIGHT; j++)
+		{
+			for(int i= 0; i< CAMERA_TILE_WIDTH; i++)
+			{
+				EBRRayPacket *next_ray_packet= ray_packets+ j* CAMERA_TILE_WIDTH+ i;
+
+				int x= i+ tile_x* CAMERA_TILE_WIDTH;
+				int y= j+ tile_y* CAMERA_TILE_HEIGHT;
+				float normalized_x= 2* x/ (float)film.Width- 1;
+				float normalized_y= 2* y/ (float)film.Height- 1;
+
+				for(int ray_index= 0; ray_index< PACKET_SIZE; ray_index++)
+				{
+					Vec3f ray_tail= Position+ (unit_view_plane_u* normalized_x+ unit_view_plane_v* normalized_y)* (GetOrthographicHorizontalSize()/ 2.0f);
+
+					next_ray_packet->orgx[ray_index]= ray_tail.x;
+					next_ray_packet->orgy[ray_index]= ray_tail.y;
+					next_ray_packet->orgz[ray_index]= ray_tail.z;
+
+					next_ray_packet->dirx[ray_index]= forward.x;
+					next_ray_packet->diry[ray_index]= forward.y;
+					next_ray_packet->dirz[ray_index]= forward.z;
+
+					next_ray_packet->tnear[ray_index]= 0.0f;
+					next_ray_packet->tfar[ray_index]= 1000000000;
+					next_ray_packet->geomID[ray_index]= RTC_INVALID_GEOMETRY_ID;
+					next_ray_packet->primID[ray_index]= RTC_INVALID_GEOMETRY_ID;
+					next_ray_packet->mask[ray_index]= -1;
+					next_ray_packet->time[ray_index]= 0;
+
+					next_ray_packet->absorption_r[ray_index]= 1.0f;
+					next_ray_packet->absorption_g[ray_index]= 1.0f;
+					next_ray_packet->absorption_b[ray_index]= 1.0f;
+
+					next_ray_packet->bounce_count[ray_index]= 0;
+					next_ray_packet->type[ray_index]= (RayType::Enum)0;
+
+					next_ray_packet->x[ray_index]= (float)x;
+					next_ray_packet->y[ray_index]= (float)y;
+
+					next_ray_packet->medium.refractive_index[ray_index]= 1.0f;
+					next_ray_packet->medium.is_air[ray_index]= true;
+				}
+			}
+		}
 	}
+#if ISPC_GET_RAYS
 	else
 	{
-		//This runs faster if you put same-pixel packets adjacent to eachother, 
-		//but gains aren't THAT high, and that solution is considerably more complex
-		int additional_sample_set_count= ADDITIONAL_SAMPLES_PER_PIXEL/ MIN_SAMPLES_PER_PIXEL;
-		for(int i= 0; i< additional_sample_set_count; i++)
+		if(indices== nullptr)
 		{
-			int sample_offset= (i+ 1)* MIN_SAMPLES_PER_PIXEL;
+			int tile_count_x= film.Width/ CAMERA_TILE_WIDTH;
+			int tile_x= tile_index% tile_count_x;
+			int tile_y= tile_index/ tile_count_x;
+			int x_offset= tile_x* CAMERA_TILE_WIDTH;
+			int y_offset= tile_y* CAMERA_TILE_HEIGHT;
 
-			ispc::GetRayPackets(0, 0,
+			ispc::GetRayPackets(x_offset, y_offset,
 								reinterpret_cast<float *>(&position), reinterpret_cast<float *>(&forward), 
 								reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
 								film.Width, film.Height, 
-								reinterpret_cast<ispc::RayPacket *>(ray_packets+ i* index_count), 
-								samples_x+ sample_offset, samples_y+ sample_offset,
-								index_count,
+								reinterpret_cast<ispc::RayPacket *>(ray_packets), 
+								samples_x, samples_y, 
+								RAY_PACKET_BLOCK_SIZE,
 								indices);
+		}
+		else
+		{
+			//This runs faster if you put same-pixel packets adjacent to eachother, 
+			//but gains aren't THAT high, and that solution is considerably more complex
+			int additional_sample_set_count= ADDITIONAL_SAMPLES_PER_PIXEL/ MIN_SAMPLES_PER_PIXEL;
+			for(int i= 0; i< additional_sample_set_count; i++)
+			{
+				int sample_offset= (i+ 1)* MIN_SAMPLES_PER_PIXEL;
+
+				ispc::GetRayPackets(0, 0,
+									reinterpret_cast<float *>(&position), reinterpret_cast<float *>(&forward), 
+									reinterpret_cast<float *>(&view_plane_u), reinterpret_cast<float *>(&view_plane_v),
+									film.Width, film.Height, 
+									reinterpret_cast<ispc::RayPacket *>(ray_packets+ i* index_count), 
+									samples_x+ sample_offset, samples_y+ sample_offset,
+									index_count,
+									indices);
+			}
 		}
 	}
 

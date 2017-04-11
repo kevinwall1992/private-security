@@ -61,11 +61,14 @@ typedef std::map<Photo::Type, Photo> PhotoBook;
 
 class Camera : public Updatable
 {
+	static float orthographic_horizontal_size;
+
 	Vec3f position;
 	float pitch= 0, yaw= 0, roll= 0;
 	float fov;
 
-	bool orthograhpic= false;
+	bool is_orthographic= false;
+	Vec3f orthographic_focus= Vec3f(0, 0, 0);
 
 protected:
 	Transform GetDirectionTransform();
@@ -81,15 +84,29 @@ public:
 	Vec3f GetRight();
 	Vec3f GetUp();
 
+	float GetOrthographicHorizontalSize();
+
+	void UseOrthographicProjection();
+	void UsePerspectiveProjection();
+
+	bool IsOrthographic();
+	bool IsPerspective();
+
 	virtual void LookAt(Vec3f position);
 
 	void AssumeOrientation(Camera &other);
 
+	void Translate(Vec3f displacement);
+
 	Transform GetTransform();
 	Transform GetProjectedTransform(float aspect_ratio);
+
+	void Update();
 	
 	Photo TakePhoto(Scene &scene, Vec2i size, Photo::Type type=Photo::Type::FullColor);
 	virtual PhotoBook TakePhotos(Scene &scene, Vec2i size, Photo::Type types)= 0;
+
+	
 };
 
 

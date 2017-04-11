@@ -212,7 +212,10 @@ Ray CameraPane::GetRay(Vec2f mouse_position)
 	
 	mouse_position= mouse_position* 2- Vec2f(1, 1);
 
-	return Ray(camera->Position, forward+ view_plane_u* mouse_position.x+ view_plane_v* mouse_position.y);
+	if(camera->IsOrthographic())
+		return Ray(camera->Position+ (view_plane_u.Normalized()* mouse_position.x+ view_plane_v.Normalized()* mouse_position.y)* (camera->GetOrthographicHorizontalSize()/ 2.0f), forward);
+	else
+		return Ray(camera->Position, forward+ view_plane_u* mouse_position.x+ view_plane_v* mouse_position.y);
 }
 
 void CameraPane::AttachDepth()

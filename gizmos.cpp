@@ -13,12 +13,12 @@ void CameraGizmo::KeyHold(ButtonType button, float t)
 
 	switch(button)
 	{
-	case ButtonType::S: camera->Position+= camera->GetForward()* -speed* t; break;
-	case ButtonType::W: camera->Position+= camera->GetForward()*  speed* t; break;
-	case ButtonType::A: camera->Position+= camera->GetRight()*	 -speed* t; break;
-	case ButtonType::D: camera->Position+= camera->GetRight()*    speed* t; break;
-	case ButtonType::Q: camera->Position+= camera->GetUp()*		 -speed* t; break;
-	case ButtonType::E: camera->Position+= camera->GetUp()*		  speed* t; break;
+	case ButtonType::S: camera->Translate(camera->GetForward()* -speed* t); break;
+	case ButtonType::W: camera->Translate(camera->GetForward()*  speed* t); break;
+	case ButtonType::A: camera->Translate(camera->GetRight()*	-speed* t); break;
+	case ButtonType::D: camera->Translate(camera->GetRight()*    speed* t); break;
+	case ButtonType::Q: camera->Translate(camera->GetUp()*		-speed* t); break;
+	case ButtonType::E: camera->Translate(camera->GetUp()*		 speed* t); break;
 	}	
 }
 
