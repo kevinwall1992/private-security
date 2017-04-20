@@ -30,6 +30,8 @@ void Mesh::Clear()
 
 void EnforceUniformIndexOrder(Mesh *mesh)
 {
+	//return;
+
 	bool no_texture_coordinates= mesh->texture_coordinate_indices.size()== 0;
 
 	typedef std::pair<int, std::pair<int, int>> Triple;//Make dedicated struct

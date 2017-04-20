@@ -44,6 +44,12 @@ public:
 
 	using PropertyBase<Vec2i>::operator=;
 
+	ResizeProperty & operator=(const ResizeProperty &other)
+	{
+		Set(other.Get());
+		return *this;
+	}
+
 	virtual void Set(const Vec2i &value);
 };
 
@@ -61,6 +67,12 @@ public:
 	}
 
 	using PropertyBase<int>::operator=;
+
+	ResizeProperty & operator=(const ResizeProperty &other)
+	{
+		Set(other.Get());
+		return *this;
+	}
 
 	virtual int Get() const;
 	virtual void Set(const int &value);

@@ -193,7 +193,8 @@ Texture CameraPane::GetTexture()
 
 	PhotoBook photo_book= GetCamera()->TakePhotos(*scene, GetPixelSize(), (Photo::Type)(Photo::Type::FullColor | Photo::Type::Depth));
 	Texture color_texture= photo_book[Photo::Type::FullColor].GetTexture();
-	depth_texture= photo_book[Photo::Type::Depth].GetTexture();
+	if(Utility::Contains(photo_book, Photo::Type::Depth))
+		depth_texture= photo_book[Photo::Type::Depth].GetTexture();
 
 	framebuffer.Bind();
 	Viewport::Pop();
@@ -207,13 +208,22 @@ Ray CameraPane::GetRay(Vec2f mouse_position)
 
 	Vec3f forward= camera->GetForward();
 
-	Vec3f view_plane_u= camera->GetRight()* tan(camera->FOV/ 2);
-	Vec3f view_plane_v= camera->GetUp()* tan(camera->FOV/ 2);
+	Vec3f view_plane_u, view_plane_v;
+	if(camera->IsOrthographic())
+	{
+		view_plane_u= camera->GetRight();
+		view_plane_v= camera->GetUp();
+	}
+	else
+	{
+		view_plane_u= camera->GetViewPlaneU();
+		view_plane_v= camera->GetViewPlaneV();
+	}
 	
 	mouse_position= mouse_position* 2- Vec2f(1, 1);
 
 	if(camera->IsOrthographic())
-		return Ray(camera->Position+ (view_plane_u.Normalized()* mouse_position.x+ view_plane_v.Normalized()* mouse_position.y)* (camera->GetOrthographicHorizontalSize()/ 2.0f), forward);
+		return Ray(camera->Position+ (view_plane_u.Normalized()* mouse_position.x+ view_plane_v.Normalized()* mouse_position.y)* (camera->FOV/ 2.0f), forward);
 	else
 		return Ray(camera->Position, forward+ view_plane_u* mouse_position.x+ view_plane_v* mouse_position.y);
 }

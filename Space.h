@@ -24,6 +24,8 @@ public:
 	Vec3i GetPosition(Tile *tile);
 	Vec3i GetPosition(Object *object);
 
+	Vec3i GetSize();
+
 	virtual vector<Perceptible *> GetPerceptibles();
 
 	void Step(Chronons chronons);

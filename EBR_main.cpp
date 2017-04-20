@@ -60,6 +60,7 @@ int EBR_main(int argument_count, char **arguments)
 		System::input.AddGizmo(new CameraGizmo(&camera));
 
 		CameraPane camera_pane(&camera);
+		camera_pane.SetScene(&scene);
 
 		Timer display_timer;
 		Timer render_timer;
@@ -69,10 +70,9 @@ int EBR_main(int argument_count, char **arguments)
 			display_timer.Start();
 			render_timer.Start();
 
-			Photo photo= camera.TakePhoto(scene, System::graphics.GetScreenSize(), Photo::Type::FullColor);
-			render_timer.Pause();
-
+			//Photo photo= camera.TakePhoto(scene, System::graphics.GetScreenSize(), Photo::Type::FullColor);
 			System::graphics.Display(&camera_pane);
+			render_timer.Pause();
 			display_timer.Pause();
 
 			if ((System::graphics.GetFrameCount() % print_frame_count) == 0)

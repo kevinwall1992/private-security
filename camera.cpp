@@ -114,24 +114,185 @@ void Photo::Free()
 }
 
 
-float Camera::orthographic_horizontal_size= 5;
+Camera::RotationProperty::RotationProperty(float *value_pointer, Camera *camera_, Type type_)
+	: Property(value_pointer)
+{
+	camera= camera_;
+	type= type_;
+}
+
+Camera::RotationProperty & Camera::RotationProperty::operator=(const RotationProperty &other)
+{
+	Set(other.Get());
+	return *this;
+}
+
+void Camera::RotationProperty::Set(const float &value)
+{
+	if(value== Get())
+		return;
+
+	switch (type)
+	{
+	case Type::Pitch: camera->pitch= value; break;
+	case Type::Yaw: camera->yaw= value; break;
+	case Type::Roll: camera->roll= value; break;
+	default: 
+		assert(false && "Camera::RotationProperty::Set(): invalid rotation type");
+		break;
+	}
+
+	camera->rotation_is_valid= false;
+	camera->GeneratePosition();
+}
+
+
+Camera::PositionProperty::PositionProperty(Vec3f *value_pointer, Camera *camera_)
+	: Property(value_pointer)
+{
+	camera= camera_;
+}
+
+Camera::PositionProperty & Camera::PositionProperty::operator=(const PositionProperty &other)
+{
+	Set(other.Get());
+	return *this;
+}
+
+void Camera::PositionProperty::Set(const Vec3f &value)
+{
+	if(Get()== value)
+		return;
+
+	if(camera->IsOrthographic())
+		camera->SetOrthographicFocus(camera->focus+ value- Get());
+	else
+		camera->position= value;
+
+	camera->position_is_valid= false;
+}
+
+
+Camera::FOVProperty::FOVProperty(float *value_pointer, Camera *camera_)
+	: Property(value_pointer)
+{
+	camera= camera_;
+}
+
+Camera::FOVProperty & Camera::FOVProperty::operator=(const FOVProperty &other)
+{
+	Set(other.Get());
+	return *this;
+}
+
+void Camera::FOVProperty::Set(const float &value)
+{
+	camera->fov= value;
+}
+
+
+void Camera::GeneratePosition()
+{
+	if(!is_orthographic)
+		return;
+
+	Vec3f new_position= GetForward()* -100+ focus;
+	if(position== new_position)
+		return;
+
+	position= new_position;
+	position_is_valid= false;
+}
+
+void Camera::SetOrthographicFocus(Vec3f focus_)
+{
+	focus= focus_;
+	GeneratePosition();
+}
 
 Transform Camera::GetDirectionTransform()
 {
 	return Transform().RotateAboutZ(Roll).RotateAboutX(Pitch).RotateAboutY(-Yaw);
 }
 
+Vec3f Camera::SnapToPixel(Vec3f position, Vec2i pixel_size)
+{
+	assert(is_orthographic && "Camera::SnapToPixel(): Shouldn't use this in perspective mode");
+
+	Vec3f u= GetRight();
+	Vec3f v= GetUp();
+	Vec3f f= GetForward();
+
+	Vec3f projected= Vec3f(u.Dot(position), v.Dot(position), f.Dot(position));
+	Vec2f pixel_f= (Vec2f)pixel_size* (Vec2f(projected.x, projected.y)/ fov+ Vec2f(1, 1))/ 2;
+	Vec2i pixel= pixel_f;
+	if(pixel_f.x< 0)
+		pixel.x-= 1;
+	if(pixel_f.y< 0)
+		pixel.y-= 1;
+
+	Vec2f projected_xy= (((Vec2f)pixel/ pixel_size)* 2- Vec2f(1, 1))* fov;
+	Vec3f snapped= u* projected_xy.x+ v* projected_xy.y+ f* projected.z;
+
+	return snapped;
+}
+
+bool Camera::ValidatePosition()
+{
+	bool valid= position_is_valid;
+	position_is_valid= true;
+
+	return valid;
+}
+
+bool Camera::ValidateRotation()
+{
+	bool valid= rotation_is_valid;
+	rotation_is_valid= true;
+
+	return valid;
+}
+
+
+bool Camera::ValidateFOV()
+{
+	bool valid= fov_is_valid;
+	fov_is_valid= true;
+
+	return valid;
+}
+
+bool Camera::ValidateAllAttributes()
+{
+	return ValidatePosition() && ValidateRotation() && ValidateFOV();
+}
+
 Camera::Camera(float fov_, Vec3f position_)
 	: Position(&position, this), 
-	  Pitch(&pitch, this), 
-	  Yaw(&yaw, this), 
-	  Roll(&roll, this), 
+	  Pitch(&pitch, this, RotationProperty::Type::Pitch), 
+	  Yaw(&yaw, this, RotationProperty::Type::Yaw), 
+	  Roll(&roll, this, RotationProperty::Type::Roll), 
 	  FOV(&fov, this)
 {
-	position= position_;
-	FOV= fov_;
+	is_orthographic= false;
 
-	Camera::Update();
+	FOV= fov_;
+	Position= position_;
+}
+
+Camera::Camera(float fov_, Vec3f focus, float pitch_, float yaw_)
+	: Position(&position, this), 
+	  Pitch(&pitch, this, RotationProperty::Type::Pitch), 
+	  Yaw(&yaw, this, RotationProperty::Type::Yaw), 
+	  Roll(&roll, this, RotationProperty::Type::Roll), 
+	  FOV(&fov, this)
+{
+	is_orthographic= true;
+
+	FOV= fov_;
+	Pitch= pitch_;
+	Yaw= yaw_;
+	SetOrthographicFocus(focus);
 }
 
 Vec3f Camera::GetForward()
@@ -149,9 +310,14 @@ Vec3f Camera::GetUp()
 	return GetDirectionTransform().Apply(Vec3f(0, 1, 0), true);
 }
 
-float Camera::GetOrthographicHorizontalSize()
+Vec3f Camera::GetViewPlaneU()
 {
-	return orthographic_horizontal_size;
+	return GetRight()* tan(FOV/ 2);
+}
+
+Vec3f Camera::GetViewPlaneV()
+{
+	return GetUp()* tan(FOV/ 2);
 }
 
 void Camera::UseOrthographicProjection()
@@ -176,57 +342,43 @@ bool Camera::IsPerspective()
 
 void Camera::LookAt(Vec3f look_at_position)
 {
-	orthographic_focus= look_at_position;
-	Camera::Update();
+	if(is_orthographic)
+		SetOrthographicFocus(look_at_position);
+	else
+	{
+		Vec3f direction= (look_at_position- position).Normalized();
 
-	Vec3f direction= (look_at_position- position).Normalized();
+		pitch= acos(Vec2f((float)sqrt(pow(direction.x, 2)+ pow(direction.z, 2)), direction.y).Normalize().Dot(Vec2f(1, 0)));
+		if(direction.y< 0)
+			pitch= -Pitch;
 
-	pitch= acos(Vec2f((float)sqrt(pow(direction.x, 2)+ pow(direction.z, 2)), direction.y).Normalize().Dot(Vec2f(1, 0)));
-	if(direction.y< 0)
-		pitch= -Pitch;
+		yaw= -acos(Vec2f(direction.x, direction.z).Normalize().Dot(Vec2f(0, -1)));
+		if(direction.x< 0)
+			yaw= -Yaw;
 
-	yaw= -acos(Vec2f(direction.x, direction.z).Normalize().Dot(Vec2f(0, -1)));
-	if(direction.x< 0)
 		yaw= -Yaw;
 
-	//This is flipped to to support "lower yaw -> turn left"
-	yaw= -Yaw;
+		roll= 0;
 
-	roll= 0;
-
-	Touch();
+		rotation_is_valid= false;
+	}
 }
 
 void Camera::AssumeOrientation(Camera &other)
 {
-	position= other.Position;
-	pitch= other.Pitch;
-	yaw= other.Yaw;
-	roll= other.Roll;
-	fov= other.FOV;
-	orthographic_focus= other.orthographic_focus;
-
-	Touch();
-}
-
-void Camera::Translate(Vec3f displacement)
-{
+	
+	Pitch= other.Pitch;
+	Yaw= other.Yaw;
+	Roll= other.Roll;
+	FOV= other.FOV;
 	if(is_orthographic)
-		orthographic_focus+= displacement;
+	{
+		focus= other.focus;
+		GeneratePosition();
+	}
 	else
-		position+= displacement;
-
-	Touch();
+		Position= other.Position;
 }
-
-/*void Camera::OrthogonalizeVectors()
-{
-	up= Vec3f(0, 1, 0);
-	forward.Normalize();
-
-	right= forward.Cross(up);
-	up= right.Cross(forward);
-}*/
 
 Transform Camera::GetTransform()
 {
@@ -236,17 +388,9 @@ Transform Camera::GetTransform()
 Transform Camera::GetProjectedTransform(float aspect_ratio)
 {
 	if(is_orthographic)
-		return GetTransform().Merge(Transform().Scale(2.0f/ GetOrthographicHorizontalSize()).Scale(Vec3f(1, 1, -1 /1000.0f)));
+		return GetTransform().Merge(Transform().Scale(2.0f/ fov).Scale(Vec3f(1, 1, -1 /1000.0f)));
 	else
 		return GetTransform().Merge(Transform::MakeProjectionTransform(fov, aspect_ratio));
-}
-
-void Camera::Update()
-{
-	if(is_orthographic)
-	{
-		position= GetForward()* -100+ orthographic_focus;
-	}
 }
 
 Photo Camera::TakePhoto(Scene & scene, Vec2i size, Photo::Type type)

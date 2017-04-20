@@ -71,13 +71,7 @@ public:
 
 	Image & operator=(const Image &other)
 	{
-		if(this->pixels== other.pixels)
-			return *this;
-
 		SetSize(other.Size);
-		
-		if(pixels!= nullptr)
-			delete pixels;
 
 		pixels= other.pixels;
 

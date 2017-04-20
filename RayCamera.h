@@ -2,22 +2,16 @@
 #define PS_RAY_CAMERA
 
 #include "Camera.h"
+#include "Mutable.h"
 
 
-class RayCameraBase : public Camera
+class RayCameraBase : public Camera, public Updatable
 {
-protected:
-	Vec3f view_plane_u;
-	Vec3f view_plane_v;
-
-	void ComputeViewPlane();
-
 public:
 	RayCameraBase(float fov, Vec3f position);
+	RayCameraBase(float fov, Vec3f focus, float pitch, float yaw);
 
 	Ray GetRay(float x, float y);
-
-	void Update();
 };
 
 class RayCamera : public RayCameraBase
@@ -39,6 +33,7 @@ class RayCamera : public RayCameraBase
 
 	bool film_was_resized= true;
 
+	void InitializeSamples();
 	void GetSamples(float *&samples_x, float *&samples_y);
 
 protected:
@@ -46,6 +41,7 @@ protected:
 
 public:
 	RayCamera(float fov, Vec3f position);
+	RayCamera(float fov, Vec3f focus, float pitch, float yaw);
 
 	void LookAt(Vec3f look_at_position);
 

@@ -35,12 +35,17 @@ void CompositingCamera::GenerateMaps(Scene &scene, Vec2i size)
 {
 	Initialize(size);
 	ResizeResizables(size);
+	if(!ValidateAllAttributes())
+		Touch();
 	CatchUp();
 
 	RayPacketBlock ray_packet_block;
 
 	for(int tile_index= 0; tile_index< (size.x/ 64)* (size.y/ 32); tile_index++)
 	{
+		Vec3f view_plane_u= GetViewPlaneU();
+		Vec3f view_plane_v= GetViewPlaneU();
+
 		Vec3f forward= GetForward();
 		Vec3f position= Position;
 

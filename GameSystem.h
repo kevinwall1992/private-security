@@ -20,7 +20,7 @@ protected:
 	void Terminate();
 
 public:
-	Space space= Space(10, 10, 3);
+	Space space= Space(10, 10, 10);
 
 	void SubmitAction(Action *action);
 

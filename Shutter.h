@@ -47,6 +47,8 @@ class Shutter
 	bool additional_samples_exhausted;
 	bool develop_finished;
 
+	Vec2i size;
+
 
 	void ReportNoisyReceptors(int *indices, int count);
 
@@ -79,6 +81,7 @@ class Shutter
 	void TaskLoop(Scene *scene);
 
 	void Reset();
+	void Resize();
 
 public:
 

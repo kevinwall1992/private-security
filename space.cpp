@@ -56,6 +56,11 @@ Vec3i Space::GetPosition(Object *object)
 	return Vec3i(-1, -1, -1);
 }
 
+Vec3i Space::GetSize()
+{
+	return Vec3i(column_count, level_count, row_count);
+}
+
 vector<Perceptible*> Space::GetPerceptibles()
 {
 	vector<Perceptible *> perceptibles;

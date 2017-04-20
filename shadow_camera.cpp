@@ -41,7 +41,6 @@ PhotoBook ShadowCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 {
 	Initialize(size);
 	ResizeResizables(size);
-	CatchUp();
 
 	framebuffer.PrepareForDrawing();
 

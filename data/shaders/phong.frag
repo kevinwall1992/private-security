@@ -7,6 +7,9 @@ uniform sampler2D depth_buffer;
 uniform sampler2D indirect_buffer;
 uniform sampler2DShadow shadow_map;
 
+uniform float indirect_buffer_scale;
+uniform vec2 indirect_buffer_offset;
+
 //in vec2 texture_coordinates;
 
 uniform mat4 camera_transform;
@@ -120,7 +123,7 @@ void main()
               surface.shadow;
 	}
 
-  color= vec4(vec3(1)* 0.0+ diffuse* 1.00+ specular* 1.0+ 1.0* texture(indirect_buffer, normalized_coordinates).xyz, 1);
+  color= vec4(vec3(1)* 0.0+ diffuse* 1.0+ specular* 1.0+ 1.0* texture(indirect_buffer, (normalized_coordinates)* indirect_buffer_scale+ indirect_buffer_offset).xyz, 1);
   //final_color= vec4(vec3(depth- 0.995)* 200, 1);
   //final_color= vec4(vec3(texture(shadow_map, normalized_coordinates).x- 0.995)* 200, 1);
   //final_color= vec4(highlight ? 1.0f : 0.0f, vec2(texture(shadow_map, shadow_camera_ndc.xy).x- 0.995)* 200, 1);

@@ -42,7 +42,7 @@ public:
 		return *this;
 	}
 
-	virtual bool operator==(const T &other)
+	virtual bool operator==(const T &other) const
 	{
 		return Get()== other;
 	}
@@ -50,6 +50,16 @@ public:
 	virtual bool operator==(const PropertyBase<T> &other)
 	{
 		return Get()== other.Get();
+	}
+
+	virtual bool operator!=(const T &other) const
+	{
+		return Get()!= other;
+	}
+
+	virtual bool operator!=(const PropertyBase<T> &other)
+	{
+		return Get()!= other.Get();
 	}
 
 	template<class U>

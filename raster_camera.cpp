@@ -4,6 +4,7 @@
 #include "CompositingCamera.h"
 #include "ShadowCamera.h"
 #include "Viewport.h"
+#include "GameSystem.h"
 
 
 //#define NO_RAYTRACING
@@ -24,18 +25,6 @@ void RasterCamera::Initialize(Vec2i size)
 	gbuffer_framebuffer.AttachColorTexture(normal_buffer, 2);
 	gbuffer_framebuffer.AttachDepthTexture(depth_buffer);
 	gbuffer_framebuffer.CheckCompleteness();
-
-	compositing_diffuse_color_buffer= Texture(size);
-	compositing_glossiness_buffer= Texture(size);
-	compositing_normal_buffer= Texture(size);
-	compositing_depth_buffer= DepthTexture(size);
-
-	compositing_framebuffer.Bind();
-	compositing_framebuffer.AttachColorTexture(compositing_diffuse_color_buffer, 0);
-	compositing_framebuffer.AttachColorTexture(compositing_glossiness_buffer, 1);
-	compositing_framebuffer.AttachColorTexture(compositing_normal_buffer, 2);
-	compositing_framebuffer.AttachDepthTexture(compositing_depth_buffer);
-	compositing_framebuffer.CheckCompleteness();
 
 	ShaderProgram *shader_program= ShaderProgram::Retrieve("gbuffer.program");
 	glBindFragDataLocation(shader_program->GetHandle(), 0, "diffuse_color");
@@ -65,7 +54,7 @@ void RasterCamera::Initialize(Vec2i size)
 	shader_program->SetUniformMatrix4x4f("projection_transform", Transform::MakeProjectionTransform(FOV, Math::GetAspectRatio((float)size.x, (float)size.y)));
 
 	
-	indirect_light_texture= Texture(size, 5);
+	indirect_light_texture= Texture(GetSceneViewPixelSize(size), 5);
 	indirect_light_texture_was_modified= false;
 
 
@@ -78,69 +67,70 @@ void RasterCamera::ResizeResizables(Vec2i size)
 	glossiness_buffer.Size= size;
 	normal_buffer.Size= size;
 	depth_buffer.Size= size;
-	
-	compositing_diffuse_color_buffer.Size= size;
-	compositing_glossiness_buffer.Size= size;
-	compositing_normal_buffer.Size= size;
-	compositing_depth_buffer.Size= size;
 
 	phong_color_buffer.Size= size;
 	phong_depth_buffer.Size= size;
 	
-	indirect_light_texture.Size= size;
-}
-
-void RasterCamera::Update()
-{
-	Camera::Update();
-
-	ray_camera_is_invalid= true;
-	compositing_camera_is_invalid= true;
+	//indirect_light_texture.Size= GetSceneViewPixelSize(size);
 }
 
 void RasterCamera::GenerateIndirectLightTexture(Scene *scene, Vec2i size)
 {
+	Vec2i scene_photo_size= GetSceneViewPixelSize(size);
+
 	if(ray_camera_is_invalid)
 	{
 		ray_camera.AssumeOrientation(*this);
+
+		if(IsOrthographic())
+		{
+			ray_camera.LookAt(SnapToPixel((Vec3f)System::game.space.GetSize()/ Vec3f(2, 2, 2), size));
+			ray_camera.FOV= FOV* (size.x> size.y ? (scene_photo_size.x/ (float)size.x) : (scene_photo_size.y/ (float)size.y));
+		}
 		ray_camera_is_invalid= false;
 	}
 
-	indirect_light_photo= ray_camera.TakePhoto(*scene, size, Photo::Type::FullColor);
+	indirect_light_photo= ray_camera.TakePhoto(*scene, IsOrthographic() ? scene_photo_size : size, Photo::Type::FullColor);
 	indirect_light_texture_was_modified= true;
 }
 
-void RasterCamera::GenerateCompositingBuffers(Scene *scene, Vec2i size)
+Vec2f RasterCamera::GetSceneViewWorldSize()
 {
-	if(compositing_camera_is_invalid)
-		compositing_camera.AssumeOrientation(*this);
+	Vec3f u= GetRight();
+	u= Vec3f(abs(u.x), abs(u.y), abs(u.z));
+	Vec3f v= GetUp();
+	v= Vec3f(abs(v.x), abs(v.y), abs(v.z));
 
-	compositing_camera.TakePhoto(*scene, size, Photo::Type::DiffuseColor);//Switch to TakePhotos()
+	return Vec2f(u.Dot(System::game.space.GetSize()), v.Dot(System::game.space.GetSize()));
+}
 
-	compositing_buffers_were_modified= true;
+Vec2i RasterCamera::GetSceneViewPixelSize(Vec2i photo_size)
+{
+	Vec2f pixel_size= GetSceneViewWorldSize()* GetWorldToPixelRatio(photo_size);
+	int side= ((int)(std::max(pixel_size.x, pixel_size.y)/ 32+ 1))* 32;
 
+	return Vec2i(side, side);
+}
+
+float RasterCamera::GetPixelToWorldRatio(Vec2i photo_size)
+{
+	return FOV/ photo_size.y;
+}
+
+float RasterCamera::GetWorldToPixelRatio(Vec2i photo_size)
+{
+	return 1/ GetPixelToWorldRatio(photo_size);
 }
 
 RasterCamera::RasterCamera(float fov, Vec3f position)
-	: Camera(fov, position), ray_camera(fov, position), compositing_camera(fov, position), shadow_camera(Math::DegreesToRadians(70), Vec3f())
+	: Camera(fov, position), ray_camera(fov, position), shadow_camera(Math::DegreesToRadians(70), Vec3f())
 {
 	animation_timer.Start();
-
-	UseOrthographicProjection();
-	ray_camera.UseOrthographicProjection();
-	compositing_camera.UseOrthographicProjection();
 }
 
-RasterCamera::RasterCamera(float fov, Vec3f position, Vec3f look_at_position)
-	: Camera(fov, position), ray_camera(fov, position), compositing_camera(fov, position), shadow_camera(Math::DegreesToRadians(70), Vec3f())
+RasterCamera::RasterCamera(float fov, Vec3f focus, float pitch, float yaw)
+	: Camera(fov, focus, pitch, yaw), ray_camera(fov, focus, pitch, yaw), shadow_camera(Math::DegreesToRadians(70), Vec3f())
 {
-	animation_timer.Start();
-
-	LookAt(look_at_position);
-
-	UseOrthographicProjection();
-	ray_camera.UseOrthographicProjection();
-	compositing_camera.UseOrthographicProjection();
 }
 
 RasterCamera::~RasterCamera()
@@ -148,12 +138,6 @@ RasterCamera::~RasterCamera()
 #ifndef NO_RAYTRACING
 	raytracing_thread->join();
 	delete raytracing_thread;
-
-	if(compositing_thread!= nullptr)
-	{
-		compositing_thread->join();
-		delete compositing_thread;
-	}
 #endif
 }
 
@@ -161,8 +145,8 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 {
 	Initialize(size);
 	ResizeResizables(size);
-	CatchUp();
-
+	if(!ValidateFOV() || !ValidateRotation() || (!IsOrthographic() && !ValidatePosition()))
+		ray_camera_is_invalid= true;
 
 	animation_timer.Pause();
 	float elapsed_seconds= animation_timer.GetElapsedSeconds();
@@ -176,63 +160,20 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 			raytracing_thread->join();
 			delete raytracing_thread;
 
+			indirect_light_texture.Size= indirect_light_photo.GetImage().Size;
 			indirect_light_texture.UploadImage(indirect_light_photo.GetImage());
 			indirect_light_texture_was_modified= false;
 		}
 
 		raytracing_thread= new std::thread(&RasterCamera::GenerateIndirectLightTexture, this, &scene, size);
 	}
-
-	if(compositing_buffers_were_modified || compositing_thread== nullptr)
-	{
-		if(compositing_buffers_were_modified)
-		{
-			if(compositing_thread!= nullptr)
-			{
-				compositing_thread->join();
-				delete compositing_thread;
-				compositing_thread= nullptr;
-			}
-
-			compositing_diffuse_color_buffer.UploadImage(compositing_camera.GetDiffuseMap());
-			compositing_glossiness_buffer.UploadImage(compositing_camera.GetGlossinessMap());
-			compositing_normal_buffer.UploadImage(compositing_camera.GetNormalMap());
-			compositing_depth_buffer.UploadImage(compositing_camera.GetDepthMap());
-
-			compositing_buffers_were_modified= false;
-		}
-
-		if(compositing_camera_is_invalid)
-		{
-			compositing_thread= new std::thread(&RasterCamera::GenerateCompositingBuffers, this, &scene, size);
-
-			compositing_camera_is_invalid= false;
-		}
-	}
 #endif
 
-#ifndef NO_RAYTRACING
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, compositing_framebuffer.GetHandle());
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gbuffer_framebuffer.GetHandle());
-
-	glReadBuffer(GL_COLOR_ATTACHMENT0);
-	glDrawBuffer(GL_COLOR_ATTACHMENT0);
-	glBlitFramebuffer(0, 0, size.x, size.y, 0, 0, size.x, size.y, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-
-	glReadBuffer(GL_COLOR_ATTACHMENT1);
-	glDrawBuffer(GL_COLOR_ATTACHMENT1);
-	glBlitFramebuffer(0, 0, size.x, size.y, 0, 0, size.x, size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-	glReadBuffer(GL_COLOR_ATTACHMENT2);
-	glDrawBuffer(GL_COLOR_ATTACHMENT2);
-	glBlitFramebuffer(0, 0, size.x, size.y, 0, 0, size.x, size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-	gbuffer_framebuffer.ActivateDefaultDrawBuffers();
 	gbuffer_framebuffer.PrepareForDrawing();
 
-#else
-	gbuffer_framebuffer.PrepareForDrawing();
-#endif
+	Vec3f position= Position;
+	if(IsOrthographic())
+		Position= SnapToPixel(Position, size);
 
 	ShaderProgram *gbuffer_shader_program= ShaderProgram::Retrieve("gbuffer.program");
 	gbuffer_shader_program->Use();
@@ -262,6 +203,27 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 	phong_shader_program->SetUniformMatrix4x4f("transform", Transform());
 	phong_shader_program->SetUniformMatrix4x4f("texture_transform", Transform());
 	phong_shader_program->SetUniformInt("camera_is_orthographic", IsOrthographic());
+
+	if(IsOrthographic())
+	{
+		phong_shader_program->SetUniformFloat("indirect_buffer_scale", FOV/ ray_camera.FOV);
+
+		Vec3f u= GetRight();
+		Vec3f v= GetUp();
+		Vec3f corner= (u* -ray_camera.FOV/ 2)+ (v* -ray_camera.FOV/ 2)+ (GetForward()* -ray_camera.FOV/ 2)+ ray_camera.Position;
+		Vec3f world_corner_offset0= Position- corner;
+		Vec3f world_corner_offset1= ray_camera.Position- corner;
+		Vec2f image_corner_offset0= Vec2f(world_corner_offset0.Dot(u), world_corner_offset0.Dot(v))/ ray_camera.FOV;
+		Vec2f image_corner_offset1= Vec2f(world_corner_offset1.Dot(u), world_corner_offset1.Dot(v))/ ray_camera.FOV;
+		phong_shader_program->SetUniformVector2f("indirect_buffer_offset", (image_corner_offset0* (ray_camera.FOV/ FOV)- image_corner_offset1)/ (ray_camera.FOV/ FOV));
+
+		Position= position;
+	}
+	else
+	{
+		phong_shader_program->SetUniformFloat("indirect_buffer_scale", 1);
+		phong_shader_program->SetUniformVector2f("indirect_buffer_offset", Vec2f());
+	}
 
 	RasterizeFullScreenQuad();
 

@@ -4,6 +4,8 @@
 #include "Common.h"
 #include "Promote.h"
 
+#include <map>
+
 
 template<class Type, class RequiredType> 
 struct Where
@@ -95,6 +97,12 @@ namespace Utility
 			vector_.erase(vector_.begin()+ index);
 			vector_.insert(vector_.begin()+ index, replacement);
 		}
+	}
+
+	template<class Key, class Value>
+	bool Contains(const std::map<Key, Value> &container, const Key &key)
+	{
+		return container.find(key)!= container.end();
 	}
 }
 

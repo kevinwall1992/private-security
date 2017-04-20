@@ -24,7 +24,7 @@ struct Vector
 	}
 
 	template<class U>
-	Vector<d, T> Mutated(const Vector<d, U> &other, std::function<T(T, U)> function)
+	Vector<d, T> Mutated(const Vector<d, U> &other, std::function<T(T, U)> function) const
 	{
 		Vector<d, T> result;
 
@@ -44,7 +44,7 @@ struct Vector
 	}
 
 	template<class U>
-	Vector<d, U> Mutated(std::function<U(U)> function)
+	Vector<d, U> Mutated(std::function<U(U)> function) const
 	{
 		Vector<d, U> result;
 
@@ -54,7 +54,7 @@ struct Vector
 		return result;
 	}
 
-	T Sum()
+	T Sum() const
 	{
 		T sum= 0;
 
@@ -65,7 +65,7 @@ struct Vector
 	}
 
 	template<class U>
-	U Sum(std::function<U(U)> function)
+	U Sum(std::function<U(U)> function) const
 	{
 		return Mutated<U>(function).Sum();
 	}
@@ -145,7 +145,7 @@ struct Vector
 	}
 
 
-	Vector<d, T> operator+(const Vector<d, T> &b)
+	Vector<d, T> operator+(const Vector<d, T> &b) const
 	{
 		return Mutated<T>(b, [](T a, T b){ return a+ b; });
 	}
@@ -155,7 +155,7 @@ struct Vector
 		return (*this= (*this+ b));
 	}
 
-	Vector<d, T> operator-(const Vector<d, T> &b)
+	Vector<d, T> operator-(const Vector<d, T> &b) const
 	{
 		return Mutated<T>(b, [](T a, T b){ return a- b; });
 	}
@@ -165,12 +165,12 @@ struct Vector
 		return (*this= (*this- b));
 	}
 
-	Vector<d, T> operator-()
+	Vector<d, T> operator-() const
 	{
 		return Mutated<T>([](T a){ return -a; });
 	}
 
-	Vector<d, T> operator*(const T &scalar)
+	Vector<d, T> operator*(const T &scalar) const
 	{
 		return Mutated<T>([&scalar](T a){ return a* scalar; });
 	}
@@ -180,7 +180,7 @@ struct Vector
 		return (*this= (*this* scalar));
 	}
 
-	Vector<d, T> operator*(const Vector<d, T> &b)
+	Vector<d, T> operator*(const Vector<d, T> &b) const
 	{
 		return Mutated<T>(b, [](T a, T b){ return a* b; });
 	}
@@ -190,7 +190,7 @@ struct Vector
 		return (*this= (*this* b));
 	}
 
-	Vector<d, T> operator/(const T &scalar)
+	Vector<d, T> operator/(const T &scalar) const
 	{
 		return Mutated<T>([&scalar](T a){ return a/ scalar; });
 	}
@@ -200,7 +200,7 @@ struct Vector
 		return (*this= (*this/ scalar));
 	}
 
-	Vector<d, T> operator/(const Vector<d, T> &b)
+	Vector<d, T> operator/(const Vector<d, T> &b) const
 	{
 		return Mutated<T>(b, [](T a, T b){ return a/ b; });
 	}
@@ -210,22 +210,22 @@ struct Vector
 		return (*this= (*this/ b));
 	}
 
-	T Dot(const Vector<d, T> &other)
+	T Dot(const Vector<d, T> &other) const
 	{
 		return Mutated<T>(other, [](T a, T b){ return a* b; }).Sum();
 	}
 
-	float Magnitude()
+	float Magnitude() const
 	{
 		return (float)sqrt(Sum<float>([](float a){ return (float)pow((float)a, 2); }));
 	}
 
-	float Distance(const Vector<d, T> &other)
+	float Distance(const Vector<d, T> &other) const
 	{
 		return (*this- other).Magnitude();
 	}
 
-	Vector<d, T> Normalized()
+	Vector<d, T> Normalized() const
 	{
 		return *this/ Magnitude();
 	}

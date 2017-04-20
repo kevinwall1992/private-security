@@ -15,11 +15,11 @@
 
 class RasterCamera : public Camera
 {
-	Framebuffer gbuffer_framebuffer, compositing_framebuffer;
-	Texture diffuse_color_buffer, compositing_diffuse_color_buffer;
-	Texture glossiness_buffer, compositing_glossiness_buffer;
-	Texture normal_buffer, compositing_normal_buffer;
-	DepthTexture depth_buffer, compositing_depth_buffer;
+	Framebuffer gbuffer_framebuffer;
+	Texture diffuse_color_buffer;
+	Texture glossiness_buffer;
+	Texture normal_buffer;
+	DepthTexture depth_buffer;
 
 	Framebuffer phong_framebuffer;
 	Texture phong_color_buffer;
@@ -28,11 +28,6 @@ class RasterCamera : public Camera
 	Photo indirect_light_photo;
 	Texture indirect_light_texture;
 	bool indirect_light_texture_was_modified;
-
-	CompositingCamera compositing_camera;
-	std::thread *compositing_thread= nullptr;
-	bool compositing_camera_is_invalid= true;
-	bool compositing_buffers_were_modified;
 
 	RayCamera ray_camera;
 	std::thread *raytracing_thread= nullptr;
@@ -47,14 +42,18 @@ class RasterCamera : public Camera
 	
 	void Initialize(Vec2i size);
 	void ResizeResizables(Vec2i size);
-	void Update();
 
 	void GenerateIndirectLightTexture(Scene *scene, Vec2i size);
 	void GenerateCompositingBuffers(Scene *scene, Vec2i size);
 
+	Vec2f GetSceneViewWorldSize();
+	Vec2i GetSceneViewPixelSize(Vec2i photo_size);
+	float GetPixelToWorldRatio(Vec2i photo_size);
+	float GetWorldToPixelRatio(Vec2i photo_size);
+
 public:
 	RasterCamera(float fov, Vec3f position);
-	RasterCamera(float fov, Vec3f position, Vec3f look_at_position);
+	RasterCamera(float fov, Vec3f focus, float pitch, float yaw);
 	~RasterCamera();
 
 	virtual PhotoBook TakePhotos(Scene &scene, Vec2i size, Photo::Type types);

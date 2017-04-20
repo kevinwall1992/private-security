@@ -186,7 +186,7 @@ float TacticalInterface::tile_frame_vertices[24* 3]= { -0.5f, 0.0f, -0.5f,  +0.5
 Tile * TacticalInterface::GetTile(Ray ray)
 {
 	Vec3f normal= Vec3f(0, 1, 0);
-	Vec3i intersection_point= ray.tail+ ray.direction* (normal* (float)level- ray.tail).Dot(normal)/ ray.direction.Dot(normal)+ Vec3f(0.5f, 0.0f, 0.5f);
+	Vec3i intersection_point= ray.tail+ ray.direction* (normal* (float)level- ray.tail).Dot(normal)/ ray.direction.Dot(normal);
 	intersection_point.y= level;
 
 	return System::game.space.GetTile(intersection_point);
@@ -272,7 +272,7 @@ void TacticalInterface::Draw()
 
 		ShaderProgram *shader_program= ShaderProgram::Retrieve("lines.program");
 		shader_program->Use();
-		shader_program->SetUniformMatrix4x4f("model_transform", Transform().Translate(Vec3f(tile_position.x, tile_position.y, tile_position.z)).GetMatrix());
+		shader_program->SetUniformMatrix4x4f("model_transform", Transform().Translate(Vec3f(tile_position.x, tile_position.y, tile_position.z)+ Vec3f(0.5f, 0.0f, 0.5f)).GetMatrix());
 		shader_program->SetUniformMatrix4x4f("camera_transform", GetCamera()->GetProjectedTransform(Math::GetAspectRatio(GetPixelSize())).GetMatrix());
 		if(IsHovered())
 			shader_program->SetUniformVector3f("line_color", Vec3f(0, 1, 0));

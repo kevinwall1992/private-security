@@ -147,75 +147,7 @@ Shutter::Shutter(RayCamera *camera_)
 	: team(THREAD_COUNT)
 #endif
 {
-#if 1
 	camera= camera_;
-
-#if PACKET_MODE
-	float ratio= sizeof(VisibilityRayPacket)/ (float)(sizeof(VisibilityRay)* PACKET_SIZE);
-	ratio= std::max(ratio, 1/ ratio);
-	int shadow_ray_buffer_size= (int)(RAY_PACKET_BLOCK_SIZE* ratio)+ 1;
-
-	for(int i= 0; i< THREAD_COUNT; i++)
-		empty_primary_ray_packet_blocks.push(new RayPacketBlock(true, true));
-
-#else
-	for(int i= 0; i< THREAD_COUNT; i++)
-		empty_primary_ray_blocks.push(new RayBlock(true, true));
-
-#endif
-
-#if BAKE_DISC_SAMPLES
-	//This is a hack. Need to make Shutter resizable and have deferred sized initialization
-	int pixel_count= System::graphics.GetScreenSize().x* System::graphics.GetScreenSize().y;
-	int buffer_factor= 2;
-	int reuse_factor= 1;
-	int disc_sample_count= (pixel_count* buffer_factor* PACKET_SIZE)/ reuse_factor;
-	primary_disc_samples= new float[disc_sample_count* 2];
-
-	int index_count= pixel_count;
-	vector<std::pair<int, int>> random_values0, random_values1;
-	disc_sample_indices= new int[index_count];
-	interval_sample_indices= new int[index_count];
-	for(int i= 0; i< index_count; i++)
-	{
-		random_values0.push_back(std::pair<int, int>(rand(), i));
-		random_values1.push_back(std::pair<int, int>(rand(), i));
-	}
-	std::sort(random_values0.begin(), random_values0.end(), IntPairComparator);
-	std::sort(random_values1.begin(), random_values1.end(), IntPairComparator);
-	for(int i= 0; i< index_count; i++)
-	{
-		disc_sample_indices[i]= random_values0[i].second/ reuse_factor;//(int)(random_values0[i].second/ (float)index_count* 40);
-		interval_sample_indices[i]= random_values1[i].second/ reuse_factor;//(int)(random_values1[i].second/ (float)index_count* 40);
-	}
-
-	int index= 20;
-	for(int i= 0; i< disc_sample_count; i++)
-	{
-		Vec2f disc_sample= SampleUnitDisc(index);
-
-		int packet_index= i/ PACKET_SIZE;
-		int ray_index= i% PACKET_SIZE;
-		primary_disc_samples[(packet_index* 2+ 0)* 8+ ray_index]= disc_sample.x;
-		primary_disc_samples[(packet_index* 2+ 1)* 8+ ray_index]= disc_sample.y;
-	}
-
-#else
-	primary_disc_samples= nullptr;
-	secondary_disc_samples= nullptr;
-	disc_sample_indices= nullptr;
-	secondary_disc_sample_order= nullptr;
-#endif
-
-	int interval_sample_count= pixel_count* PACKET_SIZE* buffer_factor;
-	interval_samples= new float[interval_sample_count];
-
-	for(int i= 0; i< interval_sample_count; i++)
-	{
-		float floop= HaltonSequence(5, i+ 20);//try changing this back to 2/3
-		interval_samples[i]= floop;
-	}
-#endif
 }
 
 Shutter::~Shutter()
@@ -859,6 +791,80 @@ void Shutter::Reset()
 
 	rays_processed= 0;
 	packets_processed= 0;
+
+	Resize();
+}
+
+void Shutter::Resize()
+{
+	if(size== camera->film.Size)
+		return;
+	size= camera->film.Size;
+
+#if PACKET_MODE
+	float ratio= sizeof(VisibilityRayPacket)/ (float)(sizeof(VisibilityRay)* PACKET_SIZE);
+	ratio= std::max(ratio, 1/ ratio);
+	int shadow_ray_buffer_size= (int)(RAY_PACKET_BLOCK_SIZE* ratio)+ 1;
+
+	for(int i= 0; i< THREAD_COUNT; i++)
+		empty_primary_ray_packet_blocks.push(new RayPacketBlock(true, true));
+
+#else
+	for(int i= 0; i< THREAD_COUNT; i++)
+		empty_primary_ray_blocks.push(new RayBlock(true, true));
+
+#endif
+
+#if BAKE_DISC_SAMPLES
+	int pixel_count= size.x* size.y;
+	int buffer_factor= 2;
+	int reuse_factor= 1;
+	int disc_sample_count= (pixel_count* buffer_factor* PACKET_SIZE)/ reuse_factor;
+	primary_disc_samples= new float[disc_sample_count* 2];
+
+	int index_count= pixel_count;
+	vector<std::pair<int, int>> random_values0, random_values1;
+	disc_sample_indices= new int[index_count];
+	interval_sample_indices= new int[index_count];
+	for(int i= 0; i< index_count; i++)
+	{
+		random_values0.push_back(std::pair<int, int>(rand(), i));
+		random_values1.push_back(std::pair<int, int>(rand(), i));
+	}
+	std::sort(random_values0.begin(), random_values0.end(), IntPairComparator);
+	std::sort(random_values1.begin(), random_values1.end(), IntPairComparator);
+	for(int i= 0; i< index_count; i++)
+	{
+		disc_sample_indices[i]= random_values0[i].second/ reuse_factor;//(int)(random_values0[i].second/ (float)index_count* 40);
+		interval_sample_indices[i]= random_values1[i].second/ reuse_factor;//(int)(random_values1[i].second/ (float)index_count* 40);
+	}
+
+	int index= 20;
+	for(int i= 0; i< disc_sample_count; i++)
+	{
+		Vec2f disc_sample= SampleUnitDisc(index);
+
+		int packet_index= i/ PACKET_SIZE;
+		int ray_index= i% PACKET_SIZE;
+		primary_disc_samples[(packet_index* 2+ 0)* 8+ ray_index]= disc_sample.x;
+		primary_disc_samples[(packet_index* 2+ 1)* 8+ ray_index]= disc_sample.y;
+	}
+
+#else
+	primary_disc_samples= nullptr;
+	secondary_disc_samples= nullptr;
+	disc_sample_indices= nullptr;
+	secondary_disc_sample_order= nullptr;
+#endif
+
+	int interval_sample_count= pixel_count* PACKET_SIZE* buffer_factor;
+	interval_samples= new float[interval_sample_count];
+
+	for(int i= 0; i< interval_sample_count; i++)
+	{
+		float floop= HaltonSequence(5, i+ 20);//try changing this back to 2/3
+		interval_samples[i]= floop;
+	}
 }
 
 void Shutter::TaskLoop(Scene *scene)
@@ -871,7 +877,6 @@ void Shutter::TaskLoop(Scene *scene)
 #endif
 	Team::GetObject_Instanciate<int>("gi_sample_index")[0]= Team::TakeANumber("gi_sample_offset")* PACKET_SIZE* RAY_PACKET_BLOCK_SIZE/ THREAD_COUNT;
 #endif
-
 
 	Task task;
 	while(task.type!= TaskType::Develop)//Hack, but will be replaced in the future anyways. 

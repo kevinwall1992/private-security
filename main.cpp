@@ -45,8 +45,17 @@ int main(int argument_count, char **arguments)
 	System::game.space.GetTile(2, 1, 0)->PutFurniture(new ThickWall());
 	System::game.space.GetTile(3, 1, 1)->PutFurniture(new ThickWall());
 	System::game.space.GetTile(2, 2, 0)->PutActor(actor);
+
+	System::game.space.GetTile(2, 2, 2)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(3, 3, 3)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(4, 4, 4)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(5, 5, 5)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(6, 6, 6)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(7, 7, 7)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(8, 8, 8)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(9, 9, 9)->PutFurniture(new ThickWall());
 	
-	Path path= Path::GetPath(new Node(actor, actor->GetTile()), new Node(actor, System::game.space.GetTile(0, 0, 0)));
+	//Path path= Path::GetPath(new Node(actor, actor->GetTile()), new Node(actor, System::game.space.GetTile(0, 0, 0)));
 
 	//Edge *edge;
 	//while((edge= path.PopEdge())!= nullptr)
@@ -55,17 +64,16 @@ int main(int argument_count, char **arguments)
 	Scene scene;
 	scene.AddProp(&System::game.space);
 	
-	RasterCamera camera(Math::DegreesToRadians(60), Vec3f(1, 3, 5));
-	camera.LookAt(Vec3f(2, 1, 2));
+	RasterCamera camera(8, Vec3f(2, 1, 2), Math::DegreesToRadians(-15), Math::DegreesToRadians(-30));
+	//RasterCamera camera(Math::DegreesToRadians(60), Vec3f(1, 3, 5));
+	//camera.LookAt(Vec3f(2, 1, 2));
 	
-	scene.AddLight(new PointLight(Vec3f(3.3f, 7.0f, 8.0f), Color(0.92f, 0.80f, 0.65f)));
+	scene.AddLight(new PointLight(Vec3f(3.0f, 6.0f, 10.5f), Color(0.92f, 0.80f, 0.65f)));
 	scene.Commit();
 #endif
 
 	TacticalInterface *tactical_interface= new TacticalInterface(&camera);
 	tactical_interface->SetScene(&scene);
-	tactical_interface->Size= Vec2f(1.0f, 1.0f);
-	tactical_interface->Offset= Vec2f(0.0f, 0.0f);
 	System::input.AddGizmo(tactical_interface);
 
 

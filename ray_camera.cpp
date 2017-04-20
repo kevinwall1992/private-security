@@ -7,78 +7,21 @@
 #include "Timer.h"
 
 
-void RayCameraBase::ComputeViewPlane()
-{
-	Vec3f right= GetRight();
-	Vec3f up= GetUp();
-
-	view_plane_u= GetRight()* tan(FOV/ 2);
-	view_plane_v= GetUp()* tan(FOV/ 2);
-}
-
 RayCameraBase::RayCameraBase(float fov, Vec3f position)
 	: Camera(fov, position)
 {
 
 }
 
-void RayCameraBase::Update()
+RayCameraBase::RayCameraBase(float fov, Vec3f focus, float pitch, float yaw)
+	: Camera(fov, focus, pitch, yaw)
 {
-	Camera::Update();
-
-	ComputeViewPlane();
 }
 
 
-void RayCamera::GetSamples(float *&samples_x, float *&samples_y)
+void RayCamera::InitializeSamples()
 {
-#if PROGRESSIVE_RENDER && SAMPLE_PIXEL_CENTERS== 0
-	
-	//Naming needs updating, now that we have a frame_count member
-	//(Used to be GraphicsSystem::frame_count)
-	if(current_frame_count!= frame_count)
-	{
-		Turn turn= Team::WaitForTurn("get_samples_queue");
-		if(current_frame_count!= frame_count)
-		{
-			current_frame_count= frame_count;
-
-			for(int i= 0; i< MIN_SAMPLES_PER_PIXEL; i++)
-			{
-				int sample_index= current_frame_count* MIN_SAMPLES_PER_PIXEL+ i+ 20;
-				progressive_samples_x[i]= HaltonSequence(2, sample_index);
-				progressive_samples_y[i]= HaltonSequence(3, sample_index);
-			}
-		}
-		turn.AllDone();
-	}
-
-	samples_x= progressive_samples_x;
-	samples_y= progressive_samples_y;
-
-	samples_x= default_samples_x;
-	samples_y= default_samples_y;
-
-#else
-	samples_x= default_samples_x;
-	samples_y= default_samples_y;
-#endif
-}
-
-void RayCamera::Update()
-{
-	RayCameraBase::Update();
-
-	film.Clear();
-
-	frame_count= 0;
-}
-
-RayCamera::RayCamera(float fov, Vec3f position)
-	: RayCameraBase(fov, position), shutter(this)
-{
-
-#if SAMPLE_PIXEL_CENTERS
+	#if SAMPLE_PIXEL_CENTERS
 	for(int i= 0; i< MIN_SAMPLES_PER_PIXEL; i++)
 	{
 		default_samples_x[i]= 0.5f; 
@@ -157,6 +100,62 @@ RayCamera::RayCamera(float fov, Vec3f position)
 #endif
 }
 
+void RayCamera::GetSamples(float *&samples_x, float *&samples_y)
+{
+#if PROGRESSIVE_RENDER && SAMPLE_PIXEL_CENTERS== 0
+	
+	//Naming needs updating, now that we have a frame_count member
+	//(Used to be GraphicsSystem::frame_count)
+	if(current_frame_count!= frame_count)
+	{
+		Turn turn= Team::WaitForTurn("get_samples_queue");
+		if(current_frame_count!= frame_count)
+		{
+			current_frame_count= frame_count;
+
+			for(int i= 0; i< MIN_SAMPLES_PER_PIXEL; i++)
+			{
+				int sample_index= current_frame_count* MIN_SAMPLES_PER_PIXEL+ i+ 20;
+				progressive_samples_x[i]= HaltonSequence(2, sample_index);
+				progressive_samples_y[i]= HaltonSequence(3, sample_index);
+			}
+		}
+		turn.AllDone();
+	}
+
+	samples_x= progressive_samples_x;
+	samples_y= progressive_samples_y;
+
+	samples_x= default_samples_x;
+	samples_y= default_samples_y;
+
+#else
+	samples_x= default_samples_x;
+	samples_y= default_samples_y;
+#endif
+}
+
+void RayCamera::Update()
+{
+	RayCameraBase::Update();
+
+	film.Clear();
+
+	frame_count= 0;
+}
+
+RayCamera::RayCamera(float fov, Vec3f position)
+	: RayCameraBase(fov, position), shutter(this)
+{
+	InitializeSamples();
+}
+
+RayCamera::RayCamera(float fov, Vec3f focus, float pitch, float yaw)
+	: RayCameraBase(fov, focus, pitch, yaw), shutter(this)
+{
+	InitializeSamples();
+}
+
 void RayCamera::LookAt(Vec3f look_at_position)
 {
 	Camera::LookAt(look_at_position);
@@ -173,6 +172,8 @@ PhotoBook RayCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 		film.Size= size;
 		film_was_resized= true;
 	}
+	if(!ValidateAllAttributes())
+		Touch();
 	CatchUp();
 
 	shutter.Open(scene);
@@ -215,8 +216,8 @@ bool RayCamera::GetRayPackets(EBRRayPacket *ray_packets, int tile_index, int *in
 
 	Vec3f forward= GetForward();
 	Vec3f position= Position;
-	Vec3f unit_view_plane_u= view_plane_u.Normalized();
-	Vec3f unit_view_plane_v= view_plane_v.Normalized();
+	Vec3f unit_view_plane_u= GetRight();
+	Vec3f unit_view_plane_v= GetUp();
 
 	Timer::get_rays_timer.Start();
 
@@ -234,12 +235,12 @@ bool RayCamera::GetRayPackets(EBRRayPacket *ray_packets, int tile_index, int *in
 
 				int x= i+ tile_x* CAMERA_TILE_WIDTH;
 				int y= j+ tile_y* CAMERA_TILE_HEIGHT;
-				float normalized_x= 2* x/ (float)film.Width- 1;
-				float normalized_y= 2* y/ (float)film.Height- 1;
+				float normalized_x= 2* (x+ 0.5f)/ (float)film.Width- 1;
+				float normalized_y= 2* (y+ 0.5f)/ (float)film.Height- 1;
 
 				for(int ray_index= 0; ray_index< PACKET_SIZE; ray_index++)
 				{
-					Vec3f ray_tail= Position+ (unit_view_plane_u* normalized_x+ unit_view_plane_v* normalized_y)* (GetOrthographicHorizontalSize()/ 2.0f);
+					Vec3f ray_tail= Position+ (unit_view_plane_u* normalized_x+ unit_view_plane_v* normalized_y)* (FOV/ 2.0f);
 
 					next_ray_packet->orgx[ray_index]= ray_tail.x;
 					next_ray_packet->orgy[ray_index]= ray_tail.y;
@@ -275,6 +276,9 @@ bool RayCamera::GetRayPackets(EBRRayPacket *ray_packets, int tile_index, int *in
 #if ISPC_GET_RAYS
 	else
 	{
+		Vec3f view_plane_u= GetViewPlaneU();
+		Vec3f view_plane_v= GetViewPlaneV();
+
 		if(indices== nullptr)
 		{
 			int tile_count_x= film.Width/ CAMERA_TILE_WIDTH;
