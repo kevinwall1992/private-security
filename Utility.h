@@ -105,7 +105,11 @@ namespace Utility
 		return container.find(key)!= container.end();
 	}
 
+	string Replace(string original, string to_replace, string replacement);
+	string ToUnixFilepath(string filepath);
 	string GetFilename(string filepath);
+
+	
 }
 
 #endif

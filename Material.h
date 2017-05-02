@@ -5,6 +5,7 @@
 #include "Color.h"
 #include "Math.h"
 #include "FileResource.h"
+#include "ImageFile.h"
 
 struct Material : public FileResource<Material>
 {
@@ -30,6 +31,8 @@ struct PhongMaterial : public Material
 
 	float refractive_index;
 	float transparency;
+
+	ImageFile *diffuse_texture= nullptr;
 
 	friend Material;//ewwwww
 

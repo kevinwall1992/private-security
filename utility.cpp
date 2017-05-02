@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iterator>
 #include <sys/stat.h>
+#include <regex>
 
 
 namespace Utility
@@ -52,10 +53,20 @@ namespace Utility
 
 		return stringed;
 	}
+
+	string Replace(string original, string to_replace, string replacement)
+	{
+		return regex_replace(original, std::regex(to_replace), replacement);
+	}
+
+	string ToUnixFilepath(string filepath)
+	{
+		return Replace(filepath, "\\\\", "/");
+	}
+
 	string GetFilename(string filepath)
 	{
-		vector<string> path_vector= SplitString(filepath, '/');
-
-		return path_vector[path_vector.size()- 1];
+		return SplitString(ToUnixFilepath(filepath), '/').back();
 	}
+	
 }

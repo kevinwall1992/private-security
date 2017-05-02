@@ -142,8 +142,8 @@ void EnforceUniformIndexOrder(Mesh *mesh)
 
 		if(!no_texture_coordinates)
 		{
-			texture_coordinates[index* 3+ 0]= mesh->texture_coordinates[texture_coordinate_index* 2+ 0];
-			texture_coordinates[index* 3+ 1]= mesh->texture_coordinates[texture_coordinate_index* 2+ 1];
+			texture_coordinates[index* 2+ 0]= mesh->texture_coordinates[texture_coordinate_index* 2+ 0];
+			texture_coordinates[index* 2+ 1]= mesh->texture_coordinates[texture_coordinate_index* 2+ 1];
 		}
 
 		normals[index* 3+ 0]= mesh->normals[normal_index* 3+ 0];
@@ -214,7 +214,7 @@ vector<Mesh *> Mesh::Parse(string filename)
 			{
 				position_index_offset+= (int)(mesh->positions.size()/ 3);
 				normal_index_offset+= (int)(mesh->normals.size()/ 3);
-				texture_coordinate_index_offset+= (int)(mesh->texture_coordinates.size()/ 3);
+				texture_coordinate_index_offset+= (int)(mesh->texture_coordinates.size()/ 2);
 
 				BakeSkin(mesh, skinning_data);
 				EnforceUniformIndexOrder(mesh);
@@ -226,17 +226,17 @@ vector<Mesh *> Mesh::Parse(string filename)
 			mesh= new Mesh(filepath, tokens[1]);
 		}
 
-		else if (tokens[0] == "v")
+		else if(tokens[0] == "v")
 		{
 			mesh->positions.push_back((float)atof(tokens[1].c_str()));
 			mesh->positions.push_back((float)atof(tokens[2].c_str()));
 			mesh->positions.push_back((float)atof(tokens[3].c_str()));
 		}
 
-		else if (tokens[0] == "vt")
+		else if(tokens[0] == "vt")
 		{
 			mesh->texture_coordinates.push_back((float)atof(tokens[1].c_str()));
-			mesh->texture_coordinates.push_back((float)atof(tokens[2].c_str()));
+			mesh->texture_coordinates.push_back(1- (float)atof(tokens[2].c_str()));
 		}
 
 		else if(tokens[0] == "vn")
@@ -246,12 +246,12 @@ vector<Mesh *> Mesh::Parse(string filename)
 			mesh->normals.push_back((float)atof(tokens[3].c_str()));
 		}
 
-		else if (tokens[0] == "usemtl")
+		else if(tokens[0] == "usemtl")
 			material_names.push_back(tokens[1]);
 
-		else if (tokens[0] == "f")
+		else if(tokens[0] == "f")
 		{
-			for (unsigned int i = 1; i < tokens.size(); i++)
+			for(unsigned int i = 1; i < tokens.size(); i++)
 			{
 				std::replace(tokens[i].begin(), tokens[i].end(), '/', ' ');
 				vector<string> token_tokens = Utility::TokenizeOverSpaces(tokens[i]);
@@ -279,16 +279,16 @@ vector<Mesh *> Mesh::Parse(string filename)
 			}
 		}
 
-		else if (tokens[0] == "skin")
+		else if(tokens[0] == "skin")
 			skin_name= tokens[1];
 
-		else if (tokens[0] == "weight")
+		else if(tokens[0] == "weight")
 			skinning_data[skin_name][atoi(tokens[1].c_str())]= (float)atof(tokens[2].c_str());
 
-		else if (tokens[0] == "skeletonlib")
+		else if(tokens[0] == "skeletonlib")
 			skeleton_library_filename= tokens[1];
 
-		else if (tokens[0] == "useskeleton")
+		else if(tokens[0] == "useskeleton")
 			skeleton_name= tokens[1];
 	}
 	input_stream.close();

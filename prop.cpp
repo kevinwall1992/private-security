@@ -98,6 +98,21 @@ void MeshProp::Initialize()
 		vao.SetAttributeBinding3f(normal_attribute_location);
 	}
 
+	if(mesh->texture_coordinates.size()> 0)
+	{
+		GLuint texture_coordinates_attribute_location= ShaderProgram::GetCurrentProgram()->GetAttributeLocation("texture_coordinates");
+
+		if(texture_coordinates_attribute_location!= -1)
+		{
+			GLuint texture_coordinates_buffer_handle;
+			glGenBuffers(1, &texture_coordinates_buffer_handle);
+			glBindBuffer(GL_ARRAY_BUFFER, texture_coordinates_buffer_handle);
+			glBufferData(GL_ARRAY_BUFFER, mesh->GetVertexCount()* 2* sizeof(float), &mesh->texture_coordinates[0], GL_STATIC_DRAW);
+
+			vao.SetAttributeBinding2f(texture_coordinates_attribute_location);
+		}
+	}
+
 	glGenBuffers(1, &element_buffer_handle);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer_handle);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->GetTriangleCount()* 3* sizeof(float), &mesh->position_indices[0], GL_STATIC_DRAW);
@@ -155,6 +170,10 @@ void MeshProp::Rasterize()
 	shader_program->SetUniformMatrix4x4f("model_transform", GetModelTransform());
 	shader_program->SetUniformVector3f("material_diffuse", material->diffuse);
 	shader_program->SetUniformFloat("material_glossiness", material->glossiness);
+
+	if(material->diffuse_texture!= nullptr)
+		material->diffuse_texture->RetrieveTexture().BindToIndex(0);
+	shader_program->SetUniformInt("use_diffuse_texture", material->diffuse_texture!= nullptr ? 1 : 0);
 	
 	glDrawElements(GL_TRIANGLES, mesh->GetTriangleCount()* 3, GL_UNSIGNED_INT, nullptr);
 }

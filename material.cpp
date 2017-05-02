@@ -25,7 +25,7 @@ vector<Material *> Material::Parse(string filename)
 
 	PhongMaterial *material= nullptr;
 
-	while (input_stream.good())
+	while(input_stream.good())
 	{
 		string line;
 		getline(input_stream, line);
@@ -34,7 +34,7 @@ vector<Material *> Material::Parse(string filename)
 		if(tokens.size()== 0)
 			continue;
 
-		if (tokens[0] == "newmtl")
+		if(tokens[0] == "newmtl")
 		{
 			if(material!= nullptr)
 				materials.push_back(material);
@@ -44,22 +44,25 @@ vector<Material *> Material::Parse(string filename)
 			material->reflectivity= 0.0f;
 			material->transparency= 0.0f;
 		}
-		else if (tokens[0] == "Kd")
+		else if(tokens[0] == "Kd")
 		{
 			material->diffuse= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
 			//material->diffuse= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
 		}
-		else if (tokens[0] == "Ks")
+		else if(tokens[0] == "Ks")
 			material->specular= Color((float)atof(tokens[1].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[3].c_str()));
 			//material->specular= Color((float)atof(tokens[3].c_str()), (float)atof(tokens[2].c_str()), (float)atof(tokens[1].c_str()));
-		else if (tokens[0] == "Ns")
+		else if(tokens[0] == "Ns")
 			material->glossiness= (float)atof(tokens[1].c_str());
-		else if (tokens[0] == "Ni")
+		else if(tokens[0] == "Ni")
 			material->refractive_index= (float)atof(tokens[1].c_str());
-		else if (tokens[0] == "Tr")
+		else if(tokens[0] == "Tr")
 			material->transparency= (float)atof(tokens[1].c_str());
-		else if (tokens[0] == "Rf")
+		else if(tokens[0] == "Rf")
 			material->reflectivity= (float)atof(tokens[1].c_str());
+
+		else if(tokens[0] == "map_Kd")
+			material->diffuse_texture= ImageFile::Retrieve(Utility::GetFilename(tokens[tokens.size()- 1]));
 	}
 	input_stream.close();
 	if(material!= nullptr)

@@ -2,13 +2,16 @@
 
 in vec3 position;
 in vec3 normal;
-in ivec2 bone_indices;//try ivec2****
+in vec2 texture_coordinates;
+
+in ivec2 bone_indices;
 in vec2 weights;
 
 out VertexData 
 {
   vec3 position;
   vec3 normal;
+  vec2 texture_coordinates;
 }vertex_data;
 
 uniform mat4 model_transform;
@@ -39,6 +42,7 @@ void main()
 
   vertex_data.normal= normalize((model_transform* new_normal).xyz);
   vertex_data.position= (model_transform* new_position).xyz;
+  vertex_data.texture_coordinates= texture_coordinates;
 
   gl_Position= camera_transform* model_transform* new_position; 
 }

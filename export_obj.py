@@ -339,11 +339,19 @@ def write_file(filepath, objects, actions, scene,
                 # filepath can contain non utf8 chars, use repr
                 fw('mtllib %s\n' % repr(os.path.basename(mtlfilepath))[1:-1])
 
-            filepath_tokens= filepath.replace("\\", "/").rsplit("/", 1)
-            skeleton_library_filename= filepath_tokens[1].rsplit(".", 1)[0]+ ".skeleton"
-            skeleton_library_filepath= filepath_tokens[0]+ "/"+ filepath_tokens[1].rsplit(".", 1)[0]+ ".skeleton"
-            fw("skeletonlib "+ skeleton_library_filename+ "\n")
-            skeleton_library_file= open(skeleton_library_filepath, "w")
+            contains_skeleton= False
+            for ob in objects:
+                for modifier in ob.modifiers:
+                    if modifier.type== "ARMATURE":
+                        contains_skeleton= True
+
+            skeleton_library_file= None
+            if contains_skeleton:
+                filepath_tokens= filepath.replace("\\", "/").rsplit("/", 1)
+                skeleton_library_filename= filepath_tokens[1].rsplit(".", 1)[0]+ ".skeleton"
+                skeleton_library_filepath= filepath_tokens[0]+ "/"+ filepath_tokens[1].rsplit(".", 1)[0]+ ".skeleton"
+                fw("skeletonlib "+ skeleton_library_filename+ "\n")
+                skeleton_library_file= open(skeleton_library_filepath, "w")
 
             from mathutils import Vector, Matrix 
 
@@ -764,14 +772,15 @@ def write_file(filepath, objects, actions, scene,
                                 if ed.is_loose:
                                     fw('l %d %d\n' % (totverts + ed.vertices[0], totverts + ed.vertices[1]))
 
-                        for i, group in enumerate(ob.vertex_groups):
-                            fw("skin "+ group.name+ "\n")
-    
-                            for j, vertex in enumerate(me_verts):
-                                for group_ in vertex.groups:
-                                    if group_.group== i:
-                                        fw("weight "+ str(j)+ " "+ str(group.weight(j))+ "\n")
-                                        continue
+                        if contains_skeleton:
+                            for i, group in enumerate(ob.vertex_groups):
+                                fw("skin "+ group.name+ "\n")
+        
+                                for j, vertex in enumerate(me_verts):
+                                    for group_ in vertex.groups:
+                                        if group_.group== i:
+                                            fw("weight "+ str(j)+ " "+ str(group.weight(j))+ "\n")
+                                            continue
 
                         # Make the indices global rather then per mesh
                         totverts += len(me_verts)
