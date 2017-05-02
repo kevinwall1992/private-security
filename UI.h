@@ -138,6 +138,7 @@ public:
 	virtual void KeyUp(ButtonType button);
 
 	virtual void MouseLeftUpRay(Ray ray);
+	virtual void MouseRightUpRay(Ray ray);
 	virtual void MouseMotionRay(Ray ray, Ray last_ray);
 	virtual void MouseScroll(int scroll_amount);
 

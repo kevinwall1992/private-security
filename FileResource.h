@@ -61,12 +61,10 @@ public:
 	//Need some error handling
 	//Would like to be able to get a Mesh given only a filename, to simplify case where file only has one object
 	template<class... Args>
-	static T * Retrieve(string filename, Args... args)
+	static T * Retrieve(string filename, Args... element_path)
 	{
-		vector<string> element_path= Utility::MakeVector<string>(args...);
-		
 		string filepath= T::MakeFilepath(filename);//This needs improving
-		string name= MakeName(filepath, element_path);
+		string name= MakeName(filepath, Utility::MakeVector<string>(element_path...));
 		
 		Resource *resource= System::resource.GetResource(name);
 		if(resource!= nullptr)

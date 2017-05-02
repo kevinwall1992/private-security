@@ -2,6 +2,8 @@
 #include "InputSystem.h"
 #include "GameSystem.h"
 #include "Viewport.h"
+#include "Pathing.h"
+#include "Actions.h"
 
 
 AboutDialog::AboutDialog()
@@ -229,6 +231,20 @@ void TacticalInterface::MouseLeftUpRay(Ray ray)
 	{
 		selected_actor= tile->GetActor();
 		toolbelt.SetActor(selected_actor);
+	}
+}
+
+void TacticalInterface::MouseRightUpRay(Ray ray)
+{
+	Tile *tile= GetTile(ray);
+
+	if(tile!= nullptr && selected_actor!= nullptr && selected_actor->GetAction()== nullptr)
+	{
+		Path path= Path::GetPath(new Node(selected_actor, selected_actor->GetTile()), new Node(selected_actor, tile));
+
+		Edge *edge;
+		while((edge= path.PopEdge())!= nullptr)
+			System::game.SubmitAction(new MoveAction(selected_actor, edge->GetMove()));
 	}
 }
 

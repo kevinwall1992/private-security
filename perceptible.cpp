@@ -56,7 +56,7 @@ Entity::EntityData::EntityData(string filepath)
 			TiXmlElement *filename= element->FirstChildElement("filename");
 			TiXmlElement *element_name= element->FirstChildElement("element");
 
-			animations[name->GetText()]= new Animation(Mesh::Retrieve(filename->GetText(), element_name->GetText()));
+			meshes[name->GetText()]= Mesh::Retrieve(filename->GetText(), element_name->GetText());
 		}
 
 		element= element->NextSiblingElement();
@@ -68,14 +68,22 @@ Entity::EntityData * Entity::GetEntityData()
 	return EntityData::Retrieve(GetEntityDataFolderName()+ "/"+ GetEntityDataFilename());
 }
 
-MeshProp * Entity::GetMeshProp()
+Mesh * Entity::GetMesh()
 {
-	if(mesh_prop== nullptr)
-		mesh_prop= new MeshProp(GetEntityData()->animations["default"]->GetMesh());
+	return GetEntityData()->meshes["default"];
+}
 
-	mesh_prop->SetDisplacement(GetPosition());
+Animation * Entity::GetAnimation()
+{
+	if(!Utility::Contains(GetEntityData()->animations, GetEntityAnimationName()))
+		GetEntityData()->animations[GetEntityAnimationName()]= new Animation(GetMesh(), GetEntityAnimationName(), 0.9f);
 
-	return mesh_prop;
+	Animation *animation= GetEntityData()->animations[GetEntityAnimationName()];
+	animation->SetDisplacement(GetPosition());
+	animation->SetRotation(GetRotation());
+	animation->SetMoment(GetEntityAnimationMoment());
+
+	return animation;
 }
 
 Entity::Entity()
@@ -85,15 +93,25 @@ Entity::Entity()
 
 Mesh * Entity::GetIconMesh()
 {
-	return GetEntityData()->animations["default"]->GetMesh();
+	return GetMesh();
+}
+
+string Entity::GetEntityAnimationName()
+{
+	return "";
+}
+
+float Entity::GetEntityAnimationMoment()
+{
+	return 0.0f;
 }
 
 vector<RaytracingPrimitive *> Entity::GetRaytracingPrimitives()
 {
-	return GetMeshProp()->GetRaytracingPrimitives();
+	return GetAnimation()->GetRaytracingPrimitives();
 }
 
 void Entity::Rasterize()
 {
-	GetMeshProp()->Rasterize();
+	GetAnimation()->Rasterize();
 }

@@ -6,8 +6,14 @@ Action::Action(Actor *actor_)
 	actor= actor_;
 }
 
+float Action::GetDimensionalProgress()
+{
+	return GetProgress();
+}
+
 void IntervalAction::Start()
 {
+	actor->SetAction(this);
 }
 
 void IntervalAction::Proceed(float percentage_done)
@@ -16,6 +22,7 @@ void IntervalAction::Proceed(float percentage_done)
 
 void IntervalAction::Finish()
 {
+	actor->SetAction(nullptr);
 }
 
 IntervalAction::IntervalAction(Actor *actor, Chronons duration_)
@@ -43,7 +50,7 @@ void IntervalAction::Step(Chronons chronons)
 	}
 
 	time_spent+= chronons;
-	Proceed(time_spent/ (float)duration);
+	Proceed(GetProgress());
 
 	if(time_spent>= duration)
 	{
@@ -55,4 +62,9 @@ void IntervalAction::Step(Chronons chronons)
 bool IntervalAction::HasFinished()
 {
 	return has_finished;
+}
+
+float IntervalAction::GetProgress()
+{
+	return time_spent/ (float)duration;
 }

@@ -15,6 +15,9 @@ protected:
 
 public:
 	MoveAction(Actor *actor, Move *move);
+
+	virtual string GetName();
+	virtual float GetDimensionalProgress();
 };
 
 #endif

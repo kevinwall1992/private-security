@@ -4,13 +4,18 @@
 #include "Common.h"
 #include "FileResource.h"
 #include "Material.h"
+#include "Skeleton.h"
+
+#include <map>
+
 
 //Consider recreating Prop under a different name;
 //Feels wrong to have Material inside Mesh
 
 struct Mesh : public FileResource<Mesh>
 {
-	Material *material;
+	Material *material= nullptr;
+	Skeleton *skeleton= nullptr;
 
 	vector<float> positions;
 	vector<float> texture_coordinates;
@@ -19,6 +24,14 @@ struct Mesh : public FileResource<Mesh>
 	vector<int> position_indices;//change to unsigned
 	vector<int> texture_coordinate_indices;
 	vector<int> normal_indices;
+
+	struct Skin
+	{
+		std::map<string, int> bone_index_map;
+		vector<int> vertex_bone_indices;
+		vector<float> vertex_weights;
+	};
+	Skin skin;
 
 	int GetTriangleCount();
 	int GetVertexCount();

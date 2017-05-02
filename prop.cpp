@@ -125,6 +125,17 @@ void MeshProp::SetRotation(float rotation_)
 	rotation= rotation_;
 }
 
+Mesh * MeshProp::GetMesh()
+{
+	return mesh;
+}
+
+VAO MeshProp::GetVAO()
+{
+	vao.Bind();
+	return vao;
+}
+
 vector<RaytracingPrimitive *> MeshProp::GetRaytracingPrimitives()
 {
 	return Utility::MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, mesh, GetModelTransform()));

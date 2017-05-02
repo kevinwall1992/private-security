@@ -115,31 +115,40 @@ GLuint ShaderProgram::GetUniformLocation(string uniform_name)
 
 void ShaderProgram::SetUniformFloat(string uniform_name, float value)
 {
+	Use();
+
 	glUniform1f(GetUniformLocation(uniform_name), value);
 	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformInt(string uniform_name, int value)
 {
+	Use();
+
 	glUniform1i(GetUniformLocation(uniform_name), value);
 	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformVector2f(string uniform_name, Vec2f vector_)
 {
+	Use();
+
 	glUniform2f(GetUniformLocation(uniform_name), vector_.x, vector_.y);
 	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformVector3f(string uniform_name, Vec3f vector_)
 {
+	Use();
+
 	glUniform3f(GetUniformLocation(uniform_name), vector_.x, vector_.y, vector_.z);
 	Utility::HandleOpenGLErrors();
 }
 
 void ShaderProgram::SetUniformMatrix4x4f(string uniform_name, Mat4x4f matrix)
 {
-	//Should use program for you ****
+	Use();
+
 	glUniformMatrix4fv(GetUniformLocation(uniform_name), 1, GL_TRUE, matrix.c);
 	Utility::HandleOpenGLErrors();
 }
@@ -151,6 +160,9 @@ void ShaderProgram::SetUniformMatrix4x4f(string uniform_name, Transform transfor
 
 void ShaderProgram::Use()
 {
+	if(GetCurrentProgram()== this)
+		return;
+
 	glUseProgram(shader_program_handle);
 	current_shader_program= this;
 

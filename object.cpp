@@ -16,6 +16,11 @@ Vec3f Object::GetPosition()
 	return System::game.space.GetPosition(this);
 }
 
+float Object::GetRotation()
+{
+	return 0.0f;
+}
+
 void Object::Step(Chronons chronons)
 {
 	HasPose::Step(chronons);

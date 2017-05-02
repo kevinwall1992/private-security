@@ -70,6 +70,9 @@ public:
 	void SetDisplacement(Vec3f displacement);
 	void SetRotation(float rotation);
 
+	Mesh * GetMesh();
+	VAO GetVAO();
+
 	virtual vector<RaytracingPrimitive *> GetRaytracingPrimitives();
 	virtual void Rasterize();
 };

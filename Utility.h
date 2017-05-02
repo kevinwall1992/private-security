@@ -104,6 +104,8 @@ namespace Utility
 	{
 		return container.find(key)!= container.end();
 	}
+
+	string GetFilename(string filepath);
 }
 
 #endif

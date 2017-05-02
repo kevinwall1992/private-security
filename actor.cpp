@@ -1,6 +1,8 @@
 #include "Actor.h"
 #include "Pathing.h"
 #include "Space.h"
+#include "Action.h"
+
 
 Actor::Actor()
 {
@@ -10,6 +12,11 @@ Actor::Actor()
 Vec3f Actor::GetPosition()
 {
 	return Physical::GetPosition();
+}
+
+float Actor::GetRotation()
+{
+	return rotation;
 }
 
 vector<Item*> Actor::GetInventory()
@@ -54,6 +61,32 @@ string Actor::GetEntityDataFilename()
 string Actor::GetEntityDataFolderName()
 {
 	return "actors";
+}
+
+string Actor::GetEntityAnimationName()
+{
+	if(action== nullptr)
+		return Entity::GetEntityAnimationName();
+
+	return action->GetName();
+}
+
+float Actor::GetEntityAnimationMoment()
+{
+	if(action== nullptr)
+		return Entity::GetEntityAnimationMoment();
+
+	return action->GetDimensionalProgress();
+}
+
+void Actor::SetAction(Action *action_)
+{
+	action= action_;
+}
+
+Action * Actor::GetAction()
+{
+	return action;
 }
 
 void Actor::Step(Chronons chronons)

@@ -52,4 +52,10 @@ namespace Utility
 
 		return stringed;
 	}
+	string GetFilename(string filepath)
+	{
+		vector<string> path_vector= SplitString(filepath, '/');
+
+		return path_vector[path_vector.size()- 1];
+	}
 }

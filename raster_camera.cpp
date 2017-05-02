@@ -90,8 +90,8 @@ void RasterCamera::GenerateIndirectLightTexture(Scene *scene, Vec2i size)
 		ray_camera_is_invalid= false;
 	}
 
-	indirect_light_photo= ray_camera.TakePhoto(*scene, IsOrthographic() ? scene_photo_size : size, Photo::Type::FullColor);
-	indirect_light_texture_was_modified= true;
+	//indirect_light_photo= ray_camera.TakePhoto(*scene, IsOrthographic() ? scene_photo_size : size, Photo::Type::FullColor);
+	//indirect_light_texture_was_modified= true;
 }
 
 Vec2f RasterCamera::GetSceneViewWorldSize()

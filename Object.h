@@ -16,7 +16,7 @@
 
 class Tile;
 
-class Object : public Polymorphic, public Entity, public virtual Chronal, public virtual HasPosition, public virtual HasPose
+class Object : public Polymorphic, public Entity, public virtual Chronal, public virtual HasOrientation, public virtual HasPose
 {
 public:
 
@@ -25,6 +25,7 @@ public:
 	Tile *GetTile();
 
 	virtual Vec3f GetPosition();
+	virtual float GetRotation();
 
 	virtual void Step(Chronons chronons);
 };

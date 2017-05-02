@@ -14,6 +14,13 @@ public:
 	Action(Actor *actor);
 
 	virtual bool HasFinished()= 0;
+
+	//This allows Action to control which animation will play while it executes.
+	//Obviously, this is a very rough implementation; in future I'm
+	//thinking we may have an interface or something
+	virtual string GetName()= 0;
+	virtual float GetProgress()= 0;
+	virtual float GetDimensionalProgress();
 };
 
 class IntervalAction : public Action
@@ -38,6 +45,8 @@ public:
 	void Step(Chronons chronons);
 
 	bool HasFinished();
+
+	virtual float GetProgress();
 };
 
 #endif

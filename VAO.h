@@ -20,6 +20,7 @@ public:
 
 	void SetAttributeBindingf(GLuint attribute_index, int size, int stride, int offset);
 	void SetAttributeBinding3f(GLuint attribute_index);
+	void SetAttributeBinding2f(GLuint attribute_index);
 
 	void Free();
 

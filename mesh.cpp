@@ -28,6 +28,67 @@ void Mesh::Clear()
 	normal_indices.clear();
 }
 
+void BakeSkin(Mesh *mesh, std::map<string, std::map<int, float>> skinning_data)
+{
+	struct SkinnedVertex
+	{
+		float first_weight, second_weight;
+		int first_bone_index, second_bone_index;
+
+		void AddWeight(float weight, int bone_index)
+		{
+			if(weight> second_weight)
+			{
+				if(weight> first_weight)
+				{
+					second_weight= first_weight;
+					second_bone_index= first_bone_index;
+					first_weight= weight;
+					first_bone_index= bone_index;
+				}
+				else
+				{
+					second_weight= weight;
+					second_bone_index= bone_index;
+				}
+			}
+		}
+
+		void Normalize()
+		{
+			float total_weight= first_weight+ second_weight;
+
+			first_weight= first_weight/ total_weight;
+			second_weight= second_weight/ total_weight;
+		}
+	};
+
+	std::map<int, SkinnedVertex> skinned_vertices;
+	int bone_count= 0;
+
+	for(auto const &bone_vertex_weight_map_pair : skinning_data)
+	{
+		mesh->skin.bone_index_map[bone_vertex_weight_map_pair.first]= bone_count;
+
+		for(auto &vertex_weight_pair : bone_vertex_weight_map_pair.second)
+			skinned_vertices[vertex_weight_pair.first].AddWeight(vertex_weight_pair.second, bone_count);
+
+		bone_count++;
+	}
+
+	mesh->skin.vertex_weights.resize(mesh->GetVertexCount()* 2);
+	mesh->skin.vertex_bone_indices.resize(mesh->skin.vertex_weights.size());
+
+	for(auto &skinning_pair : skinned_vertices)
+	{
+		skinning_pair.second.Normalize();
+		mesh->skin.vertex_weights[skinning_pair.first* 2+ 0]= skinning_pair.second.first_weight;
+		mesh->skin.vertex_weights[skinning_pair.first* 2+ 1]= skinning_pair.second.second_weight;
+		mesh->skin.vertex_bone_indices[skinning_pair.first* 2+ 0]= skinning_pair.second.first_bone_index;
+		mesh->skin.vertex_bone_indices[skinning_pair.first* 2+ 1]= skinning_pair.second.second_bone_index;
+	}
+}
+
 void EnforceUniformIndexOrder(Mesh *mesh)
 {
 	//return;
@@ -62,6 +123,10 @@ void EnforceUniformIndexOrder(Mesh *mesh)
 	vector<float> normals;
 	normals.resize(combination_count* 3);
 
+	Mesh::Skin skin;
+	skin.vertex_weights.resize(combination_count* 2);
+	skin.vertex_bone_indices.resize(combination_count* 2);
+
 	for(auto const & pair : combinations)
 	{
 		Triple triple= pair.first;
@@ -84,11 +149,19 @@ void EnforceUniformIndexOrder(Mesh *mesh)
 		normals[index* 3+ 0]= mesh->normals[normal_index* 3+ 0];
 		normals[index* 3+ 1]= mesh->normals[normal_index* 3+ 1];
 		normals[index* 3+ 2]= mesh->normals[normal_index* 3+ 2];
+
+		skin.vertex_bone_indices[index* 2+ 0]= mesh->skin.vertex_bone_indices[position_index* 2+ 0];
+		skin.vertex_bone_indices[index* 2+ 1]= mesh->skin.vertex_bone_indices[position_index* 2+ 1];
+		skin.vertex_weights[index* 2+ 0]= mesh->skin.vertex_weights[position_index* 2+ 0];
+		skin.vertex_weights[index* 2+ 1]= mesh->skin.vertex_weights[position_index* 2+ 1];
 	}
 
 	mesh->positions= positions;
 	mesh->texture_coordinates= texture_coordinates;
 	mesh->normals= normals;
+
+	mesh->skin.vertex_bone_indices= skin.vertex_bone_indices;
+	mesh->skin.vertex_weights= skin.vertex_weights;
 }
 
 string Mesh::MakeFilepath(string filename)
@@ -105,6 +178,8 @@ vector<Mesh *> Mesh::Parse(string filename)
 	vector<string> material_names;
 	vector<Material *> materials;
 
+	std::map<string, std::map<int, float>> skinning_data;
+
 	int position_index_offset= 1;
 	int normal_index_offset= 1;
 	int texture_coordinate_index_offset= 1;
@@ -116,6 +191,10 @@ vector<Mesh *> Mesh::Parse(string filename)
 	input_stream.open(filepath);
 
 	string material_library_filename;
+	string skeleton_library_filename;
+
+	string skin_name;
+	string skeleton_name;
 
 	while (input_stream.good())
 	{
@@ -137,8 +216,11 @@ vector<Mesh *> Mesh::Parse(string filename)
 				normal_index_offset+= (int)(mesh->normals.size()/ 3);
 				texture_coordinate_index_offset+= (int)(mesh->texture_coordinates.size()/ 3);
 
+				BakeSkin(mesh, skinning_data);
 				EnforceUniformIndexOrder(mesh);
 				meshes.push_back(mesh);
+
+				skinning_data.clear();
 			}
 
 			mesh= new Mesh(filepath, tokens[1]);
@@ -196,10 +278,23 @@ vector<Mesh *> Mesh::Parse(string filename)
 				if(mesh->normals.size()> 0) mesh->normal_indices.push_back(mesh->normal_indices[last- 1]);
 			}
 		}
+
+		else if (tokens[0] == "skin")
+			skin_name= tokens[1];
+
+		else if (tokens[0] == "weight")
+			skinning_data[skin_name][atoi(tokens[1].c_str())]= (float)atof(tokens[2].c_str());
+
+		else if (tokens[0] == "skeletonlib")
+			skeleton_library_filename= tokens[1];
+
+		else if (tokens[0] == "useskeleton")
+			skeleton_name= tokens[1];
 	}
 	input_stream.close();
 	if(mesh!= nullptr)
 	{
+		BakeSkin(mesh, skinning_data);
 		EnforceUniformIndexOrder(mesh);
 		meshes.push_back(mesh);
 	}
@@ -218,6 +313,9 @@ vector<Mesh *> Mesh::Parse(string filename)
 
 		meshes[i]->material= material;
 	}
+
+	if(skeleton_library_filename!= "")
+		mesh->skeleton= Skeleton::Retrieve(skeleton_library_filename, skeleton_name);
 
 	return meshes;
 }

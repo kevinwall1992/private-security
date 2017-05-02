@@ -51,6 +51,11 @@ void VAO::SetAttributeBinding3f(GLuint attribute_index)
 	SetAttributeBindingf(attribute_index, 3, 3, 0);
 }
 
+void VAO::SetAttributeBinding2f(GLuint attribute_index)
+{
+	SetAttributeBindingf(attribute_index, 2, 2, 0);
+}
+
 void VAO::Free()
 {
 	glDeleteVertexArrays(1, &handle);

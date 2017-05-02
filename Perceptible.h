@@ -6,7 +6,7 @@
 #include "Audible.h"
 #include "Sound.h"
 #include "Animation.h"
-#include "HasPosition.h"
+#include "HasOrientation.h"
 #include "FileResource.h"
 #include "Pose.h"
 
@@ -39,10 +39,11 @@ public:
 
 //The confusion due to Entity/Component/System model may mean this needs name change
 
-class Entity: public Perceptible, public virtual HasPosition, public virtual HasPose
+class Entity: public Perceptible, public virtual HasOrientation, public virtual HasPose
 {
 	struct EntityData : public FileResource<EntityData>
 	{
+		std::map<string, Mesh *> meshes;
 		std::map<string, Animation *> animations;
 		std::map<string, Sound> sounds;
 
@@ -53,11 +54,10 @@ class Entity: public Perceptible, public virtual HasPosition, public virtual Has
 		EntityData(string filepath);
 	};
 
-	MeshProp *mesh_prop= nullptr;
-
 	EntityData * GetEntityData();
 
-	MeshProp * GetMeshProp();
+	Mesh * GetMesh();
+	Animation * GetAnimation();
 
 public:
 
@@ -77,6 +77,8 @@ public:
 
 	virtual string GetEntityDataFilename()= 0;
 	virtual string GetEntityDataFolderName()= 0;
+	virtual string GetEntityAnimationName();
+	virtual float GetEntityAnimationMoment();
 
 	virtual vector<RaytracingPrimitive *> GetRaytracingPrimitives();
 	virtual void Rasterize();
