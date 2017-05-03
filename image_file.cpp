@@ -29,14 +29,18 @@ ColorImage ImageFile::MakeImage()
 	return Utility::MakeColorImageFromSDL_Surface(surface);
 }
 
+ColorImage ImageFile::RetrieveImage()
+{
+	if(image.GetPixels()== nullptr)
+		image= MakeImage();
+
+	return image;
+}
+
 Texture ImageFile::RetrieveTexture()
 {
 	if(texture.GetHandle()== -1)
-	{
-		ColorImage image= MakeImage();
-		texture= Texture(image);
-		image.Free();
-	}
+		texture= Texture(RetrieveImage());
 
 	return texture;
 }

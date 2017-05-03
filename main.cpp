@@ -50,7 +50,7 @@ int main(int argument_count, char **arguments)
 	Scene scene;
 	scene.AddProp(&System::game.space);
 	
-	RasterCamera camera(6, Vec3f(2, 0, 2), Math::DegreesToRadians(0), Math::DegreesToRadians(0));
+	RasterCamera camera(6, Vec3f(2, 1.5, 2), Math::DegreesToRadians(-15), Math::DegreesToRadians(80));
 	//RasterCamera camera(Math::DegreesToRadians(60), Vec3f(1, 3, 5));
 	//camera.LookAt(Vec3f(2, 1, 2));
 	

@@ -11,6 +11,7 @@ class ImageFile : public FileResource<ImageFile>
 {
 	SDL_Surface *surface;	
 
+	ColorImage image;
 	Texture texture;
 
 	ImageFile(string filepath);
@@ -20,8 +21,8 @@ public:
 
 	ColorImage MakeImage();
 
-	//Texture is owned by this ImageFile
-	//Probably going to extend this idea to ColorImage in the future
+	//***phase out MakeImage()
+	ColorImage RetrieveImage();
 	Texture RetrieveTexture();
 
 	static string MakeFilepath(string filename);

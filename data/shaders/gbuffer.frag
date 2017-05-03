@@ -21,7 +21,7 @@ out vec4 normal;
 void main() 
 {
   if(use_diffuse_texture)
-    diffuse_color= texture(diffuse_texture, vertex_data.texture_coordinates);
+    diffuse_color= texture(diffuse_texture, vec2(vertex_data.texture_coordinates.x, vertex_data.texture_coordinates.y));
   else
     diffuse_color= vec4(material_diffuse, 1);
 

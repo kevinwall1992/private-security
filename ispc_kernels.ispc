@@ -78,6 +78,8 @@ struct Surface
 {
 	float position[3];
 	float normal[3];
+	float texture_coordinates[2];
+
 	intptr_t material;
 };
 
@@ -138,6 +140,9 @@ struct SurfacePacket
 	float normal_x[PACKET_SIZE];
 	float normal_y[PACKET_SIZE];
 	float normal_z[PACKET_SIZE];
+
+	float texture_coordinates_u[PACKET_SIZE];
+	float texture_coordinates_v[PACKET_SIZE];
 
 	int material_id[PACKET_SIZE];
 };
@@ -235,6 +240,10 @@ struct PhongMaterial
 	float reflectivity;
 	float refractive_index;
 	float transparency;
+
+	unsigned int8 *diffuse_texture;
+	int diffuse_texture_width;
+	int diffuse_texture_height;
 };
 
 struct Data
@@ -680,6 +689,10 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 		int bounce_count= ray_packets[i].bounce_count[programIndex];
 		bool bounce_limit_achieved= bounce_count>= MAX_BOUNCE_COUNT;
 
+		float<2> texture_coordinates;
+		texture_coordinates.x= ray_packets[i].surface_.texture_coordinates_u[programIndex];
+		texture_coordinates.y= ray_packets[i].surface_.texture_coordinates_v[programIndex];
+
 		float<3> surface_diffuse_color;
 		float<3> surface_specular_color;
 		float reflectivity;
@@ -691,9 +704,22 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 		uniform bool material_is_uniform= reduce_equal(material_id, &uniform_material_id);
 		if(material_is_uniform)
 		{
-			surface_diffuse_color.r= materials[uniform_material_id].diffuse[0];
-			surface_diffuse_color.g= materials[uniform_material_id].diffuse[1];
-			surface_diffuse_color.b= materials[uniform_material_id].diffuse[2];
+			if(materials[uniform_material_id].diffuse_texture!= 0)
+			{
+				//***Add bilinear interpolation, optimize textures accesses
+				int sample_index= (int)(texture_coordinates.x* materials[uniform_material_id].diffuse_texture_width)* 4+ 
+				              (int)(texture_coordinates.y* materials[uniform_material_id].diffuse_texture_height)* materials[uniform_material_id].diffuse_texture_width* 4;
+
+				surface_diffuse_color.r= materials[uniform_material_id].diffuse_texture[sample_index+ 0]/ 255.0f;
+				surface_diffuse_color.g= materials[uniform_material_id].diffuse_texture[sample_index+ 1]/ 255.0f;
+				surface_diffuse_color.b= materials[uniform_material_id].diffuse_texture[sample_index+ 2]/ 255.0f;
+			}
+			else
+			{
+				surface_diffuse_color.r= materials[uniform_material_id].diffuse[0];
+				surface_diffuse_color.g= materials[uniform_material_id].diffuse[1];
+				surface_diffuse_color.b= materials[uniform_material_id].diffuse[2];
+			}
 
 			surface_specular_color.r= materials[uniform_material_id].specular[0];
 			surface_specular_color.g= materials[uniform_material_id].specular[1];
@@ -708,9 +734,21 @@ export void PacketedShadingKernel_Coherent(uniform RayPacket ray_packets[],
 		{
 			foreach_unique(unique_material_id in material_id)
 			{
-				surface_diffuse_color.r= materials[unique_material_id].diffuse[0];
-				surface_diffuse_color.g= materials[unique_material_id].diffuse[1];
-				surface_diffuse_color.b= materials[unique_material_id].diffuse[2];
+				if(materials[unique_material_id].diffuse_texture!= 0)
+				{
+					int sample_index= (int)(texture_coordinates.x* materials[unique_material_id].diffuse_texture_width)* 4+ 
+								  (int)(texture_coordinates.y* materials[unique_material_id].diffuse_texture_height)* materials[unique_material_id].diffuse_texture_width* 4;
+
+					surface_diffuse_color.r= materials[unique_material_id].diffuse_texture[sample_index+ 0]/ 255.0f;
+					surface_diffuse_color.g= materials[unique_material_id].diffuse_texture[sample_index+ 1]/ 255.0f;
+					surface_diffuse_color.b= materials[unique_material_id].diffuse_texture[sample_index+ 2]/ 255.0f;
+				}
+				else
+				{
+					surface_diffuse_color.r= materials[unique_material_id].diffuse[0];
+					surface_diffuse_color.g= materials[unique_material_id].diffuse[1];
+					surface_diffuse_color.b= materials[unique_material_id].diffuse[2];
+				}
 
 				surface_specular_color.r= materials[unique_material_id].specular[0];
 				surface_specular_color.g= materials[unique_material_id].specular[1];
@@ -1097,6 +1135,9 @@ export void Interpolate_Coherent(uniform RayPacket ray_packets[], uniform int pa
 			int * uniform normal_indices= meshes[uniform_geometry_id].normal_indices;
 			float * uniform normals= meshes[uniform_geometry_id].normals;
 
+			int * uniform texture_coordinate_indices= meshes[uniform_geometry_id].texture_coordinate_indices;
+			float * uniform texture_coordinates= meshes[uniform_geometry_id].texture_coordinates;
+
 			int primitive_id= ray_packets[i].primID[programIndex];
 			uniform int uniform_primitive_id;
 			if(reduce_equal(primitive_id, &uniform_primitive_id))
@@ -1112,6 +1153,21 @@ export void Interpolate_Coherent(uniform RayPacket ray_packets[], uniform int pa
 				ray_packets[i].surface_.normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
 				ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
 				ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+
+				if(texture_coordinates!= 0)
+				{
+					uniform int texture_coordinates0_index= texture_coordinate_indices[uniform_primitive_id* 3+ 0];
+					uniform int texture_coordinates1_index= texture_coordinate_indices[uniform_primitive_id* 3+ 1];
+					uniform int texture_coordinates2_index= texture_coordinate_indices[uniform_primitive_id* 3+ 2];
+
+					uniform float<3> texture_coordinates0= {texture_coordinates[texture_coordinates0_index* 2+ 0], texture_coordinates[texture_coordinates0_index* 2+ 1]};
+					uniform float<3> texture_coordinates1= {texture_coordinates[texture_coordinates1_index* 2+ 0], texture_coordinates[texture_coordinates1_index* 2+ 1]};
+					uniform float<3> texture_coordinates2= {texture_coordinates[texture_coordinates2_index* 2+ 0], texture_coordinates[texture_coordinates2_index* 2+ 1]};
+
+					ray_packets[i].surface_.texture_coordinates_u[programIndex]= texture_coordinates0[0]* w+ texture_coordinates1[0]* u+ texture_coordinates2[0]* v;
+					ray_packets[i].surface_.texture_coordinates_v[programIndex]= texture_coordinates0[1]* w+ texture_coordinates1[1]* u+ texture_coordinates2[1]* v;
+				}
+
 
 				ray_packets[i].surface_.material_id[programIndex]= material_ids[uniform_geometry_id];
 			}
@@ -1131,6 +1187,22 @@ export void Interpolate_Coherent(uniform RayPacket ray_packets[], uniform int pa
 					ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
 					ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
 
+
+					if(texture_coordinates!= 0)
+					{
+						uniform int texture_coordinates0_index= texture_coordinate_indices[unique_primitive_id* 3+ 0];
+						uniform int texture_coordinates1_index= texture_coordinate_indices[unique_primitive_id* 3+ 1];
+						uniform int texture_coordinates2_index= texture_coordinate_indices[unique_primitive_id* 3+ 2];
+
+						uniform float<3> texture_coordinates0= {texture_coordinates[texture_coordinates0_index* 2+ 0], texture_coordinates[texture_coordinates0_index* 2+ 1]};
+						uniform float<3> texture_coordinates1= {texture_coordinates[texture_coordinates1_index* 2+ 0], texture_coordinates[texture_coordinates1_index* 2+ 1]};
+						uniform float<3> texture_coordinates2= {texture_coordinates[texture_coordinates2_index* 2+ 0], texture_coordinates[texture_coordinates2_index* 2+ 1]};
+
+						ray_packets[i].surface_.texture_coordinates_u[programIndex]= texture_coordinates0[0]* w+ texture_coordinates1[0]* u+ texture_coordinates2[0]* v;
+						ray_packets[i].surface_.texture_coordinates_v[programIndex]= texture_coordinates0[1]* w+ texture_coordinates1[1]* u+ texture_coordinates2[1]* v;
+					}
+
+
 					ray_packets[i].surface_.material_id[programIndex]= material_ids[uniform_geometry_id];
 				}
 			}
@@ -1141,6 +1213,9 @@ export void Interpolate_Coherent(uniform RayPacket ray_packets[], uniform int pa
 			{
 				int * uniform normal_indices= meshes[unique_geometry_id].normal_indices;
 				float * uniform normals= meshes[unique_geometry_id].normals;
+
+				int * uniform texture_coordinate_indices= meshes[unique_geometry_id].texture_coordinate_indices;
+				float * uniform texture_coordinates= meshes[unique_geometry_id].texture_coordinates;
 
 				int primitive_id= ray_packets[i].primID[programIndex];
 				uniform int uniform_primitive_id;
@@ -1157,6 +1232,22 @@ export void Interpolate_Coherent(uniform RayPacket ray_packets[], uniform int pa
 					ray_packets[i].surface_.normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
 					ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
 					ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+
+
+					if(texture_coordinates!= 0)
+					{
+						uniform int texture_coordinates0_index= texture_coordinate_indices[uniform_primitive_id* 3+ 0];
+						uniform int texture_coordinates1_index= texture_coordinate_indices[uniform_primitive_id* 3+ 1];
+						uniform int texture_coordinates2_index= texture_coordinate_indices[uniform_primitive_id* 3+ 2];
+
+						uniform float<3> texture_coordinates0= {texture_coordinates[texture_coordinates0_index* 2+ 0], texture_coordinates[texture_coordinates0_index* 2+ 1]};
+						uniform float<3> texture_coordinates1= {texture_coordinates[texture_coordinates1_index* 2+ 0], texture_coordinates[texture_coordinates1_index* 2+ 1]};
+						uniform float<3> texture_coordinates2= {texture_coordinates[texture_coordinates2_index* 2+ 0], texture_coordinates[texture_coordinates2_index* 2+ 1]};
+
+						ray_packets[i].surface_.texture_coordinates_u[programIndex]= texture_coordinates0[0]* w+ texture_coordinates1[0]* u+ texture_coordinates2[0]* v;
+						ray_packets[i].surface_.texture_coordinates_v[programIndex]= texture_coordinates0[1]* w+ texture_coordinates1[1]* u+ texture_coordinates2[1]* v;
+					}
+
 
 					ray_packets[i].surface_.material_id[programIndex]= material_ids[unique_geometry_id];
 				}
@@ -1175,6 +1266,22 @@ export void Interpolate_Coherent(uniform RayPacket ray_packets[], uniform int pa
 						ray_packets[i].surface_.normal_x[programIndex]= normal0[0]* w+ normal1[0]* u+ normal2[0]* v;
 						ray_packets[i].surface_.normal_y[programIndex]= normal0[1]* w+ normal1[1]* u+ normal2[1]* v;
 						ray_packets[i].surface_.normal_z[programIndex]= normal0[2]* w+ normal1[2]* u+ normal2[2]* v;
+
+
+						if(texture_coordinates!= 0)
+						{
+							uniform int texture_coordinates0_index= texture_coordinate_indices[unique_primitive_id* 3+ 0];
+							uniform int texture_coordinates1_index= texture_coordinate_indices[unique_primitive_id* 3+ 1];
+							uniform int texture_coordinates2_index= texture_coordinate_indices[unique_primitive_id* 3+ 2];
+
+							uniform float<3> texture_coordinates0= {texture_coordinates[texture_coordinates0_index* 2+ 0], texture_coordinates[texture_coordinates0_index* 2+ 1]};
+							uniform float<3> texture_coordinates1= {texture_coordinates[texture_coordinates1_index* 2+ 0], texture_coordinates[texture_coordinates1_index* 2+ 1]};
+							uniform float<3> texture_coordinates2= {texture_coordinates[texture_coordinates2_index* 2+ 0], texture_coordinates[texture_coordinates2_index* 2+ 1]};
+
+							ray_packets[i].surface_.texture_coordinates_u[programIndex]= texture_coordinates0[0]* w+ texture_coordinates1[0]* u+ texture_coordinates2[0]* v;
+							ray_packets[i].surface_.texture_coordinates_v[programIndex]= texture_coordinates0[1]* w+ texture_coordinates1[1]* u+ texture_coordinates2[1]* v;
+						}
+
 
 						ray_packets[i].surface_.material_id[programIndex]= material_ids[unique_geometry_id];
 					}

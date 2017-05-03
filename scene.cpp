@@ -60,6 +60,14 @@ void Scene::BuildISPCMaterials()
 		ispc_material.reflectivity= material->reflectivity;
 		ispc_material.refractive_index= material->refractive_index;
 		ispc_material.transparency= material->transparency;
+		if(material->diffuse_texture!= nullptr)
+		{
+			ispc_material.diffuse_texture= (uint8_t *)material->diffuse_texture->RetrieveImage().GetPixels();
+			ispc_material.diffuse_texture_width= material->diffuse_texture->GetSize().x;
+			ispc_material.diffuse_texture_height= material->diffuse_texture->GetSize().y;
+		}
+		else
+			ispc_material.diffuse_texture= nullptr;
 
 		ispc_materials.push_back(ispc_material);
 	}

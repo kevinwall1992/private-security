@@ -235,8 +235,20 @@ vector<Mesh *> Mesh::Parse(string filename)
 
 		else if(tokens[0] == "vt")
 		{
-			mesh->texture_coordinates.push_back((float)atof(tokens[1].c_str()));
-			mesh->texture_coordinates.push_back(1- (float)atof(tokens[2].c_str()));
+			float u= (float)atof(tokens[1].c_str());
+			if(abs(u)>= 1)
+				u-= (int)u;
+			if(u< 0)
+				u+= 1;
+
+			float v= 1- (float)atof(tokens[2].c_str());
+			if(abs(v)>= 1)
+				v-= (int)v;
+			if(v< 0)
+				v+= 1;
+
+			mesh->texture_coordinates.push_back(u);
+			mesh->texture_coordinates.push_back(v);
 		}
 
 		else if(tokens[0] == "vn")

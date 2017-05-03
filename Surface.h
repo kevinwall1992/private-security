@@ -9,6 +9,8 @@ struct Surface
 {
 	Vec3f position;
 	Vec3f normal;
+	Vec2f texture_coordinates;
+
 	Material *material;
 
 	Surface(Vec3f position, Vec3f normal, Material *material);
@@ -24,6 +26,9 @@ struct SurfacePacket
 	float normal_x[PACKET_SIZE];
 	float normal_y[PACKET_SIZE];
 	float normal_z[PACKET_SIZE];
+
+	float texture_coordinates_u[PACKET_SIZE];
+	float texture_coordinates_v[PACKET_SIZE];
 
 	int material_id[PACKET_SIZE];
 };
