@@ -17,12 +17,14 @@ void RasterCamera::Initialize(Vec2i size)
 	diffuse_color_buffer= Texture(size, 1);
 	glossiness_buffer= Texture(size, 2);
 	normal_buffer= Texture(size, 3);
+	indirect_light_stencil= Texture(size, 7);
 	depth_buffer= DepthTexture(size, 4);
 	
 	gbuffer_framebuffer.Bind();
 	gbuffer_framebuffer.AttachColorTexture(diffuse_color_buffer, 0);
 	gbuffer_framebuffer.AttachColorTexture(glossiness_buffer, 1);
 	gbuffer_framebuffer.AttachColorTexture(normal_buffer, 2);
+	gbuffer_framebuffer.AttachColorTexture(indirect_light_stencil, 3);
 	gbuffer_framebuffer.AttachDepthTexture(depth_buffer);
 	gbuffer_framebuffer.CheckCompleteness();
 
@@ -30,6 +32,7 @@ void RasterCamera::Initialize(Vec2i size)
 	glBindFragDataLocation(shader_program->GetHandle(), 0, "diffuse_color");
 	glBindFragDataLocation(shader_program->GetHandle(), 1, "glossiness");
 	glBindFragDataLocation(shader_program->GetHandle(), 2, "normal");
+	glBindFragDataLocation(shader_program->GetHandle(), 3, "indirect_light_stencil");
 
 
 	phong_framebuffer.Bind();
@@ -51,11 +54,21 @@ void RasterCamera::Initialize(Vec2i size)
 	shader_program->SetUniformInt("depth_buffer", 4);
 	shader_program->SetUniformInt("indirect_buffer", 5);
 	shader_program->SetUniformInt("shadow_map", 6);
+	shader_program->SetUniformInt("indirect_light_stencil_buffer", 7);
 	shader_program->SetUniformMatrix4x4f("projection_transform", Transform::MakeProjectionTransform(FOV, Math::GetAspectRatio((float)size.x, (float)size.y)));
 
+	downscale_framebuffer.AttachColorTexture(downscale_texture= Texture(GetDownscaleSize(size)), 0);
+	downscale_framebuffer.AttachDepthTexture(downscale_depth_texture= DepthTexture(GetDownscaleSize(size)));
+
+	//downscale_texture.BindToIndex(0);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
 	
-	indirect_light_texture= Texture(GetSceneViewPixelSize(size), 5);
+	indirect_light_texture= Texture(GetSceneViewPixelSize(GetDownscaleSize(size)), 5);
 	indirect_light_texture_was_modified= false;
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
 
 	initialized= true;
@@ -66,12 +79,14 @@ void RasterCamera::ResizeResizables(Vec2i size)
 	diffuse_color_buffer.Size= size;
 	glossiness_buffer.Size= size;
 	normal_buffer.Size= size;
+	indirect_light_stencil.Size= size;
 	depth_buffer.Size= size;
 
 	phong_color_buffer.Size= size;
 	phong_depth_buffer.Size= size;
-	
-	indirect_light_texture.Size= GetSceneViewPixelSize(size);
+
+	downscale_texture.Size= GetDownscaleSize(size);
+	downscale_depth_texture.Size= GetDownscaleSize(size);
 }
 
 void RasterCamera::GenerateIndirectLightTexture(Scene *scene, Vec2i size)
@@ -90,7 +105,7 @@ void RasterCamera::GenerateIndirectLightTexture(Scene *scene, Vec2i size)
 		ray_camera_is_invalid= false;
 	}
 
-	indirect_light_photo= ray_camera.TakePhoto(*scene, IsOrthographic() ? scene_photo_size : size, Photo::Type::FullColor);
+	indirect_light_photo= ray_camera.TakePhoto(*scene, IsOrthographic() ? GetDownscaleSize(scene_photo_size) : size, Photo::Type::FullColor);
 	indirect_light_texture_was_modified= true;
 }
 
@@ -122,14 +137,19 @@ float RasterCamera::GetWorldToPixelRatio(Vec2i photo_size)
 	return 1/ GetPixelToWorldRatio(photo_size);
 }
 
-RasterCamera::RasterCamera(float fov, Vec3f position)
-	: Camera(fov, position), ray_camera(fov, position), shadow_camera(Math::DegreesToRadians(70), Vec3f())
+Vec2i RasterCamera::GetDownscaleSize(Vec2i size)
 {
-	animation_timer.Start();
+	return (Vec2f)size* downscale_factor;
+}
+
+RasterCamera::RasterCamera(float fov, Vec3f position)
+	: Camera(fov, position), ray_camera(fov, position), shadow_camera(Math::DegreesToRadians(90), Vec3f()), light_cycle(6)
+{
+	
 }
 
 RasterCamera::RasterCamera(float fov, Vec3f focus, float pitch, float yaw)
-	: Camera(fov, focus, pitch, yaw), ray_camera(fov, focus, pitch, yaw), shadow_camera(Math::DegreesToRadians(70), Vec3f())
+	: Camera(fov, focus, pitch, yaw), ray_camera(fov, focus, pitch, yaw), shadow_camera(Math::DegreesToRadians(90), Vec3f()), light_cycle(6)
 {
 }
 
@@ -143,14 +163,12 @@ RasterCamera::~RasterCamera()
 
 PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 {
+	size= (Vec2f)size/ downscale_factor;
+
 	Initialize(size);
 	ResizeResizables(size);
 	if(!ValidateFOV() || !ValidateRotation() || (!IsOrthographic() && !ValidatePosition()))
 		ray_camera_is_invalid= true;
-
-	animation_timer.Pause();
-	float elapsed_seconds= animation_timer.GetElapsedSeconds();
-	animation_timer.Start();
 
 #ifndef NO_RAYTRACING
 	if(indirect_light_texture_was_modified || raytracing_thread== nullptr)
@@ -179,14 +197,14 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 	gbuffer_shader_program->Use();
 	gbuffer_shader_program->SetUniformMatrix4x4f("camera_transform", GetProjectedTransform(Math::GetAspectRatio(size)).GetMatrix());
 
-	scene.RasterizeConditionally(Prop::DrawFlags::RasterizeGbuffers);
+	scene.RasterizeConditionally_All(Prop::DrawFlags::Direct);
 
 
 	Light *light= scene.GetLights()[0];
 	Vec3f light_position= light->GetPosition();
-	Vec3f raster_light_position= light_position;
+	Vec3f raster_light_position= light_position+ Transform().RotateAboutY((float)(M_PI* 2* light_cycle.GetMoment())).Apply(Vec3f(1.35, 0, 0));
 	shadow_camera.Position= raster_light_position;
-	shadow_camera.LookAt(Vec3f(1, 1, 0));
+	shadow_camera.LookAt(Vec3f(15.5f, 0, 15.5f));
 	DepthTexture shadow_map= shadow_camera.TakePhoto(scene, Vec2i(2048, 2048), Photo::Type::Depth).GetTexture();
 	shadow_map.BindToIndex(6);
 
@@ -228,6 +246,15 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 	RasterizeFullScreenQuad();
 
 
+	downscale_framebuffer.PrepareForDrawing();
+	ShaderProgram *downscale_shader_program= ShaderProgram::Retrieve("quad.program");
+	downscale_shader_program->Use();
+	downscale_shader_program->SetUniformMatrix4x4f("transform", Transform());
+	downscale_shader_program->SetUniformMatrix4x4f("texture_transform", Transform());
+	phong_color_buffer.BindToIndex(0);
+	RasterizeFullScreenQuad();
+
+
 	PhotoBook photo_book;
 
 	vector<Photo::Type> all_types= { Photo::Type::FullColor, Photo::Type::Depth };
@@ -235,7 +262,7 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 		if((type & types)== type)
 			switch(type)
 			{
-			case Photo::Type::FullColor: photo_book[type]= phong_color_buffer; break;
+			case Photo::Type::FullColor: photo_book[type]= downscale_texture; break;
 			case Photo::Type::Depth: photo_book[type]= depth_buffer; break;
 
 			case Photo::Type::DiffuseColor:

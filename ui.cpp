@@ -102,7 +102,7 @@ void IconPane::MouseOut()
 Texture IconPane::GetTexture()
 {
 	if(icon_camera== nullptr)
-		icon_camera= new IconCamera(Math::DegreesToRadians(35), Vec3f(3, 3, 5), Vec3f(0, 1, 0));
+		icon_camera= new IconCamera(Math::DegreesToRadians(35), Vec3f(3, 3, 5), Vec3f(0, 0.5f, 0));
 
 	dynamic_cast<MeshProp *>(scene.GetProps()[0])->SetRotation((float)(2* M_PI* cycle.GetMoment()));
 
@@ -215,6 +215,7 @@ TacticalInterface::TacticalInterface(Camera *camera)
 
 	AddComponent(&toolbelt);
 
+	Menu::InitializeMenus();
 	Menu::SetHost(this);
 }
 

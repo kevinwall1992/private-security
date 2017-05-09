@@ -13,9 +13,12 @@ uniform float material_glossiness;
 uniform sampler2D diffuse_texture;
 uniform bool use_diffuse_texture;
 
+uniform bool show_indirect_light;
+
 out vec4 diffuse_color;
 out vec4 glossiness;
 out vec4 normal;
+out vec4 indirect_light_stencil;
 
 
 void main() 
@@ -28,4 +31,9 @@ void main()
   normal= vec4((vertex_data.normal+ vec3(1))/ 2, 1);
 
   glossiness= vec4(vec3(material_glossiness/ 100.0), 1);
+
+  if(show_indirect_light)
+    indirect_light_stencil= vec4(1, 1, 1, 1);
+  else
+    indirect_light_stencil= vec4(0, 0, 0, 1);
 }

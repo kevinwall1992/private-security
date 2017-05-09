@@ -27,4 +27,20 @@ public:
 	virtual string GetEntityDataFilename();
 };
 
+class InvisibleThickWall : public ThickWall
+{
+public:
+	InvisibleThickWall();
+
+	virtual string GetEntityDataFilename();
+};
+
+class Museum : public Furniture
+{
+public:
+	Museum();
+
+	virtual string GetEntityDataFilename();
+};
+
 #endif

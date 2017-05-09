@@ -29,9 +29,12 @@ Mesh * Animation::GetMesh()
 	return mesh_prop.GetMesh();
 }
 
-vector<RaytracingPrimitive*> Animation::GetRaytracingPrimitives()
+vector<RaytracingPrimitive *> Animation::GetRaytracingPrimitives()
 {
-	return mesh_prop.GetRaytracingPrimitives();
+	if(AreDrawFlagsActive_All(DrawFlags::Indirect))//**** having to stick this condition into every Prop subclass...
+		return mesh_prop.GetRaytracingPrimitives();
+	else
+		return vector<RaytracingPrimitive *>();
 }
 
 void Animation::Rasterize()
@@ -79,5 +82,6 @@ void Animation::Rasterize()
 		glUniform3fv(ShaderProgram::GetCurrentProgram()->GetUniformLocation("bone_heads"), (GLsizei)bone_heads.size(), (float *)(&bone_heads[0]));
 	}
 
+	mesh_prop.SetDrawFlags(draw_flags);
 	mesh_prop.Rasterize();
 }

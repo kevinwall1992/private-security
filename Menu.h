@@ -17,7 +17,7 @@ class Menu : public Pane
 
 	//Consider changing AboutDialog and PauseMenu's constructors now that they aren't 
 	//intialized at program start anymore. ****
-	static void InitializeMenus();
+	//static void InitializeMenus();
 
 protected:
 	virtual void Show();
@@ -37,6 +37,8 @@ public:
 
 	static void Draw_Menus();
 	static void HandleEvent_Menus(Event *event_);
+
+	static void InitializeMenus();
 };
 
 

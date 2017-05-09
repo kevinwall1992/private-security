@@ -3,6 +3,7 @@
 uniform sampler2D diffuse_buffer;
 uniform sampler2D glossiness_buffer;
 uniform sampler2D normal_buffer;
+uniform sampler2D indirect_light_stencil_buffer;
 uniform sampler2D depth_buffer;
 uniform sampler2D indirect_buffer;
 uniform sampler2DShadow shadow_map;
@@ -104,6 +105,8 @@ void main()
 
 	vec3 to_camera= normalize(camera_position- surface.position);
   vec3 to_light= normalize(light_position- surface.position);
+  if(dot(to_camera, surface.normal)< 0)
+    surface.normal= -surface.normal;
   float cos_theta_incoming= dot(to_camera, surface.normal);
   float geometry_term= dot(to_light, surface.normal);
 
@@ -123,7 +126,13 @@ void main()
               surface.shadow;
 	}
 
-  color= vec4(vec3(1)* 0.0+ diffuse* 1.0+ specular* 1.0+ 1.0* texture(indirect_buffer, (normalized_coordinates)* indirect_buffer_scale+ indirect_buffer_offset).xyz, 1);
+  vec3 indirect_light= texture(indirect_buffer, (normalized_coordinates)* indirect_buffer_scale+ indirect_buffer_offset).xyz;
+  float indirect_light_stencil_value= texture(indirect_light_stencil_buffer, normalized_coordinates).x;
+
+  color= vec4(1.0* diffuse+ 
+              1.0* specular+ 
+              1.0* indirect_light_stencil_value* indirect_light, 1);
+
   //final_color= vec4(vec3(depth- 0.995)* 200, 1);
   //final_color= vec4(vec3(texture(shadow_map, normalized_coordinates).x- 0.995)* 200, 1);
   //final_color= vec4(highlight ? 1.0f : 0.0f, vec2(texture(shadow_map, shadow_camera_ndc.xy).x- 0.995)* 200, 1);

@@ -40,21 +40,60 @@ int main(int argument_count, char **arguments)
 #else
 	Actor *actor= new Actor();
 
-	System::game.space.GetTile(1, 1, 0)->PutFurniture(new ThickWall());
+	/*System::game.space.GetTile(0, 2, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(0, 3, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(0, 4, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(0, 5, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(0, 6, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(0, 7, 0)->PutFurniture(new ThickWall());
+
+	System::game.space.GetTile(0, 2, 0)->PutFurniture(new ThickWall());
 	System::game.space.GetTile(1, 2, 0)->PutFurniture(new ThickWall());
-	System::game.space.GetTile(2, 1, 0)->PutFurniture(new ThickWall());
-	System::game.space.GetTile(3, 1, 0)->PutFurniture(new ThickWall());
-	System::game.space.GetTile(3, 1, 1)->PutFurniture(new ThickWall());
-	System::game.space.GetTile(2, 2, 0)->PutActor(actor);
+	System::game.space.GetTile(2, 2, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(3, 2, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(4, 2, 0)->PutFurniture(new ThickWall());
+	System::game.space.GetTile(5, 2, 0)->PutFurniture(new ThickWall());*/
+
+	System::game.space.GetTile(0, 0, 0)->PutFurniture(new Museum());
+
+	System::game.space.GetTile(5, 18, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(6, 18, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(7, 18, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(8, 18, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(10, 18, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(11, 18, 0)->PutFurniture(new InvisibleThickWall());
+
+	System::game.space.GetTile(12, 18, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(12, 19, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(12, 20, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(12, 21, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(12, 23, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(12, 24, 0)->PutFurniture(new InvisibleThickWall());
+
+	System::game.space.GetTile(12, 25, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(11, 25, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(10, 25, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(9, 25, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(7, 25, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(6, 25, 0)->PutFurniture(new InvisibleThickWall());
+
+	System::game.space.GetTile(5, 25, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(5, 24, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(5, 23, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(5, 22, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(5, 20, 0)->PutFurniture(new InvisibleThickWall());
+	System::game.space.GetTile(5, 19, 0)->PutFurniture(new InvisibleThickWall());
+
+	System::game.space.GetTile(8, 21, 0)->PutActor(actor);
 
 	Scene scene;
 	scene.AddProp(&System::game.space);
 	
-	RasterCamera camera(6, Vec3f(2, 1.5, 2), Math::DegreesToRadians(-15), Math::DegreesToRadians(80));
+	RasterCamera camera(100, Vec3f(2, 1.5, 2), Math::DegreesToRadians(-15), Math::DegreesToRadians(80));
 	//RasterCamera camera(Math::DegreesToRadians(60), Vec3f(1, 3, 5));
 	//camera.LookAt(Vec3f(2, 1, 2));
 	
-	scene.AddLight(new PointLight(Vec3f(3.0f, 6.0f, 10.5f), Color(0.92f, 0.80f, 0.65f)));
+	scene.AddLight(new PointLight(Vec3f(16.0f, 25.0f, 10.0f), Color(0.92f, 0.85f, 0.77f)));
 	scene.Commit();
 #endif
 

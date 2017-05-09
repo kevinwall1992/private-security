@@ -1,5 +1,6 @@
 #include "Perceptible.h"
 #include "Common.h"
+#include "Actor.h"
 
 #include <tinyxml.h>
 
@@ -65,6 +66,9 @@ Entity::EntityData::EntityData(string filepath)
 
 Entity::EntityData * Entity::GetEntityData()
 {
+	if(GetEntityDataFilename()== "")
+		return nullptr;
+
 	return EntityData::Retrieve(GetEntityDataFolderName()+ "/"+ GetEntityDataFilename());
 }
 
@@ -75,6 +79,9 @@ Mesh * Entity::GetMesh()
 
 Animation * Entity::GetAnimation()
 {
+	if(GetEntityData()== nullptr)
+		return nullptr;
+
 	if(!Utility::Contains(GetEntityData()->animations, GetEntityAnimationName()))
 		GetEntityData()->animations[GetEntityAnimationName()]= new Animation(GetMesh(), GetEntityAnimationName(), 0.9f);
 
@@ -82,6 +89,8 @@ Animation * Entity::GetAnimation()
 	animation->SetDisplacement(GetPosition());
 	animation->SetRotation(GetRotation());
 	animation->SetMoment(GetEntityAnimationMoment());
+	if(dynamic_cast<Actor *>(this))//****
+		animation->RemoveDrawFlags(DrawFlags::Indirect);
 
 	return animation;
 }
@@ -108,10 +117,18 @@ float Entity::GetEntityAnimationMoment()
 
 vector<RaytracingPrimitive *> Entity::GetRaytracingPrimitives()
 {
-	return GetAnimation()->GetRaytracingPrimitives();
+	Animation *animation= GetAnimation();
+
+	if(animation== nullptr)
+		return vector<RaytracingPrimitive *>();
+	else
+		return animation->GetRaytracingPrimitives();
 }
 
 void Entity::Rasterize()
 {
-	GetAnimation()->Rasterize();
+	Animation *animation= GetAnimation();
+
+	if(animation!= nullptr)
+		animation->Rasterize();
 }

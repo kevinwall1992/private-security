@@ -188,6 +188,8 @@ Camera::FOVProperty & Camera::FOVProperty::operator=(const FOVProperty &other)
 void Camera::FOVProperty::Set(const float &value)
 {
 	camera->fov= value;
+
+	camera->fov_is_valid= false;
 }
 
 

@@ -133,7 +133,7 @@ bool Film::Develop_Parallel(float factor, int interval_index)
 				   receptors_b+ interval_offset, 
 				   sample_counts+ interval_offset, 
 				   reinterpret_cast<int8_t *>(image.GetPixels()+ interval_offset), //this should probably be uint8_t
-				   0.95f/ factor, 
+				   1.15f/ factor, 
 				   FILM_INTERVAL_SIZE);
 
 #else

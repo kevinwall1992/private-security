@@ -235,11 +235,19 @@ bool RayCamera::GetRayPackets(EBRRayPacket *ray_packets, int tile_index, int *in
 
 				int x= i+ tile_x* CAMERA_TILE_WIDTH;
 				int y= j+ tile_y* CAMERA_TILE_HEIGHT;
+
+#if SAMPLE_PIXEL_CENTERS
 				float normalized_x= 2* (x+ 0.5f)/ (float)film.Width- 1;
-				float normalized_y= 2* (y+ 0.5f)/ (float)film.Height- 1;
+				float normalized_y= 2* (y+ 0.5f)/ (float)film.Height- 1;		
+#endif
 
 				for(int ray_index= 0; ray_index< PACKET_SIZE; ray_index++)
 				{
+#if !SAMPLE_PIXEL_CENTERS
+					float normalized_x= 2* (x+ samples_x[ray_index])/ (float)film.Width- 1;
+					float normalized_y= 2* (y+ samples_y[ray_index])/ (float)film.Height- 1;
+#endif
+
 					Vec3f ray_tail= Position+ (unit_view_plane_u* normalized_x+ unit_view_plane_v* normalized_y)* (FOV/ 2.0f);
 
 					next_ray_packet->orgx[ray_index]= ray_tail.x;

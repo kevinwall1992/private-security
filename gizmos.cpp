@@ -9,16 +9,27 @@ CameraGizmo::CameraGizmo(Camera *camera_)
 	
 void CameraGizmo::KeyHold(ButtonType button, float t)
 {
-	float speed= 2.5f;
+	float pan_speed= 7.5f;
+	float fov_speed= 0.1f;
 
 	switch(button)
 	{
-	case ButtonType::S: camera->Position+= camera->GetForward()* -speed* t; break;
-	case ButtonType::W: camera->Position+= camera->GetForward()*  speed* t; break;
-	case ButtonType::A: camera->Position+= camera->GetRight()*	 -speed* t; break;
-	case ButtonType::D: camera->Position+= camera->GetRight()*    speed* t; break;
-	case ButtonType::Q: camera->Position+= camera->GetUp()*		 -speed* t; break;
-	case ButtonType::E: camera->Position+= camera->GetUp()*		  speed* t; break;
+	case ButtonType::S: 
+		if(camera->IsOrthographic())
+			camera->FOV*= pow(1+ fov_speed, t);
+		else
+			camera->Position+= camera->GetForward()* -pan_speed* t; break;
+
+	case ButtonType::W: 
+		if(camera->IsOrthographic())
+			camera->FOV*= pow(1- fov_speed, t);
+		else
+			camera->Position+= camera->GetForward()* pan_speed* t; break;
+
+	case ButtonType::A: camera->Position+= camera->GetRight()*	 -pan_speed* t; break;
+	case ButtonType::D: camera->Position+= camera->GetRight()*    pan_speed* t; break;
+	case ButtonType::Q: camera->Position+= camera->GetUp()*		 -pan_speed* t; break;
+	case ButtonType::E: camera->Position+= camera->GetUp()*		  pan_speed* t; break;
 	}	
 }
 

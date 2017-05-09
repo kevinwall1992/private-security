@@ -7,11 +7,8 @@ void IconCamera::Initialize(Vec2i size)
 	if(initialized)
 		return;
 
-	color_texture= Texture(size, 7);
-	depth_texture= DepthTexture(size, 8);
-
-	framebuffer.AttachColorTexture(color_texture, 0);
-	framebuffer.AttachDepthTexture(depth_texture);
+	framebuffer.AttachColorTexture(color_texture= Texture(size), 0);
+	framebuffer.AttachDepthTexture(depth_texture= DepthTexture(size));
 	framebuffer.CheckCompleteness();
 
 	initialized= true;

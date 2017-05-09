@@ -6,23 +6,17 @@ void RaytracingPrimitive::SetGeometryID(int geometry_id_)
 	geometry_id= geometry_id_;
 }
 
-RaytracingPrimitive::RaytracingPrimitive(bool has_direct_visibility_)
+RaytracingPrimitive::RaytracingPrimitive()
 {
-	has_direct_visibility= has_direct_visibility_;
+	
 }
-
-bool RaytracingPrimitive::HasDirectVisibility()
-{
-	return has_direct_visibility;
-}
-
 int RaytracingPrimitive::GetGeometryID()
 {
 	return geometry_id;
 }
 
-RaytracingMesh::RaytracingMesh(bool has_direct_visibility, Mesh *mesh_, Transform transform_)
-	: RaytracingPrimitive(has_direct_visibility)
+RaytracingMesh::RaytracingMesh(Mesh *mesh_, Transform transform_)
+	: RaytracingPrimitive()
 {
 	mesh= mesh_;
 	transform= transform_;
@@ -35,16 +29,13 @@ Mesh * RaytracingMesh::GetMesh()
 
 void RaytracingMesh::AddToEmbreeScene(RTCScene &embree_scene)
 {
-	//if(transform.Apply(Vec3f()).y> 1.999f)
-	//	return;
-
 	int vertex_count= mesh->GetVertexCount();
 	int triangle_count= mesh->GetTriangleCount();
 	unsigned int geometry_id= rtcNewTriangleMesh(embree_scene, RTC_GEOMETRY_STATIC, triangle_count, vertex_count);
 	EmbreeVertex *vertices= (EmbreeVertex *)rtcMapBuffer(embree_scene, geometry_id, RTC_VERTEX_BUFFER);
 	for(int j= 0; j< vertex_count; j++)
 	{
-		Vec3f transformed_vertex= transform.Apply(*reinterpret_cast<Vec3f *>((&mesh->positions[j* 3+ 0])));//+ Vec3f(0.123f, 0.234f, 0.345f);
+		Vec3f transformed_vertex= transform.Apply(*reinterpret_cast<Vec3f *>((&mesh->positions[j* 3+ 0])));
 
 		vertices[j].x= transformed_vertex.x;
 		vertices[j].y= transformed_vertex.y;
@@ -86,7 +77,7 @@ ISPCMesh RaytracingMesh::MakeISPCMesh()
 		ispc_mesh.texture_coordinate_indices= nullptr;
 	}
 
-	ispc_mesh.indirect_only= !HasDirectVisibility();
+	ispc_mesh.indirect_only= false;
 
 	return ispc_mesh;
 }

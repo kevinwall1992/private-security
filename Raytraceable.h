@@ -7,16 +7,14 @@
 
 class RaytracingPrimitive
 {
-	bool has_direct_visibility;
 	int geometry_id;
 
 protected:
 	void SetGeometryID(int geometry_id);
 
 public:
-	RaytracingPrimitive(bool has_direct_visibility);
+	RaytracingPrimitive();
 
-	bool HasDirectVisibility();
 	int GetGeometryID();
 
 	virtual void AddToEmbreeScene(RTCScene &scene)= 0;
@@ -32,7 +30,7 @@ class RaytracingMesh : public RaytracingPrimitive
 	Transform transform;
 
 public:
-	RaytracingMesh(bool has_direct_visibility, Mesh *mesh, Transform transform= Transform());
+	RaytracingMesh(Mesh *mesh, Transform transform= Transform());
 
 	Mesh * GetMesh();
 

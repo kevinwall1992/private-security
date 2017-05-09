@@ -34,3 +34,24 @@ string ThickWall::GetEntityDataFilename()
 {
 	return "wall.xml";
 }
+
+
+InvisibleThickWall::InvisibleThickWall()
+{
+
+}
+
+string InvisibleThickWall::GetEntityDataFilename()
+{
+	return "";
+}
+
+
+Museum::Museum()
+{
+}
+
+string Museum::GetEntityDataFilename()
+{
+	return "museum.xml";
+}

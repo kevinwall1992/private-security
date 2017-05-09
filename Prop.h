@@ -13,7 +13,7 @@
 class Prop : public Raytraceable, public Rasterizable
 {
 public:
-	enum DrawFlags { None= 0, RasterizeGbuffers= 1 };
+	enum DrawFlags { None= 0, Direct= 1, Indirect= 2 };
 
 protected:
 	DrawFlags draw_flags= DrawFlags::None;
@@ -23,9 +23,12 @@ public:
 
 	void AddDrawFlags(DrawFlags draw_flags);
 	void RemoveDrawFlags(DrawFlags draw_flags);
-	bool AreDrawFlagsActive(DrawFlags draw_flags);//This is an "any", not "all"
+	void SetDrawFlags(DrawFlags draw_flags);
+	bool AreDrawFlagsActive_Any(DrawFlags draw_flags);
+	bool AreDrawFlagsActive_All(DrawFlags draw_flags);
 
-	virtual void RasterizeConditionally(DrawFlags draw_flags);//Same
+	virtual void RasterizeConditionally_Any(DrawFlags draw_flags);
+	virtual void RasterizeConditionally_All(DrawFlags draw_flags);
 };
 
 class PropContainer : public Prop
@@ -36,7 +39,8 @@ public:
 public:
 	virtual vector<RaytracingPrimitive *> GetRaytracingPrimitives();
 	virtual void Rasterize();
-	virtual void RasterizeConditionally(DrawFlags draw_flags);
+	virtual void RasterizeConditionally_Any(DrawFlags draw_flags);
+	virtual void RasterizeConditionally_All(DrawFlags draw_flags);
 };
 
 class BasicPropContainer : public PropContainer

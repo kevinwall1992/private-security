@@ -8,7 +8,8 @@
 
 Prop::Prop()
 {
-	AddDrawFlags(DrawFlags::RasterizeGbuffers);
+	AddDrawFlags(DrawFlags::Direct);
+	AddDrawFlags(DrawFlags::Indirect);
 }
 
 void Prop::AddDrawFlags(DrawFlags draw_flags_)
@@ -21,14 +22,30 @@ void Prop::RemoveDrawFlags(DrawFlags draw_flags_)
 	draw_flags= (DrawFlags)(draw_flags ^ (draw_flags & draw_flags_));
 }
 
-bool Prop::AreDrawFlagsActive(DrawFlags draw_flags_)
+void Prop::SetDrawFlags(DrawFlags draw_flags_)
+{
+	draw_flags= draw_flags_;
+}
+
+bool Prop::AreDrawFlagsActive_Any(DrawFlags draw_flags_)
 {
 	return (draw_flags & draw_flags_)== 0 ? false : true;
 }
 
-void Prop::RasterizeConditionally(DrawFlags draw_flags_)
+bool Prop::AreDrawFlagsActive_All(DrawFlags draw_flags_)
 {
-	if(AreDrawFlagsActive(draw_flags_))
+	return (draw_flags & draw_flags_)== draw_flags_;
+}
+
+void Prop::RasterizeConditionally_Any(DrawFlags draw_flags_)
+{
+	if(AreDrawFlagsActive_Any(draw_flags_))
+		Rasterize();
+}
+
+void Prop::RasterizeConditionally_All(DrawFlags draw_flags_)
+{
+	if(AreDrawFlagsActive_All(draw_flags_))
 		Rasterize();
 }
 
@@ -55,15 +72,26 @@ void PropContainer::Rasterize()
 		props[i]->Rasterize();
 }
 
-void PropContainer::RasterizeConditionally(DrawFlags draw_flags)
+void PropContainer::RasterizeConditionally_Any(DrawFlags draw_flags)
 {
-	if(!AreDrawFlagsActive(draw_flags))
+	if(!AreDrawFlagsActive_Any(draw_flags))
 		return;
 
 	vector<Prop *> props= GetProps();
 
 	for(unsigned int i= 0; i< props.size(); i++)
-		props[i]->RasterizeConditionally(draw_flags);
+		props[i]->RasterizeConditionally_Any(draw_flags);
+}
+
+void PropContainer::RasterizeConditionally_All(DrawFlags draw_flags)
+{
+	if(!AreDrawFlagsActive_All(draw_flags))
+		return;
+
+	vector<Prop *> props= GetProps();
+
+	for(unsigned int i= 0; i< props.size(); i++)
+		props[i]->RasterizeConditionally_All(draw_flags);
 }
 
 
@@ -153,7 +181,10 @@ VAO MeshProp::GetVAO()
 
 vector<RaytracingPrimitive *> MeshProp::GetRaytracingPrimitives()
 {
-	return Utility::MakeVector<RaytracingPrimitive *>(new RaytracingMesh(AreDrawFlagsActive(DrawFlags::RasterizeGbuffers) ? false : true, mesh, GetModelTransform()));
+	if(AreDrawFlagsActive_All(DrawFlags::Indirect))
+		return Utility::MakeVector<RaytracingPrimitive *>(new RaytracingMesh(mesh, GetModelTransform()));
+	else
+		return vector<RaytracingPrimitive *>();
 }
 
 void MeshProp::Rasterize()
@@ -174,6 +205,8 @@ void MeshProp::Rasterize()
 	if(material->diffuse_texture!= nullptr)
 		material->diffuse_texture->RetrieveTexture().BindToIndex(0);
 	shader_program->SetUniformInt("use_diffuse_texture", material->diffuse_texture!= nullptr ? 1 : 0);
+
+	shader_program->SetUniformInt("show_indirect_light", AreDrawFlagsActive_All(DrawFlags::Indirect));
 	
 	glDrawElements(GL_TRIANGLES, mesh->GetTriangleCount()* 3, GL_UNSIGNED_INT, nullptr);
 }

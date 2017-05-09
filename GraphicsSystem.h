@@ -16,8 +16,8 @@ class GraphicsSystem : public System
 	SDL_GLContext opengl_context;
 	SDL_Window *window;
 
-	int screen_width= 512;
-	int screen_height= 512;
+	int screen_width= 1024;
+	int screen_height= 1024;
 
 	int frame_count= 0;
 

@@ -32,7 +32,7 @@ void GraphicsSystem::Initialize()
 	cout << "\n\n";
 
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
 
 	SDL_GL_SetSwapInterval(0);
 
