@@ -52,6 +52,7 @@ public:
 
 public:
 	void AddProp(Prop *prop);
+	void ClearProps();
 };
 
 class MeshProp : public Prop

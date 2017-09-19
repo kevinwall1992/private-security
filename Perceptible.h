@@ -9,6 +9,7 @@
 #include "HasOrientation.h"
 #include "FileResource.h"
 #include "Pose.h"
+#include "Encodable.h"
 
 #include <map>
 
@@ -39,25 +40,23 @@ public:
 
 //The confusion due to Entity/Component/System model may mean this needs name change
 
-class Entity: public Perceptible, public virtual HasOrientation, public virtual HasPose
+class Entity: public Perceptible, public virtual HasOrientation, public virtual HasPose, public Encodable
 {
-	struct EntityData : public FileResource<EntityData>
+	struct EntityData
 	{
 		std::map<string, Mesh *> meshes;
 		std::map<string, Animation *> animations;
 		std::map<string, Sound> sounds;
 
-		static string MakeFilepath(string filename);
-		static vector<EntityData *> Parse(string filename);
-
-	private:
-		EntityData(string filepath);
+		EntityData();
 	};
+	EntityData entity_data;
 
-	EntityData * GetEntityData();
-
-	Mesh * GetMesh();
+	Mesh * GetDefaultMesh();
 	Animation * GetAnimation();
+
+protected:
+	virtual void LoadXML(TiXmlElement *xml_element);
 
 public:
 
@@ -74,14 +73,19 @@ public:
 	//This is just quick and dirty. Will expand Icon functionality 
 	//(and Perceptible querying in general) later ***
 	Mesh * GetIconMesh();
+	Mesh * GetMesh(string name);
+	std::map<string, Mesh *> GetMeshes();
+	void SetMesh(string name, Mesh *mesh);
 
-	virtual string GetEntityDataFilename()= 0;
-	virtual string GetEntityDataFolderName()= 0;
+	//virtual string GetEntityDataFilename()= 0;
+	//virtual string GetEntityDataFolderName()= 0;
 	virtual string GetEntityAnimationName();
 	virtual float GetEntityAnimationMoment();
 
 	virtual vector<RaytracingPrimitive *> GetRaytracingPrimitives();
 	virtual void Rasterize();
+
+	virtual TiXmlElement * EncodeXML();
 };
 
 #endif

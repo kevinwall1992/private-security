@@ -175,3 +175,74 @@ float Direction::GetLength(Direction::Enum direction)
 	default: return 0.0f;
 	}
 }
+
+string Direction::GetDirectionString(Direction::Enum direction)
+{
+	string direction_string;
+
+	switch(direction)
+	{
+	case Direction::Up: return "Up"; 
+	case Direction::Down: return "Down";
+	case Direction::East: return "East"; 
+	case Direction::Northeast: return "Northeast"; 
+	case Direction::North: return "North"; 
+	case Direction::Northwest: return "Northwest"; 
+	case Direction::West: return "West"; 
+	case Direction::Southwest: return "Southwest"; 
+	case Direction::South: return "South"; 
+	case Direction::Southeast: return "Southeast"; 
+	case Direction::UpEast: return "UpEast"; 
+	case Direction::UpNortheast: return "UpNortheast"; 
+	case Direction::UpNorth: return "UpNorth"; 
+	case Direction::UpNorthwest: return "UpNorthwest"; 
+	case Direction::UpWest: return "UpWest"; 
+	case Direction::UpSouthwest: return "UpSouthwest"; 
+	case Direction::UpSouth: return "UpSouth"; 
+	case Direction::UpSoutheast: return "UpSoutheast"; 
+	case Direction::DownEast: return "DownEast"; 
+	case Direction::DownNortheast: return "DownNortheast"; 
+	case Direction::DownNorth: return "DownNorth"; 
+	case Direction::DownNorthwest: return "DownNorthwest"; 
+	case Direction::DownWest: return "DownWest"; 
+	case Direction::DownSouthwest: return "DownSouthwest"; 
+	case Direction::DownSouth: return "DownSouth"; 
+	case Direction::DownSoutheast: return "DownSoutheast";
+	default: 
+		assert(false && "furniture.cpp::GetDirectionString(): invalid direction");
+		return "";
+	}
+}
+
+Direction::Enum Direction::GetDirection(string direction_string)
+{
+	if(direction_string== "Up") return Direction::Up;
+	else if(direction_string== "Down") return Direction::Down;
+	else if(direction_string== "East") return Direction::East;
+	else if(direction_string== "Northeast") return Direction::Northeast; 
+	else if(direction_string== "North") return Direction::North;
+	else if(direction_string== "Northwest") return Direction::Northwest;
+	else if(direction_string== "West") return Direction::West;
+	else if(direction_string== "Southwest") return Direction::Southwest;
+	else if(direction_string== "South") return Direction::South;
+	else if(direction_string== "Southeast") return Direction::Southeast; 
+	else if(direction_string== "UpEast") return Direction::UpEast;
+	else if(direction_string== "UpNortheast") return Direction::UpNortheast;
+	else if(direction_string== "UpNorth") return Direction::UpNorth;
+	else if(direction_string== "UpNorthwest") return Direction::UpNorthwest;
+	else if(direction_string== "UpWest") return Direction::UpWest;
+	else if(direction_string== "UpSouthwest") return Direction::UpSouthwest;
+	else if(direction_string== "UpSouth") return Direction::UpSouth;
+	else if(direction_string== "UpSoutheast") return Direction::UpSoutheast;
+	else if(direction_string== "DownEast") return Direction::DownEast;
+	else if(direction_string== "DownNortheast") return Direction::DownNortheast; 
+	else if(direction_string== "DownNorth") return Direction::DownNorth;
+	else if(direction_string== "DownNorthwest") return Direction::DownNorthwest;
+	else if(direction_string== "DownWest") return Direction::DownWest;
+	else if(direction_string== "DownSouthwest") return Direction::DownSouthwest; 
+	else if(direction_string== "DownSouth") return Direction::DownSouth;
+	else if(direction_string== "DownSoutheast") return Direction::DownSoutheast;
+
+	assert(false && "furniture.cpp::GetDirection(): direction string did not match.");
+	return (Direction::Enum)0;
+}

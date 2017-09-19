@@ -42,6 +42,7 @@ PhotoBook IconCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 	ShaderProgram *shader_program= ShaderProgram::Retrieve("icon.program");
 	shader_program->Use();
 	shader_program->SetUniformMatrix4x4f("camera_transform", GetProjectedTransform(Math::GetAspectRatio(size)).GetMatrix());
+	shader_program->SetUniformVector3f("camera_position", Position);
 	shader_program->SetUniformVector3f("light_position", light->GetPosition());
 	shader_program->SetUniformVector3f("light_intensity", light->GetIntensity());
 

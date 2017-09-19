@@ -13,7 +13,7 @@ struct RGBAPixel
 	RGBAPixel(unsigned char r, unsigned char b, unsigned char g, unsigned char a);
 	RGBAPixel();
 
-	static RGBAPixel Black;
+	static RGBAPixel Black, White;
 };
 typedef RGBAPixel Pixel;
 
@@ -62,6 +62,13 @@ public:
 	Image(const Image &other)
 	{
 		this->operator=(other);
+	}
+
+	Image(Vec2i size, T intial_value)
+	{
+		Resize(size);
+
+		Clear(intial_value);
 	}
 
 	Image()

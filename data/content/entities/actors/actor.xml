@@ -1,8 +1,0 @@
-<?xml version="1.0"?>
-<perception>
-   <model>
-      <name>default</name>
-      <filename>actor2.obj</filename>
-      <element>doll_doll_Cylinder.000</element>
-   </model>
-</perception>

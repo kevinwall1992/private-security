@@ -10,7 +10,7 @@ CameraGizmo::CameraGizmo(Camera *camera_)
 void CameraGizmo::KeyHold(ButtonType button, float t)
 {
 	float pan_speed= 7.5f;
-	float fov_speed= 0.1f;
+	float fov_speed= 0.3f;
 
 	switch(button)
 	{
@@ -33,18 +33,18 @@ void CameraGizmo::KeyHold(ButtonType button, float t)
 	}	
 }
 
-void CameraGizmo::MouseDragLeft(Vec2f mouse_position, Vec2f mouse_displacement)
+void CameraGizmo::MouseLeftDrag(Vec2f mouse_position, Vec2f mouse_displacement)
 {
 	camera->Yaw+= Math::DegreesToRadians(mouse_displacement.x* 200);
 	camera->Pitch+= Math::DegreesToRadians(mouse_displacement.y* 200);
 }
 
-void CameraGizmo::MouseDragMiddle(Vec2f mouse_position, Vec2f mouse_displacement)
+void CameraGizmo::MouseMiddleDrag(Vec2f mouse_position, Vec2f mouse_displacement)
 {
 
 }
 
-void CameraGizmo::MouseDragRight(Vec2f mouse_position, Vec2f mouse_displacement)
+void CameraGizmo::MouseRightDrag(Vec2f mouse_position, Vec2f mouse_displacement)
 {
 
 }

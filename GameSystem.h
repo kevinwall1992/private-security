@@ -20,7 +20,7 @@ protected:
 	void Terminate();
 
 public:
-	Space space= Space(30, 30, 30);
+	Space space= Space("data/content/maps/test_map.xml");
 
 	void SubmitAction(Action *action);
 

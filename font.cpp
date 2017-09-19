@@ -1,6 +1,7 @@
 #include "Font.h"
 
 Font *Font::Default= new Font(Font::MakeFilepath("Roboto-Regular.ttf"));
+Font *Font::Monospace= new Font(Font::MakeFilepath("Consolas.ttf"));
 
 Font::Font(string filepath)
 	: FileResource(filepath)
@@ -21,6 +22,9 @@ TTF_Font *Font::GetTTF_Font(int font_size)
 
 int Font::GetMaximumFontSize(string text, Vec2i pixel_size)
 {
+	if(text== "")
+		return 1000;
+
 	int font_size= 6;
 	while(true)
 	{

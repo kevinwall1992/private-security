@@ -33,6 +33,7 @@ void VAO::Bind()
 		return;
 
 	glBindVertexArray(handle);
+	current_vao= *this;
 }
 
 //The reinterpret cast may not work, currently don't use strided buffers

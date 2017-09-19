@@ -15,10 +15,10 @@ void MoveAction::Proceed(float percentage_done)
 	Vec3f source_position= move->GetSource()->GetPosition();
 	Vec3f destination_position= move->GetDestination()->GetPosition();
 
-	actor->position= source_position* (1- percentage_done)+ destination_position* percentage_done;
+	actor->SetPosition(source_position* (1- percentage_done)+ destination_position* percentage_done);
 
 	float rotation= acos((Vec2f(destination_position.x, destination_position.z)- Vec2f(source_position.x, source_position.z)).Normalize().Dot(Vec2f(0, 1)));
-	actor->rotation= destination_position.x< source_position.x ? (float)(2* M_PI- rotation) : rotation;
+	actor->SetRotation(destination_position.x< source_position.x ? (float)(2* M_PI- rotation) : rotation);
 }
 
 void MoveAction::Finish()

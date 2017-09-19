@@ -77,8 +77,6 @@ class Property<Vector3<U>> : public PropertyBase<Vector3<U>>
 {
 	Vector3<U> *value_pointer;
 
-	
-
 public:
 	Subproperty<Vector3<U>> x, y, z;
 

@@ -54,9 +54,9 @@ void Gizmo::HandleMouseMotionEvent(MouseMotionEvent *mouse_motion_event)
 	{
 		switch(mouse_drag_event->GetMouseButton())
 		{
-			case MouseButtonType::Left: MouseDragLeft(mouse_drag_event->GetMousePosition(), mouse_drag_event->GetMouseDisplacement());
-			case MouseButtonType::Middle: MouseDragMiddle(mouse_drag_event->GetMousePosition(), mouse_drag_event->GetMouseDisplacement());
-			case MouseButtonType::Right: MouseDragRight(mouse_drag_event->GetMousePosition(), mouse_drag_event->GetMouseDisplacement());
+			case MouseButtonType::Left: MouseLeftDrag(mouse_drag_event->GetMousePosition(), mouse_drag_event->GetMouseDisplacement()); break;
+			case MouseButtonType::Middle: MouseMiddleDrag(mouse_drag_event->GetMousePosition(), mouse_drag_event->GetMouseDisplacement()); break;
+			case MouseButtonType::Right: MouseRightDrag(mouse_drag_event->GetMousePosition(), mouse_drag_event->GetMouseDisplacement()); break;
 		}
 
 		return;
@@ -120,9 +120,9 @@ void Gizmo::MouseRightHold(Vec2f mouse_position, float t) {}
 void Gizmo::MouseRightDoubleClick(Vec2f mouse_position) {}
 void Gizmo::MouseScroll(int scroll_amount) {}
 void Gizmo::MouseMotion(Vec2f mouse_position, Vec2f mouse_displacement) {}
-void Gizmo::MouseDragLeft(Vec2f mouse_position, Vec2f mouse_displacement) {}
-void Gizmo::MouseDragMiddle(Vec2f mouse_position, Vec2f mouse_displacement) {}
-void Gizmo::MouseDragRight(Vec2f mouse_position, Vec2f mouse_displacement) {}
+void Gizmo::MouseLeftDrag(Vec2f mouse_position, Vec2f mouse_displacement) {}
+void Gizmo::MouseMiddleDrag(Vec2f mouse_position, Vec2f mouse_displacement) {}
+void Gizmo::MouseRightDrag(Vec2f mouse_position, Vec2f mouse_displacement) {}
 
 void Gizmo::Activate()
 {
@@ -144,7 +144,6 @@ void Gizmo::HandleEvent(Event *event_)
 	if(!IsActive())
 		return;
 
-	//Some dynamic_cast helpers would be nice (also further up)***
 	MouseEvent *mouse_event= dynamic_cast<MouseEvent *>(event_);
 	if(mouse_event!= nullptr)
 	{

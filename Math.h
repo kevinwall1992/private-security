@@ -7,11 +7,7 @@
 #include "Transform.h"
 
 #include <math.h>
-
-//Thanks Microsoft
-#ifdef GetObject
-#undef GetObject
-#endif
+#include "MicrosoftPollutionCleaner.h"
 
 namespace Math
 {

@@ -103,6 +103,24 @@ void Texture::Resize(Vec2i size)
 	}
 }
 
+Texture Texture::GetBoundTexture(int index)
+{
+	glActiveTexture(GL_TEXTURE0+ index);
+
+	GLint handle;
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &handle);
+
+	GLint width, height;
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+	glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+
+	Texture texture;
+	texture.handle= handle;
+	texture.SetSize(Vec2i(width, height));
+
+	return texture;
+}
+
 void DepthTexture::UploadImage(ColorImage image)
 {
 	assert(false && "DepthTexture::UploadImage(Image) not supported");

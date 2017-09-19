@@ -4,19 +4,34 @@
 #include "Action.h"
 
 
+void Actor::LoadXML(TiXmlElement *xml_element)
+{
+	Object::LoadXML(xml_element);
+
+	TiXmlElement *xml_inventory= xml_element->FirstChildElement("inventory");
+	TiXmlElement *xml_item= xml_inventory->FirstChildElement();
+	while(xml_item!= nullptr)
+	{
+		inventory.push_back(Encodable::DecodeXML<Item>(xml_item));
+		xml_item= xml_item->NextSiblingElement();
+	}
+}
+
 Actor::Actor()
 {
-	inventory.push_back(new Gun());
+	
 }
 
-Vec3f Actor::GetPosition()
+void Actor::GiveItem(Item *item)
 {
-	return Physical::GetPosition();
+	inventory.push_back(item);
 }
 
-float Actor::GetRotation()
+void Actor::TakeItem(Item *item)
 {
-	return rotation;
+	for(unsigned int i= 0; i< inventory.size(); i++)
+		if(inventory[i]== item)
+			inventory.erase(inventory.begin()+ i--);
 }
 
 vector<Item*> Actor::GetInventory()
@@ -89,8 +104,16 @@ Action * Actor::GetAction()
 	return action;
 }
 
-void Actor::Step(Chronons chronons)
+TiXmlElement * Actor::EncodeXML()
 {
-	Object::Step(chronons);
-	Physical::Step(chronons);
+	TiXmlElement *xml_element= Object::EncodeXML();
+
+	xml_element->LinkEndChild(Utility::XML::MakeElementWithText("class", "Actor"));
+
+	TiXmlElement *xml_inventory= new TiXmlElement("inventory");
+	for(Item *item : inventory)
+		xml_inventory->LinkEndChild(item->EncodeXML());
+	xml_element->InsertEndChild(*xml_inventory);
+
+	return xml_element;
 }

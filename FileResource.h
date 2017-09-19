@@ -11,6 +11,7 @@ class FileResource : public Resource
 	string filepath;
 	vector<string> element_path;
 
+protected:
 	static string MakeName(string filepath, vector<string> element_path)
 	{
 		string name= filepath;
@@ -26,7 +27,6 @@ class FileResource : public Resource
 		return filepath+ ":"+ element_name;
 	}
 
-protected:
 	FileResource(string filepath, vector<string> element_path)
 		: Resource(MakeName(filepath, element_path))
 	{

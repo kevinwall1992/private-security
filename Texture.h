@@ -38,6 +38,8 @@ public:
 	void Free();
 
 	virtual void Resize(Vec2i size);
+
+	static Texture GetBoundTexture(int index= 0);
 };
 
 class DepthTexture: public Texture

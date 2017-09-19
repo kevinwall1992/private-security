@@ -23,6 +23,8 @@ Ninepatch::Ninepatch(Texture texture_, Vec2f offset, Vec2f size, Roundness round
 	texture= texture_;
 
 	roundness= roundness_;
+
+	MakeOpaqueToMouseInput();
 }
 
 Ninepatch::Ninepatch(string image_filename, Roundness roundness_)
@@ -30,6 +32,13 @@ Ninepatch::Ninepatch(string image_filename, Roundness roundness_)
 	image= ImageFile::Retrieve(image_filename)->MakeImage();
 
 	roundness= roundness_;
+
+	MakeOpaqueToMouseInput();
+}
+
+void Ninepatch::SetTint(Color tint_)
+{
+	tint= tint_;
 }
 
 void Ninepatch::Draw()
@@ -47,12 +56,12 @@ void Ninepatch::Draw()
 	Vec2f corner_scale= Vec2f(corner_size, corner_size)/ global_size;
 	Vec2f edge_scale= (Vec2f(1, 1)- (corner_scale* 2));
 
-	ShaderProgram *shader_program= ShaderProgram::Retrieve("tinted_quad.program");
+	ShaderProgram *shader_program= ShaderProgram::Retrieve("quad.program");
 	shader_program->Use();
 	if(IsHovered())
-		shader_program->SetUniformVector3f("tint", Color(1, 1, 0.8f));
+		shader_program->SetUniformVector3f("tint", ((tint+ Color::Yellow)/ 2).Pop());
 	else
-		shader_program->SetUniformVector3f("tint", Color::White);
+		shader_program->SetUniformVector3f("tint", tint);
 	texture.BindToIndex(0);
 
 	glDisable(GL_DEPTH_TEST);
@@ -109,6 +118,7 @@ void Ninepatch::Draw()
 	}
 
 	glEnable(GL_DEPTH_TEST);
+	shader_program->SetUniformVector3f("tint", Color::White);
 
 	Pane::Draw();
 }

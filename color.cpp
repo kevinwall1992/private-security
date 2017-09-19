@@ -70,3 +70,13 @@ SDL_Color Color::ToSDLColor()
 			 (unsigned char)(b* 255), 
 			 255 };
 }
+
+Color Color::Mix(Color a, Color b, float a_share)
+{
+	if(a_share> 1)
+		a_share= 1;
+	else if(a_share< 0)
+		a_share= 0;
+
+	return a* a_share+ b* (1- a_share);
+}

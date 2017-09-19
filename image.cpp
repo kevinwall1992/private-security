@@ -1,6 +1,7 @@
 #include "Image.h"
 
 RGBAPixel RGBAPixel::Black(0, 0, 0, 255);
+RGBAPixel RGBAPixel::White(255, 255, 255, 255);
 
 RGBAPixel::RGBAPixel(unsigned char r_, unsigned char b_, unsigned char g_, unsigned char a_)
 {

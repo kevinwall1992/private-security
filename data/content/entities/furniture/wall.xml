@@ -1,8 +1,0 @@
-<?xml version="1.0"?>
-<perception>
-   <model>
-      <name>default</name>
-      <filename>wall.obj</filename>
-      <element>Cube.001</element>
-   </model>
-</perception>

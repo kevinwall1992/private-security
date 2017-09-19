@@ -45,10 +45,10 @@ void GameSystem::Step(Chronons chronons)
 
 void GameSystem::Save(string filename)
 {
-
+	space.Save(filename);
 }
 
 void GameSystem::Load(string filename)
 {
-
+	space.Load(filename);
 }

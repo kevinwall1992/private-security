@@ -29,70 +29,50 @@ void PerceptibleContainer::Rasterize()
 }
 
 
-string Entity::EntityData::MakeFilepath(string filename)
+Entity::EntityData::EntityData()
 {
-	return "data/content/entities/"+ filename;
+	
 }
 
-vector<Entity::EntityData *> Entity::EntityData::Parse(string filename)
+
+Mesh * Entity::GetDefaultMesh()
 {
-	return Utility::MakeVector(new Entity::EntityData(MakeFilepath(filename)));
-}
-
-Entity::EntityData::EntityData(string filepath)
-	: FileResource(filepath)
-{
-	TiXmlDocument perceptual_data;
-	perceptual_data.LoadFile(filepath.c_str());
-
-	TiXmlElement *element= perceptual_data.RootElement();
-	while(element!= nullptr)
-	{
-		if(element->ValueTStr()== "perception")
-			element= element->FirstChildElement();
-
-		if(element->ValueTStr()== "model")
-		{
-			TiXmlElement *name= element->FirstChildElement("name");
-			TiXmlElement *filename= element->FirstChildElement("filename");
-			TiXmlElement *element_name= element->FirstChildElement("element");
-
-			meshes[name->GetText()]= Mesh::Retrieve(filename->GetText(), element_name->GetText());
-		}
-
-		element= element->NextSiblingElement();
-	}
-}
-
-Entity::EntityData * Entity::GetEntityData()
-{
-	if(GetEntityDataFilename()== "")
-		return nullptr;
-
-	return EntityData::Retrieve(GetEntityDataFolderName()+ "/"+ GetEntityDataFilename());
-}
-
-Mesh * Entity::GetMesh()
-{
-	return GetEntityData()->meshes["default"];
+	return GetMesh("default");
 }
 
 Animation * Entity::GetAnimation()
 {
-	if(GetEntityData()== nullptr)
-		return nullptr;
+	if(!Utility::Contains(entity_data.animations, GetEntityAnimationName()))
+		entity_data.animations[GetEntityAnimationName()]= new Animation(GetDefaultMesh(), GetEntityAnimationName(), 0.9f);
 
-	if(!Utility::Contains(GetEntityData()->animations, GetEntityAnimationName()))
-		GetEntityData()->animations[GetEntityAnimationName()]= new Animation(GetMesh(), GetEntityAnimationName(), 0.9f);
-
-	Animation *animation= GetEntityData()->animations[GetEntityAnimationName()];
-	animation->SetDisplacement(GetPosition());
+	Animation *animation= entity_data.animations[GetEntityAnimationName()];
+	animation->SetDisplacement(GetPosition()+ Vec3f(0.5f, 0.0f, 0.5f));
 	animation->SetRotation(GetRotation());
 	animation->SetMoment(GetEntityAnimationMoment());
-	if(dynamic_cast<Actor *>(this))//****
+	if(Utility::IsType<Actor>(this))
 		animation->RemoveDrawFlags(DrawFlags::Indirect);
 
 	return animation;
+}
+
+void Entity::LoadXML(TiXmlElement *xml_element)
+{
+	TiXmlElement *entity_element= xml_element->FirstChildElement("entity");
+	TiXmlElement *child_element= entity_element->FirstChildElement();
+	
+	while(child_element!= nullptr)
+	{
+		if(child_element->ValueTStr()== "mesh")
+		{
+			string name= child_element->FirstChildElement("name")->GetText();
+			string filename= child_element->FirstChildElement("filename")->GetText();
+			string element_name= child_element->FirstChildElement("element")->GetText();
+
+			entity_data.meshes[name]= Mesh::Retrieve(filename, element_name);
+		}
+		
+		child_element= child_element->NextSiblingElement();
+	}
 }
 
 Entity::Entity()
@@ -102,7 +82,30 @@ Entity::Entity()
 
 Mesh * Entity::GetIconMesh()
 {
-	return GetMesh();
+	return GetDefaultMesh();
+}
+
+Mesh * Entity::GetMesh(string name)
+{
+	return entity_data.meshes[name];
+}
+
+std::map<string, Mesh*> Entity::GetMeshes()
+{
+	return entity_data.meshes;
+}
+
+void Entity::SetMesh(string name, Mesh *mesh)
+{
+	entity_data.meshes[name]= mesh;
+
+	if(name== "default")
+	{
+		for(std::pair<string, Animation *> animation_pair : entity_data.animations)
+			delete animation_pair.second;
+
+		entity_data.animations.clear();
+	}
 }
 
 string Entity::GetEntityAnimationName()
@@ -131,4 +134,40 @@ void Entity::Rasterize()
 
 	if(animation!= nullptr)
 		animation->Rasterize();
+}
+
+TiXmlElement * Entity::EncodeXML()
+{
+	TiXmlElement *xml_element= Encodable::EncodeXML();
+
+	TiXmlElement *entity_element= new TiXmlElement("entity");
+
+	for(auto const &mesh_pair: entity_data.meshes)
+	{
+		string name= mesh_pair.first;
+		Mesh *mesh= mesh_pair.second;
+
+		TiXmlElement *mesh_element= new TiXmlElement("mesh");
+
+		TiXmlElement *name_element= new TiXmlElement("name");
+		TiXmlText *text= new TiXmlText(name.c_str());
+		name_element->LinkEndChild(text);
+		mesh_element->LinkEndChild(name_element);
+
+		TiXmlElement *filename_element= new TiXmlElement("filename");
+		text= new TiXmlText(Utility::GetFilename(mesh->GetFilepath()).c_str());
+		filename_element->LinkEndChild(text);
+		mesh_element->LinkEndChild(filename_element);
+
+		TiXmlElement *element_element= new TiXmlElement("element");
+		text= new TiXmlText(mesh->GetElementPath()[0].c_str());
+		element_element->LinkEndChild(text);
+		mesh_element->LinkEndChild(element_element);
+
+		entity_element->LinkEndChild(mesh_element);
+	}
+
+	xml_element->LinkEndChild(entity_element);
+
+	return xml_element;
 }

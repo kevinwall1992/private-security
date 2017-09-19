@@ -1,14 +1,14 @@
 #include "Menu.h"
 #include "UI.h"
+#include "GarbageCan.h"
 
 
 vector<Menu *> Menu::menus;
 std::stack<Menu *> Menu::menu_stack;
 TreeFrame Menu::default_frame= TreeFrame(Vec2f(0.1f, 0.1f), Vec2f(0.8f, 0.8f));
-Interface * Menu::host= nullptr;
 
-AboutDialog * Menu::about_dialog= nullptr;//new AboutDialog();
-PauseMenu * Menu::pause_menu= nullptr;//new PauseMenu();
+AboutDialog * Menu::about_dialog= nullptr;
+PauseMenu * Menu::pause_menu= nullptr;
 
 void Menu::InitializeMenus()
 {
@@ -19,6 +19,28 @@ void Menu::InitializeMenus()
 	pause_menu= new PauseMenu();
 }
 
+bool Menu::IsAMenuOpen()
+{
+	return menu_stack.size()> 0;
+}
+
+int Menu::GetOccurrenceCount(Menu *menu)
+{
+	int occurrence_count= 0;
+
+	std::stack<Menu *> menu_stack_copy= menu_stack;
+
+	while(menu_stack_copy.size()> 0)
+	{
+		if(menu_stack_copy.top()== menu)
+			occurrence_count++;
+
+		menu_stack_copy.pop();
+	}
+
+	return occurrence_count;
+}
+
 void Menu::Show()
 {
 	if(menu_stack.top()!= this)
@@ -27,10 +49,13 @@ void Menu::Show()
 		Pane::Show();
 }
 
-Menu::Menu()
+Menu::Menu(bool single_use_)
 {
-	SetParent(&default_frame);
+	TreeFrame::SetParent(&default_frame);
 	Hide();
+	MakeOrphan();
+
+	single_use= single_use_;
 
 	menus.push_back(this);
 }
@@ -39,25 +64,28 @@ void Menu::Open()
 {
 	if(menu_stack.size()> 0)
 		menu_stack.top()->Hide();
-	else if(host!= nullptr)
-		host->Deactivate();
 	menu_stack.push(this);
 	Show();
 }
 
 void Menu::Back()
 {
-	menu_stack.top()->Hide();
+	if(menu_stack.top()->single_use && GetOccurrenceCount(menu_stack.top())== 1)
+	{
+		GarbageCan<Menu>::ThrowAway(menu_stack.top());
+		Utility::RemoveElement(menus, menu_stack.top());
+	}
+	else
+		menu_stack.top()->Hide();
 	menu_stack.pop();
 	if(menu_stack.size()> 0)
 		menu_stack.top()->Show();
-	else if(host!= nullptr)
-		host->Activate();
 }
 
-void Menu::SetHost(Interface *host_)
+void Menu::KeyUp(ButtonType button)
 {
-	Menu::host= host_;
+	if(button== ButtonType::Esc)
+		Back();
 }
 
 void Menu::Draw_Menus()
@@ -68,7 +96,9 @@ void Menu::Draw_Menus()
 
 void Menu::HandleEvent_Menus(Event *event_)
 {
-	for(Menu *menu : menus)
+	vector<Menu *> menus_copy= menus;
+
+	for(Menu *menu : menus_copy)
 		menu->HandleEvent(event_);
 }
 

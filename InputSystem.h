@@ -30,6 +30,8 @@ public:
 
 	bool HandleInput();
 
+	bool IsKeyDown(ButtonEvent::Button button);
+
 	//This is a stopgap, need to consider how exiting should be handled***
 	void Quit();
 

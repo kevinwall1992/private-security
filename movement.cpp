@@ -59,6 +59,32 @@ void DirectionBlocker::AddBlockedDirection(Direction::Enum direction)
 	blocked_directions.push_back(direction);
 }
 
+void DirectionBlocker::RemoveBlockedDirection(Direction::Enum direction)
+{
+	for(unsigned int i= 0; i< blocked_directions.size(); i++)
+		if(blocked_directions[i]== direction)
+			blocked_directions.erase(blocked_directions.begin()+ i--);
+}
+
+vector<Direction::Enum> DirectionBlocker::GetBlockedDirections()
+{
+	return blocked_directions;
+}
+
+void DirectionBlocker::ClearBlockedDirections()
+{
+	blocked_directions.clear();
+}
+
+bool DirectionBlocker::IsDirectionBlocked(Direction::Enum direction)
+{
+	for(unsigned int i= 0; i< blocked_directions.size(); i++)
+		if(direction== blocked_directions[i])
+			return true;
+
+	return false;
+}
+
 bool DirectionBlocker::DoesBlock(Move *move)
 {
 	RelativeMove *relative_move= dynamic_cast<RelativeMove *>(move);

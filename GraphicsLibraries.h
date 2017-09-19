@@ -4,9 +4,6 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
-//Thanks Microsoft
-#ifdef GetObject
-#undef GetObject
-#endif
+#include "MicrosoftPollutionCleaner.h"
 
 #include "GraphicsUtility.h"

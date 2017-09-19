@@ -68,5 +68,29 @@ namespace Utility
 	{
 		return SplitString(ToUnixFilepath(filepath), '/').back();
 	}
+
+	string GetDirectoryPath(string filepath)
+	{
+		vector<string> tokens= SplitString(ToUnixFilepath(filepath), '/');
+		tokens.pop_back();
+
+		string directory_path= "";
+
+		for(string token : tokens)
+			directory_path+= token+ "/";
+
+		return directory_path;
+	}
 	
+	template<>
+	float StringToT<float>(string value_string)
+	{
+		return std::stof(value_string);
+	}
+
+	template<>
+	int StringToT<int>(string value_string)
+	{
+		return std::stoi(value_string);
+	}
 }

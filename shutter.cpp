@@ -801,6 +801,7 @@ void Shutter::Resize()
 		return;
 	size= camera->film.Size;
 
+#if 0
 #if PACKET_MODE
 	float ratio= sizeof(VisibilityRayPacket)/ (float)(sizeof(VisibilityRay)* PACKET_SIZE);
 	ratio= std::max(ratio, 1/ ratio);
@@ -865,6 +866,7 @@ void Shutter::Resize()
 		float floop= HaltonSequence(5, i+ 20);//try changing this back to 2/3
 		interval_samples[i]= floop;
 	}
+#endif
 }
 
 void Shutter::TaskLoop(Scene *scene)

@@ -2,9 +2,16 @@
 #include "Space.h"
 #include "GameSystem.h"
 
+void Tile::SetSpace(Space *space_)
+{
+	space= space_;
+}
+
 void Tile::PutFurniture(Furniture *furniture)
 {
 	furnitures.push_back(furniture);
+
+	furniture->SetPosition(GetPosition());
 }
 
 bool Tile::PutActor(Actor *actor_)
@@ -13,7 +20,7 @@ bool Tile::PutActor(Actor *actor_)
 		return false;
 
 	actor= actor_;
-	actor->position= GetPosition();
+	actor->SetPosition(GetPosition());
 
 	return true;
 }
@@ -21,6 +28,8 @@ bool Tile::PutActor(Actor *actor_)
 void Tile::PutItem(Item *item)
 {
 	items.push_back(item);
+	
+	item->SetPosition(GetPosition());
 }
 
 Actor * Tile::RemoveActor()
@@ -46,6 +55,25 @@ Item * Tile::RemoveItem(Item *item)
 	}
 
 	return item;
+}
+
+Furniture * Tile::RemoveFurniture(Furniture *furniture)
+{
+	for(unsigned int i= 0; i< furnitures.size(); i++)
+		if(furnitures[i]== furniture)
+			furnitures.erase(furnitures.begin()+ i--);
+
+	return furniture;
+}
+
+vector<Furniture*> Tile::GetFurnitures()
+{
+	return furnitures;
+}
+
+bool Tile::HasActor()
+{
+	return actor!= nullptr;
 }
 
 Actor * Tile::GetActor()
@@ -126,7 +154,7 @@ bool Tile::Contains(Object *object)
 
 Vec3f Tile::GetPosition()
 {
-	return System::game.space.GetPosition(this);
+	return space->GetPosition(this);
 }
 
 vector<Perceptible *> Tile::GetPerceptibles()

@@ -156,8 +156,8 @@ RasterCamera::RasterCamera(float fov, Vec3f focus, float pitch, float yaw)
 RasterCamera::~RasterCamera()
 {
 #ifndef NO_RAYTRACING
-	raytracing_thread->join();
-	delete raytracing_thread;
+	//raytracing_thread->join();
+	//delete raytracing_thread;
 #endif
 }
 
@@ -183,7 +183,7 @@ PhotoBook RasterCamera::TakePhotos(Scene &scene, Vec2i size, Photo::Type types)
 			indirect_light_texture_was_modified= false;
 		}
 
-		raytracing_thread= new std::thread(&RasterCamera::GenerateIndirectLightTexture, this, &scene, size);
+		//raytracing_thread= new std::thread(&RasterCamera::GenerateIndirectLightTexture, this, &scene, size);
 	}
 #endif
 

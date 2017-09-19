@@ -1,13 +1,23 @@
 #include "Event.h"
 
+
+int Event::next_event_id= 0;
+
 Event::Event(float elapsed_seconds_)
 {
+	event_id= next_event_id++;
+
 	elapsed_seconds= elapsed_seconds_;
 }
 
 Event::~Event()
 {
 
+}
+
+int Event::GetEventID()
+{
+	return event_id;
 }
 
 float Event::GetElapsedSeconds()

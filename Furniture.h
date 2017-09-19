@@ -7,40 +7,18 @@
 
 class Furniture : public Object, public MovementEnabler, public DirectionBlocker
 {
+protected:
+	virtual void LoadXML(TiXmlElement *xml_element);
+
 public:
 	Furniture();
 
 	virtual vector<Move *> GetPotentialMoves(Tile *source);
-	//virtual bool DoesBlock(Move *move);
 
 	virtual string GetEntityDataFilename();
 	virtual string GetEntityDataFolderName();
-};
 
-class ThickWall : public Furniture, public AllBlocker
-{
-public:
-	ThickWall();
-
-	virtual bool DoesBlock(Move *move);
-
-	virtual string GetEntityDataFilename();
-};
-
-class InvisibleThickWall : public ThickWall
-{
-public:
-	InvisibleThickWall();
-
-	virtual string GetEntityDataFilename();
-};
-
-class Museum : public Furniture
-{
-public:
-	Museum();
-
-	virtual string GetEntityDataFilename();
+	virtual TiXmlElement * EncodeXML();
 };
 
 #endif

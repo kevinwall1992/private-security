@@ -13,32 +13,37 @@ class Menu : public Pane
 	static vector<Menu *> menus;
 	static std::stack<Menu *> menu_stack;
 	static TreeFrame default_frame;
-	static Interface *host;
+
+	bool single_use;
 
 	//Consider changing AboutDialog and PauseMenu's constructors now that they aren't 
-	//intialized at program start anymore. ****
+	//intialized at program start anymore. ####
 	//static void InitializeMenus();
 
 protected:
+	static int GetOccurrenceCount(Menu *menu);
+
 	virtual void Show();
 
 public:
-	Menu();
+	Menu(bool single_use= false);
 
 	virtual void Open();
 	static void Back();
 
+	virtual void KeyUp(ButtonType button);
+
 	//Inconsistent with System, but I think this will be removed 
-	//when we implement ui files***
+	//when we implement ui files
 	static PauseMenu *pause_menu;
 	static AboutDialog *about_dialog;
-
-	static void SetHost(Interface *host_);
 
 	static void Draw_Menus();
 	static void HandleEvent_Menus(Event *event_);
 
 	static void InitializeMenus();
+
+	static bool IsAMenuOpen();
 };
 
 

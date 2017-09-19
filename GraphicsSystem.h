@@ -32,6 +32,10 @@ public:
 
 	int GetFrameCount();
 
+	void MoveMouseTo(Vec2f position);
+
+	Texture mask;
+
 	friend System;
 };
 

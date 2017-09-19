@@ -38,7 +38,7 @@ bool Framebuffer::IsDefault()
 
 void Framebuffer::Clear()
 {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }
 
 void Framebuffer::BindAsReadFramebuffer()
@@ -85,7 +85,7 @@ void Framebuffer::SetViewport()
 	if(IsDefault())
 		Viewport::Set(0, 0, System::graphics.GetScreenSize().x, System::graphics.GetScreenSize().y);
 	else
-		Viewport::Set(0, 0, depth_texture.Width, depth_texture.Height);
+		Viewport::Set(0, 0, color_textures[0].Width, color_textures[0].Height);
 }
 
 void Framebuffer::PrepareForDrawing(bool clear)
@@ -212,8 +212,10 @@ Vec2i Framebuffer::GetSize()
 {
 	if(IsDefault())
 		return System::graphics.GetScreenSize();
-	else
+	else if(depth_texture.GetHandle()!= -1)
 		return depth_texture.Size;
+	else
+		return color_textures[0].Size;
 }
 
 Framebuffer Framebuffer::GetDefaultFramebuffer()

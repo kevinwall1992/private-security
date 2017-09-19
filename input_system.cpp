@@ -14,34 +14,68 @@ Vec2f InputSystem::GetNormalizedMousePosition(Vec2i mouse_position)
 
 ButtonEvent::Button InputSystem::SDLKToButton(int sdlk_value)
 {
+	const Uint8 *keys= SDL_GetKeyboardState(nullptr);
+	bool is_shift_down= keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
+
 	switch(sdlk_value)
 	{
-	case SDLK_a: return ButtonEvent::Button::A;
-	case SDLK_b: return ButtonEvent::Button::B;
-	case SDLK_c: return ButtonEvent::Button::C;
-	case SDLK_d: return ButtonEvent::Button::D;
-	case SDLK_e: return ButtonEvent::Button::E;
-	case SDLK_f: return ButtonEvent::Button::F;
-	case SDLK_g: return ButtonEvent::Button::G;
-	case SDLK_h: return ButtonEvent::Button::H;
-	case SDLK_i: return ButtonEvent::Button::I;
-	case SDLK_j: return ButtonEvent::Button::J;
-	case SDLK_k: return ButtonEvent::Button::K;
-	case SDLK_l: return ButtonEvent::Button::L;
-	case SDLK_m: return ButtonEvent::Button::M;
-	case SDLK_n: return ButtonEvent::Button::N;
-	case SDLK_o: return ButtonEvent::Button::O;
-	case SDLK_p: return ButtonEvent::Button::P;
-	case SDLK_q: return ButtonEvent::Button::Q;
-	case SDLK_r: return ButtonEvent::Button::R;
-	case SDLK_s: return ButtonEvent::Button::S;
-	case SDLK_t: return ButtonEvent::Button::T;
-	case SDLK_u: return ButtonEvent::Button::U;
-	case SDLK_v: return ButtonEvent::Button::V;
-	case SDLK_w: return ButtonEvent::Button::W;
-	case SDLK_x: return ButtonEvent::Button::X;
-	case SDLK_y: return ButtonEvent::Button::Y;
-	case SDLK_z: return ButtonEvent::Button::Z;
+	case SDLK_a: return !is_shift_down ? ButtonEvent::Button::A : ButtonEvent::Button::CapitalA;
+	case SDLK_b: return !is_shift_down ? ButtonEvent::Button::B : ButtonEvent::Button::CapitalB;
+	case SDLK_c: return !is_shift_down ? ButtonEvent::Button::C : ButtonEvent::Button::CapitalC;
+	case SDLK_d: return !is_shift_down ? ButtonEvent::Button::D : ButtonEvent::Button::CapitalD;
+	case SDLK_e: return !is_shift_down ? ButtonEvent::Button::E : ButtonEvent::Button::CapitalE;
+	case SDLK_f: return !is_shift_down ? ButtonEvent::Button::F : ButtonEvent::Button::CapitalF;
+	case SDLK_g: return !is_shift_down ? ButtonEvent::Button::G : ButtonEvent::Button::CapitalG;
+	case SDLK_h: return !is_shift_down ? ButtonEvent::Button::H : ButtonEvent::Button::CapitalH;
+	case SDLK_i: return !is_shift_down ? ButtonEvent::Button::I : ButtonEvent::Button::CapitalI;
+	case SDLK_j: return !is_shift_down ? ButtonEvent::Button::J : ButtonEvent::Button::CapitalJ;
+	case SDLK_k: return !is_shift_down ? ButtonEvent::Button::K : ButtonEvent::Button::CapitalK;
+	case SDLK_l: return !is_shift_down ? ButtonEvent::Button::L : ButtonEvent::Button::CapitalL;
+	case SDLK_m: return !is_shift_down ? ButtonEvent::Button::M : ButtonEvent::Button::CapitalM;
+	case SDLK_n: return !is_shift_down ? ButtonEvent::Button::N : ButtonEvent::Button::CapitalN;
+	case SDLK_o: return !is_shift_down ? ButtonEvent::Button::O : ButtonEvent::Button::CapitalO;
+	case SDLK_p: return !is_shift_down ? ButtonEvent::Button::P : ButtonEvent::Button::CapitalP;
+	case SDLK_q: return !is_shift_down ? ButtonEvent::Button::Q : ButtonEvent::Button::CapitalQ;
+	case SDLK_r: return !is_shift_down ? ButtonEvent::Button::R : ButtonEvent::Button::CapitalR;
+	case SDLK_s: return !is_shift_down ? ButtonEvent::Button::S : ButtonEvent::Button::CapitalS;
+	case SDLK_t: return !is_shift_down ? ButtonEvent::Button::T : ButtonEvent::Button::CapitalT;
+	case SDLK_u: return !is_shift_down ? ButtonEvent::Button::U : ButtonEvent::Button::CapitalU;
+	case SDLK_v: return !is_shift_down ? ButtonEvent::Button::V : ButtonEvent::Button::CapitalV;
+	case SDLK_w: return !is_shift_down ? ButtonEvent::Button::W : ButtonEvent::Button::CapitalW;
+	case SDLK_x: return !is_shift_down ? ButtonEvent::Button::X : ButtonEvent::Button::CapitalX;
+	case SDLK_y: return !is_shift_down ? ButtonEvent::Button::Y : ButtonEvent::Button::CapitalY;
+	case SDLK_z: return !is_shift_down ? ButtonEvent::Button::Z : ButtonEvent::Button::CapitalZ;
+
+	case SDLK_1: return !is_shift_down ? ButtonEvent::Button::One : ButtonEvent::Button::ExclaimationMark;
+	case SDLK_2: return !is_shift_down ? ButtonEvent::Button::Two : ButtonEvent::Button::At;
+	case SDLK_3: return !is_shift_down ? ButtonEvent::Button::Three : ButtonEvent::Button::Pound;
+	case SDLK_4: return !is_shift_down ? ButtonEvent::Button::Four : ButtonEvent::Button::Dollar;
+	case SDLK_5: return !is_shift_down ? ButtonEvent::Button::Five : ButtonEvent::Button::Percent;
+	case SDLK_6: return !is_shift_down ? ButtonEvent::Button::Six : ButtonEvent::Button::Caret;
+	case SDLK_7: return !is_shift_down ? ButtonEvent::Button::Seven : ButtonEvent::Button::And;
+	case SDLK_8: return !is_shift_down ? ButtonEvent::Button::Eight : ButtonEvent::Button::Asterisk;
+	case SDLK_9: return !is_shift_down ? ButtonEvent::Button::Nine : ButtonEvent::Button::LeftParenthesis;
+	case SDLK_0: return !is_shift_down ? ButtonEvent::Button::Zero : ButtonEvent::Button::RightParenthesis;
+
+	case SDLK_MINUS: return !is_shift_down ? ButtonEvent::Button::Minus : ButtonEvent::Button::Underscore;
+	case SDLK_EQUALS: return !is_shift_down ? ButtonEvent::Button::Equals : ButtonEvent::Button::Plus;
+	case SDLK_QUOTE: return !is_shift_down ? ButtonEvent::Button::Apostrophe : ButtonEvent::Button::QuotationMark;
+	case SDLK_COMMA: return ButtonEvent::Button::Comma;
+	case SDLK_PERIOD: return ButtonEvent::Button::Period;
+	case SDLK_SLASH: return !is_shift_down ? ButtonEvent::Button::ForwardSlash : ButtonEvent::Button::QuestionMark;
+
+	case SDLK_F1: return ButtonEvent::Button::F1;
+	case SDLK_F2: return ButtonEvent::Button::F2;
+	case SDLK_F3: return ButtonEvent::Button::F3;
+	case SDLK_F4: return ButtonEvent::Button::F4;
+	case SDLK_F5: return ButtonEvent::Button::F5;
+	case SDLK_F6: return ButtonEvent::Button::F6;
+	case SDLK_F7: return ButtonEvent::Button::F7;
+	case SDLK_F8: return ButtonEvent::Button::F8;
+	case SDLK_F9: return ButtonEvent::Button::F9;
+	case SDLK_F10: return ButtonEvent::Button::F10;
+	case SDLK_F11: return ButtonEvent::Button::F11;
+	case SDLK_F12: return ButtonEvent::Button::F12;
 
 	case SDLK_LSHIFT: 
 	case SDLK_RSHIFT: return ButtonEvent::Button::Shift;
@@ -53,6 +87,7 @@ ButtonEvent::Button InputSystem::SDLKToButton(int sdlk_value)
 	case SDLK_ESCAPE: return ButtonEvent::Button::Esc;
 	case SDLK_SPACE: return ButtonEvent::Button::Space;
 	case SDLK_DELETE: return ButtonEvent::Button::Del;
+	case SDLK_BACKSPACE: return ButtonEvent::Button::Backspace;
 
 	default: return ButtonEvent::Button::None;
 	}
@@ -60,34 +95,69 @@ ButtonEvent::Button InputSystem::SDLKToButton(int sdlk_value)
 
 ButtonEvent::Button InputSystem::SDL_ScancodeToButton(int sdl_scancode)
 {
+	const Uint8 *keys= SDL_GetKeyboardState(nullptr);
+	bool is_shift_down= keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
+
 	switch(sdl_scancode)
 	{
-	case SDL_SCANCODE_A: return ButtonEvent::Button::A;
-	case SDL_SCANCODE_B: return ButtonEvent::Button::B;
-	case SDL_SCANCODE_C: return ButtonEvent::Button::C;
-	case SDL_SCANCODE_D: return ButtonEvent::Button::D;
-	case SDL_SCANCODE_E: return ButtonEvent::Button::E;
-	case SDL_SCANCODE_F: return ButtonEvent::Button::F;
-	case SDL_SCANCODE_G: return ButtonEvent::Button::G;
-	case SDL_SCANCODE_H: return ButtonEvent::Button::H;
-	case SDL_SCANCODE_I: return ButtonEvent::Button::I;
-	case SDL_SCANCODE_J: return ButtonEvent::Button::J;
-	case SDL_SCANCODE_K: return ButtonEvent::Button::K;
-	case SDL_SCANCODE_L: return ButtonEvent::Button::L;
-	case SDL_SCANCODE_M: return ButtonEvent::Button::M;
-	case SDL_SCANCODE_N: return ButtonEvent::Button::N;
-	case SDL_SCANCODE_O: return ButtonEvent::Button::O;
-	case SDL_SCANCODE_P: return ButtonEvent::Button::P;
-	case SDL_SCANCODE_Q: return ButtonEvent::Button::Q;
-	case SDL_SCANCODE_R: return ButtonEvent::Button::R;
-	case SDL_SCANCODE_S: return ButtonEvent::Button::S;
-	case SDL_SCANCODE_T: return ButtonEvent::Button::T;
-	case SDL_SCANCODE_U: return ButtonEvent::Button::U;
-	case SDL_SCANCODE_V: return ButtonEvent::Button::V;
-	case SDL_SCANCODE_W: return ButtonEvent::Button::W;
-	case SDL_SCANCODE_X: return ButtonEvent::Button::X;
-	case SDL_SCANCODE_Y: return ButtonEvent::Button::Y;
-	case SDL_SCANCODE_Z: return ButtonEvent::Button::Z;
+	case SDL_SCANCODE_A: return !is_shift_down ? ButtonEvent::Button::A : ButtonEvent::Button::CapitalA;
+	case SDL_SCANCODE_B: return !is_shift_down ? ButtonEvent::Button::B : ButtonEvent::Button::CapitalB;
+	case SDL_SCANCODE_C: return !is_shift_down ? ButtonEvent::Button::C : ButtonEvent::Button::CapitalC;
+	case SDL_SCANCODE_D: return !is_shift_down ? ButtonEvent::Button::D : ButtonEvent::Button::CapitalD;
+	case SDL_SCANCODE_E: return !is_shift_down ? ButtonEvent::Button::E : ButtonEvent::Button::CapitalE;
+	case SDL_SCANCODE_F: return !is_shift_down ? ButtonEvent::Button::F : ButtonEvent::Button::CapitalF;
+	case SDL_SCANCODE_G: return !is_shift_down ? ButtonEvent::Button::G : ButtonEvent::Button::CapitalG;
+	case SDL_SCANCODE_H: return !is_shift_down ? ButtonEvent::Button::H : ButtonEvent::Button::CapitalH;
+	case SDL_SCANCODE_I: return !is_shift_down ? ButtonEvent::Button::I : ButtonEvent::Button::CapitalI;
+	case SDL_SCANCODE_J: return !is_shift_down ? ButtonEvent::Button::J : ButtonEvent::Button::CapitalJ;
+	case SDL_SCANCODE_K: return !is_shift_down ? ButtonEvent::Button::K : ButtonEvent::Button::CapitalK;
+	case SDL_SCANCODE_L: return !is_shift_down ? ButtonEvent::Button::L : ButtonEvent::Button::CapitalL;
+	case SDL_SCANCODE_M: return !is_shift_down ? ButtonEvent::Button::M : ButtonEvent::Button::CapitalM;
+	case SDL_SCANCODE_N: return !is_shift_down ? ButtonEvent::Button::N : ButtonEvent::Button::CapitalN;
+	case SDL_SCANCODE_O: return !is_shift_down ? ButtonEvent::Button::O : ButtonEvent::Button::CapitalO;
+	case SDL_SCANCODE_P: return !is_shift_down ? ButtonEvent::Button::P : ButtonEvent::Button::CapitalP;
+	case SDL_SCANCODE_Q: return !is_shift_down ? ButtonEvent::Button::Q : ButtonEvent::Button::CapitalQ;
+	case SDL_SCANCODE_R: return !is_shift_down ? ButtonEvent::Button::R : ButtonEvent::Button::CapitalR;
+	case SDL_SCANCODE_S: return !is_shift_down ? ButtonEvent::Button::S : ButtonEvent::Button::CapitalS;
+	case SDL_SCANCODE_T: return !is_shift_down ? ButtonEvent::Button::T : ButtonEvent::Button::CapitalT;
+	case SDL_SCANCODE_U: return !is_shift_down ? ButtonEvent::Button::U : ButtonEvent::Button::CapitalU;
+	case SDL_SCANCODE_V: return !is_shift_down ? ButtonEvent::Button::V : ButtonEvent::Button::CapitalV;
+	case SDL_SCANCODE_W: return !is_shift_down ? ButtonEvent::Button::W : ButtonEvent::Button::CapitalW;
+	case SDL_SCANCODE_X: return !is_shift_down ? ButtonEvent::Button::X : ButtonEvent::Button::CapitalX;
+	case SDL_SCANCODE_Y: return !is_shift_down ? ButtonEvent::Button::Y : ButtonEvent::Button::CapitalY;
+	case SDL_SCANCODE_Z: return !is_shift_down ? ButtonEvent::Button::Z : ButtonEvent::Button::CapitalZ;
+
+	case SDL_SCANCODE_1: return !is_shift_down ? ButtonEvent::Button::One : ButtonEvent::Button::ExclaimationMark;
+	case SDL_SCANCODE_2: return !is_shift_down ? ButtonEvent::Button::Two : ButtonEvent::Button::At;
+	case SDL_SCANCODE_3: return !is_shift_down ? ButtonEvent::Button::Three : ButtonEvent::Button::Pound;
+	case SDL_SCANCODE_4: return !is_shift_down ? ButtonEvent::Button::Four : ButtonEvent::Button::Dollar;
+	case SDL_SCANCODE_5: return !is_shift_down ? ButtonEvent::Button::Five : ButtonEvent::Button::Percent;
+	case SDL_SCANCODE_6: return !is_shift_down ? ButtonEvent::Button::Six : ButtonEvent::Button::Caret;
+	case SDL_SCANCODE_7: return !is_shift_down ? ButtonEvent::Button::Seven : ButtonEvent::Button::And;
+	case SDL_SCANCODE_8: return !is_shift_down ? ButtonEvent::Button::Eight : ButtonEvent::Button::Asterisk;
+	case SDL_SCANCODE_9: return !is_shift_down ? ButtonEvent::Button::Nine : ButtonEvent::Button::LeftParenthesis;
+	case SDL_SCANCODE_0: return !is_shift_down ? ButtonEvent::Button::Zero : ButtonEvent::Button::RightParenthesis;
+
+	case SDL_SCANCODE_MINUS: return !is_shift_down ? ButtonEvent::Button::Minus : ButtonEvent::Button::Underscore;
+	case SDL_SCANCODE_EQUALS: return !is_shift_down ? ButtonEvent::Button::Equals : ButtonEvent::Button::Plus;
+	case SDL_SCANCODE_APOSTROPHE: return !is_shift_down ? ButtonEvent::Button::Apostrophe : ButtonEvent::Button::QuotationMark;
+	case SDL_SCANCODE_COMMA: return ButtonEvent::Button::Comma;
+	case SDL_SCANCODE_PERIOD: return ButtonEvent::Button::Period;
+	case SDL_SCANCODE_SLASH: return !is_shift_down ? ButtonEvent::Button::ForwardSlash : ButtonEvent::Button::QuestionMark;
+
+	case SDL_SCANCODE_F1: return ButtonEvent::Button::F1;
+	case SDL_SCANCODE_F2: return ButtonEvent::Button::F2;
+	case SDL_SCANCODE_F3: return ButtonEvent::Button::F3;
+	case SDL_SCANCODE_F4: return ButtonEvent::Button::F4;
+	case SDL_SCANCODE_F5: return ButtonEvent::Button::F5;
+	case SDL_SCANCODE_F6: return ButtonEvent::Button::F6;
+	case SDL_SCANCODE_F7: return ButtonEvent::Button::F7;
+	case SDL_SCANCODE_F8: return ButtonEvent::Button::F8;
+	case SDL_SCANCODE_F9: return ButtonEvent::Button::F9;
+	case SDL_SCANCODE_F10: return ButtonEvent::Button::F10;
+	case SDL_SCANCODE_F11: return ButtonEvent::Button::F11;
+	case SDL_SCANCODE_F12: return ButtonEvent::Button::F12;
+	
 
 	case SDL_SCANCODE_LSHIFT: 
 	case SDL_SCANCODE_RSHIFT: return ButtonEvent::Button::Shift;
@@ -99,6 +169,7 @@ ButtonEvent::Button InputSystem::SDL_ScancodeToButton(int sdl_scancode)
 	case SDL_SCANCODE_ESCAPE: return ButtonEvent::Button::Esc;
 	case SDL_SCANCODE_SPACE: return ButtonEvent::Button::Space;
 	case SDL_SCANCODE_DELETE: return ButtonEvent::Button::Del;
+	case SDL_SCANCODE_BACKSPACE: return ButtonEvent::Button::Backspace;
 
 	default: return ButtonEvent::Button::None;
 	}
@@ -119,7 +190,7 @@ vector<MouseEvent::MouseButton> InputSystem::GetDownMouseButtons(unsigned int st
 {
 	vector<MouseEvent::MouseButton> down_mouse_buttons;
 
-	for(int i= SDL_BUTTON_LEFT; i< SDL_BUTTON_RIGHT; i++)
+	for(int i= SDL_BUTTON_LEFT; i<= SDL_BUTTON_RIGHT; i++)
 		if(state& SDL_BUTTON(i))
 		{
 			MouseEvent::MouseButton button= SDLMouseButtonToButton(i);
@@ -231,6 +302,25 @@ bool InputSystem::HandleInput()
 	last_mouse_position= mouse_position;
 
 	return true;
+}
+
+bool InputSystem::IsKeyDown(ButtonEvent::Button button)
+{
+	int key_count;
+	const Uint8 *keys= SDL_GetKeyboardState(&key_count);
+
+	for(int i= 0; i< key_count; i++)
+	{
+		if(SDL_ScancodeToButton(i)== button)
+		{
+			if(keys[i])
+				return true;
+			else
+				return false;
+		}
+	}
+
+	return false;
 }
 
 void InputSystem::Quit()

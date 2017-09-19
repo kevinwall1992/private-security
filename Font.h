@@ -27,6 +27,7 @@ public:
 	static vector<Font *> Parse(string filename);
 
 	static Font *Default;
+	static Font *Monospace;
 };
 
 #endif

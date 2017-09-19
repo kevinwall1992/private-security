@@ -105,6 +105,11 @@ void BasicPropContainer::AddProp(Prop *prop)
 	props.push_back(prop);
 }
 
+void BasicPropContainer::ClearProps()
+{
+	props.clear();
+}
+
 
 void MeshProp::Initialize()
 {
@@ -150,7 +155,7 @@ void MeshProp::Initialize()
 
 Transform MeshProp::GetModelTransform()
 {
-	return Transform().RotateAboutY(rotation).Translate(displacement+ Vec3f(0.5f, 0.0f, 0.5f));
+	return Transform().RotateAboutY(rotation).Translate(displacement);
 }
 
 MeshProp::MeshProp(Mesh *mesh_)

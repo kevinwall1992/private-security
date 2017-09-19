@@ -72,6 +72,11 @@ class DirectionBlocker : public MovementBlocker
 public:
 
 	void AddBlockedDirection(Direction::Enum direction);
+	void RemoveBlockedDirection(Direction::Enum direction);
+	vector<Direction::Enum> GetBlockedDirections();
+	void ClearBlockedDirections();
+
+	bool IsDirectionBlocked(Direction::Enum direction);
 
 	virtual bool DoesBlock(Move *move);
 };

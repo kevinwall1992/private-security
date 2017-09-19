@@ -31,7 +31,7 @@ Mesh * Animation::GetMesh()
 
 vector<RaytracingPrimitive *> Animation::GetRaytracingPrimitives()
 {
-	if(AreDrawFlagsActive_All(DrawFlags::Indirect))//**** having to stick this condition into every Prop subclass...
+	if(AreDrawFlagsActive_All(DrawFlags::Indirect))
 		return mesh_prop.GetRaytracingPrimitives();
 	else
 		return vector<RaytracingPrimitive *>();

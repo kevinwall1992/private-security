@@ -13,20 +13,20 @@ class Action;
 
 typedef vector<Item *> Inventory;
 
-class Actor : public Object, public Mover, public Physical
+class Actor : public Object, public Mover
 {
 	Inventory inventory;
-	Item *item = new Gun();
 
 	Action *action= nullptr;
+
+protected:
+	virtual void LoadXML(TiXmlElement *xml_element);
 
 public:
 	Actor();
 
-	Vec3f GetPosition();
-	float GetRotation();
-
-	
+	void GiveItem(Item *item);
+	void TakeItem(Item *item);
 	Inventory GetInventory();
 
 	void PerformMove(Move *move);
@@ -45,7 +45,7 @@ public:
 	void SetAction(Action *action);
 	Action * GetAction();
 
-	virtual void Step(Chronons chronons);
+	virtual TiXmlElement * EncodeXML();
 };
 
 #endif

@@ -17,11 +17,10 @@
 class Pane : public Interface, public TreeFrame
 {
 protected:
-
-	virtual void AddComponent(Pane *pane);
-	virtual void AddComponent(Interface *interface_);
-	virtual void AddComponent(Drawable *drawable);
-	virtual void AddComponent(Gizmo *gizmo);
+	virtual void AddComponent(Pane *pane, bool send_to_back= false);
+	virtual void AddComponent(Interface *interface_, bool send_to_back= false);
+	virtual void AddComponent(Drawable *drawable, bool send_to_back= false);
+	virtual void AddComponent(Gizmo *gizmo, bool send_to_back= false);
 
 	//Pixel measure is always in screen space
 	Vec2i LocalPositionToPixelPosition(Vec2f position);
@@ -42,6 +41,10 @@ protected:
 
 	virtual bool IsInside(Vec2f point);
 
+	Transform GetTransform(bool snap_to_pixel= false);
+
+	void MoveMouseToLocalPosition(Vec2f position);
+
 public:
 	Pane(Vec2f offset, Vec2f size);
 	Pane();
@@ -53,8 +56,6 @@ class QuadPane : public Pane
 	bool use_depth= false;
 
 protected:
-	Transform GetQuadTransform(bool snap_to_pixel);
-
 	virtual ShaderProgram * GetShaderProgram()= 0;
 	virtual void UploadShaderUniforms()= 0;
 
@@ -65,7 +66,7 @@ public:
 	virtual void Draw();
 };
 
-
+//For classes that spit out a texture during their Draw()
 class TexturePane : public QuadPane
 {
 	ShaderProgram * GetShaderProgram();
@@ -73,9 +74,30 @@ class TexturePane : public QuadPane
 
 protected:
 	virtual Texture GetTexture()= 0;
+	virtual Transform GetTextureTransform();
 
 public:
 	virtual void Draw();
+};
+
+//For simply displaying an image
+class ImagePane : public TexturePane
+{
+	Texture texture;
+
+protected:
+	virtual Texture GetTexture();
+	virtual Transform GetTextureTransform();
+
+public:
+	ImagePane(ColorImage image);
+	ImagePane(Texture texture);
+	ImagePane(string image_filename);
+	ImagePane();
+
+	void SetImage(ColorImage image);
+	void SetImage(Texture texture);
+	void SetImage(string image_filename);
 };
 
 
@@ -164,9 +186,31 @@ public:
 	void UnlockFontSize();
 	bool IsFontSizeLocked();
 
+	string GetText();
 	void SetText(string text, Color color, Align align= Align::Center);
+	void SetText(string text);
 
 	virtual void Draw();
+};
+
+template<class T>
+class MouseFollowingParcel : public WrappedParcel<T>, public Pane
+{
+public:
+	MouseFollowingParcel(Interface *sender, T *item, Vec2f size, Pane *pane)
+		: WrappedParcel<T>(sender, item, pane)
+	{
+		MakeOrphan();
+
+		AddComponent(pane);
+
+		Size= size;
+	}
+
+	virtual void MouseMotion(Vec2f mouse_position, Vec2f mouse_displacement)
+	{
+		Offset= mouse_position- Size.Get()/ 2;
+	}
 };
 
 #endif

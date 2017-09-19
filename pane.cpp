@@ -3,26 +3,26 @@
 #include "Viewport.h"
 
 
-void Pane::AddComponent(Pane *pane)
+void Pane::AddComponent(Pane *pane, bool send_to_back)
 {
-	Interface::AddComponent(pane);
+	Interface::AddComponent(pane, send_to_back);
 
-	pane->SetParent(this);
+	pane->TreeFrame::SetParent(this);
 }
 
-void Pane::AddComponent(Interface *interface_)
+void Pane::AddComponent(Interface *interface_, bool send_to_back)
 {
-	Interface::AddComponent(interface_);
+	Interface::AddComponent(interface_, send_to_back);
 }
 
-void Pane::AddComponent(Drawable *drawable)
+void Pane::AddComponent(Drawable *drawable, bool send_to_back)
 {
-	Interface::AddComponent(drawable);
+	Interface::AddComponent(drawable, send_to_back);
 }
 
-void Pane::AddComponent(Gizmo *gizmo)
+void Pane::AddComponent(Gizmo *gizmo, bool send_to_back)
 {
-	Interface::AddComponent(gizmo);
+	Interface::AddComponent(gizmo, send_to_back);
 }
 
 Vec2i Pane::LocalPositionToPixelPosition(Vec2f position)
@@ -108,9 +108,26 @@ float Pane::GetAspectRatio()
 
 bool Pane::IsInside(Vec2f point)
 {
+	if(DoesIntersectParentBounds() && Interface::GetParent()!= nullptr)
+		if(!Interface::GetParent()->IsInside(point))
+			return false;
+
 	point= GlobalPositionToLocalPosition(point);
 
 	return (point.x>= 0 && point.y>= 0) && (point.x< 1 && point.y< 1);
+}
+
+Transform Pane::GetTransform(bool snap_to_pixel)
+{
+	Vec2f screen_offset= LocalPositionToScreenPosition(GetLocalOffset(), snap_to_pixel);
+	Vec2f screen_size= LocalSizeToScreenSize(GetLocalSize(), snap_to_pixel);
+
+	return Transform().Translate(Vec3f(1, 1, 0)).Scale(screen_size.Push()/ 2).Translate(screen_offset.Push()).Scale(2).Translate(Vec3f(-1, -1, 0));
+}
+
+void Pane::MoveMouseToLocalPosition(Vec2f position)
+{
+	System::graphics.MoveMouseTo(LocalPositionToGlobalPosition(position));
 }
 
 Pane::Pane(Vec2f offset, Vec2f size)
@@ -125,14 +142,6 @@ Pane::Pane()
 	Size= Vec2f(1.0f, 1.0f);
 }
 
-
-Transform QuadPane::GetQuadTransform(bool snap_to_pixel)
-{
-	Vec2f screen_offset= LocalPositionToScreenPosition(GetLocalOffset(), snap_to_pixel);
-	Vec2f screen_size= LocalSizeToScreenSize(GetLocalSize(), snap_to_pixel);
-
-	return Transform().Translate(Vec3f(1, 1, 0)).Scale(screen_size.Push()/ 2).Translate(screen_offset.Push()).Scale(2).Translate(Vec3f(-1, -1, 0));
-}
 
 void QuadPane::UseDepth()
 {
@@ -169,8 +178,13 @@ ShaderProgram * TexturePane::GetShaderProgram()
 
 void TexturePane::UploadShaderUniforms()
 {
-	GetShaderProgram()->SetUniformMatrix4x4f("transform", GetQuadTransform(true));
-	GetShaderProgram()->SetUniformMatrix4x4f("texture_transform", Transform());
+	GetShaderProgram()->SetUniformMatrix4x4f("transform", GetTransform(true));
+	GetShaderProgram()->SetUniformMatrix4x4f("texture_transform", GetTextureTransform());
+}
+
+Transform TexturePane::GetTextureTransform()
+{
+	return Transform();
 }
 
 void TexturePane::Draw()
@@ -178,6 +192,64 @@ void TexturePane::Draw()
 	GetTexture().BindToIndex(0);
 
 	QuadPane::Draw();
+}
+
+
+Texture ImagePane::GetTexture()
+{
+	return texture;
+}
+
+Transform ImagePane::GetTextureTransform()
+{
+	return Transform().Scale(Vec3f(1, -1, 1));
+}
+
+ImagePane::ImagePane(ColorImage image)
+{
+	texture= image;
+}
+
+ImagePane::ImagePane(Texture texture_)
+{
+	texture= texture_;
+}
+
+ImagePane::ImagePane(string image_filename)
+{
+	ColorImage image= ImageFile::Retrieve(image_filename)->MakeImage();
+	texture= image;
+	image.Free();
+}
+
+ImagePane::ImagePane()
+{
+}
+
+void ImagePane::SetImage(ColorImage image)
+{
+	if(texture.GetHandle()!= -1)
+		texture.Free();
+
+	texture= image;
+}
+
+void ImagePane::SetImage(Texture texture_)
+{
+	if(texture.GetHandle()!= -1)
+		texture.Free();
+
+	texture= texture_;
+}
+
+void ImagePane::SetImage(string image_filename)
+{
+	if(texture.GetHandle()!= -1)
+		texture.Free();
+
+	ColorImage image= ImageFile::Retrieve(image_filename)->MakeImage();
+	texture= image;
+	image.Free();
 }
 
 
@@ -396,11 +468,22 @@ bool TextPane::IsFontSizeLocked()
 	return font_size_locked && font_size!= -1;
 }
 
+string TextPane::GetText()
+{
+	return text;
+}
+
 void TextPane::SetText(string text_, Color color_, Align align_)
 {
 	text= text_;
 	color= color_;
 	align= align_;
+}
+
+void TextPane::SetText(string text_)
+{
+	text= text_;
+	text_drawables.clear();
 }
 
 void TextPane::Draw()

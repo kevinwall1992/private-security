@@ -4,6 +4,7 @@
 #include "Pane.h"
 #include "Button.h"
 #include "Common.h"
+#include "GrayscaleMaskGenerator.h"
 
 
 class ListPane : public Pane
@@ -17,28 +18,75 @@ private:
 	int visual_length;
 	float margin= 0.01f;
 
+	Ninepatch selection_box;
+	Pane *selected= nullptr;
+
+	Ninepatch frame;
+	bool frame_content= false;
+	GrayscaleMaskGenerator grayscale_mask_generator;
+
+	float scroll_displacement= 0;
+	float scroll_speed= 1;
+
 	void PositionPanes();
 
+protected:
+	virtual void ResizeSelectionBox();
+
 public:
-	ListPane(Direction direction, int visual_length= 5);
-	ListPane();
+	ListPane(Direction direction, float scroll_speed= 0, bool frame_content= false);
 
-	void SetVisualLength(int visual_length);
+	void Select(Pane *pane);
+	void Deselect();
+	Pane * GetSelected();
 
-	void AddPane(Pane *pane);
+	virtual void AddPane(Pane *pane);
+	virtual void RemovePane(Pane *pane, bool delete_pane= false);
+
+	virtual void ClearPanes(bool delete_panes= false);
+	virtual vector<Pane *> GetPanes();
+	template<class T>
+	vector<T *> GetPanesOfType()
+	{
+		vector<T *> t_panes;
+
+		for(Pane *pane : GetPanes())
+			if(Utility::IsType<T>(pane))
+				t_panes.push_back(dynamic_cast<T *>(pane));
+
+		return t_panes;
+	}
+
+	virtual void ResizePanes(int pane_count_per_page= -1, float pane_thickness= 1.0f);
+
+	void FrameContent();
+	void DontFrameContent();
+
+	void SetScrollSpeed(float scroll_speed);
+
+	virtual void MouseScrollOver(int scroll_amount);
 
 	virtual void Draw();
 };
 
-class ButtonListPane : public ListPane
+class GridPane : public ListPane
 {
-	using ListPane::AddPane;
+	int column_count;
+	int row_count;
+
+	vector<ListPane *> GetListPanes();
+
+	using ListPane::ResizePanes;
+
+	void ResizeGridElements();
 
 public:
-	ButtonListPane(Direction direction, int visual_length= 5);
-	ButtonListPane();
+	GridPane(int column_count, int row_count);
 
-	void AddButton(Button *button);
+	void AddPane(Pane *pane);
+	void RemovePane(Pane *pane, bool delete_pane= false);
+
+	vector<Pane *> GetPanes();
 };
 
 #endif

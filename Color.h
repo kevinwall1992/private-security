@@ -30,6 +30,8 @@ public:
 	static Color Black, White, Red, Blue, 
 				 Green, Yellow, Purple, Orange, 
 				 Pink, Gray, Cornflower;
+
+	static Color Mix(Color a, Color b, float a_share);
 };
 
 #endif

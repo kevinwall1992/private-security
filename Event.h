@@ -7,11 +7,17 @@
 
 class Event : public Polymorphic
 {
+	static int next_event_id;
+
+	int event_id;
+
 	float elapsed_seconds;
 
 public:
 	Event(float elapsed_seconds);
 	virtual ~Event();
+
+	int GetEventID();
 
 	float GetElapsedSeconds();
 };
@@ -22,7 +28,15 @@ public:
 	enum Button { None, 
 				  MouseLeft, MouseMiddle, MouseRight, 
 				  A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, 
-				  Shift, Ctrl, Alt, Tab, Esc, Space, Del };
+				  CapitalA, CapitalB, CapitalC, CapitalD, CapitalE, CapitalF, CapitalG, CapitalH, 
+		          CapitalI, CapitalJ, CapitalK, CapitalL, CapitalM, CapitalN, CapitalO, CapitalP, 
+		          CapitalQ, CapitalR, CapitalS, CapitalT, CapitalU, CapitalV, CapitalW, CapitalX, 
+		          CapitalY, CapitalZ,
+				  ExclaimationMark, At, Pound, Dollar, Percent, Caret, And, Asterisk, LeftParenthesis, RightParenthesis, 
+		          Minus, Underscore, Equals, Plus, Apostrophe, QuotationMark, Comma, Period, ForwardSlash, QuestionMark,
+				  One, Two, Three, Four, Five, Six, Seven, Eight, Nine, Zero,
+				  F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, 
+				  Shift, Ctrl, Alt, Tab, Esc, Space, Del, Backspace };
 
 	enum Type { Down= 1, Up, Hold, DoubleClick };
 

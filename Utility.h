@@ -71,7 +71,7 @@ namespace Utility
 	}
 
 	template<class T>
-	int GetIndexOfElement(vector<T> vector_, T element)
+	int GetIndexOfElement(vector<T> &vector_, T element)
 	{
 		for(unsigned int i= 0; i< vector_.size(); i++)
 			if(element== vector_[i])
@@ -81,7 +81,7 @@ namespace Utility
 	}
 
 	template<class T>
-	void RemoveElement(vector<T> vector_, T element)
+	void RemoveElement(vector<T> &vector_, T element)
 	{
 		int index= GetIndexOfElement(vector_,element);
 		if(index!= -1)
@@ -108,8 +108,22 @@ namespace Utility
 	string Replace(string original, string to_replace, string replacement);
 	string ToUnixFilepath(string filepath);
 	string GetFilename(string filepath);
+	string GetDirectoryPath(string filepath);
 
-	
+	template<class A, class B>
+	bool IsType(B *object_)
+	{
+		return dynamic_cast<A *>(object_)!= nullptr;
+	}
+
+	template<class T>
+	T StringToT(string value_string);
+
+	template<>
+	float StringToT<float>(string value_string);
+
+	template<>
+	int StringToT<int>(string value_string);
 }
 
 #endif

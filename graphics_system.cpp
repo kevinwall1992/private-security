@@ -40,7 +40,12 @@ void GraphicsSystem::Initialize()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glClearColor(0.0f, 0.0f, 0.0, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+	ShaderProgram *shader_program= ShaderProgram::Retrieve("quad.program");
+	shader_program->SetUniformInt("mask", 8);
+	ColorImage white_image(Vec2i(screen_width, screen_height), Pixel::White);
+	mask= Texture(white_image, 8);
 }
 
 void GraphicsSystem::Terminate()
@@ -77,4 +82,11 @@ void GraphicsSystem::Display(Drawable *drawable)
 int GraphicsSystem::GetFrameCount()
 {
 	return frame_count;
+}
+
+void GraphicsSystem::MoveMouseTo(Vec2f position)
+{
+	Vec2i pixel_position= Vec2f(position.x, 1- position.y)* GetScreenSize();
+
+	SDL_WarpMouseInWindow(window, pixel_position.x, pixel_position.y);
 }
